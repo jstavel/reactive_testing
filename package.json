@@ -1,0 +1,20 @@
+{
+  "name": "reactive-testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Spec-first testware: the application described as a formal model (FSM + contracts + schemas).",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "5.9.3"
+  }
+}
