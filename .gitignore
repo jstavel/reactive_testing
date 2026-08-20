@@ -44,3 +44,7 @@ Desktop.ini
 *~
 \#*#
 .aider*
+
+# --- BMAD harness (tooling) ---
+.agents/
+_bmad/render/
