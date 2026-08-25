@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 08-25-2026 14:00
+last_updated: 08-25-2026 23:27
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -42,7 +42,7 @@ development_status:
   1-4-dedup-query-against-the-corpus: done
   1-5-ai-proposes-qe-owns: done
   1-6-assign-a-scenario-to-a-test-plan: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-orchestrator-executes-a-test-plan-deterministically: backlog
@@ -64,3 +64,24 @@ development_status:
   4-1-standalone-repro-script-from-the-model: backlog
   4-2-cross-view-standing-invariant-validator: backlog
   epic-4-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-add-layout-menu-state-contract-to-model"
+    epic: 1
+    action: "Add layout menu state/contract to model when Home Page modeling is revisited"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-08-25-2026.md"
+  - id: "epic-1-retro-item-2-add-history-main-ledger-contracts-filter"
+    epic: 1
+    action: "Add History/Main/Ledger contracts (filter-by-type, paginate, clear-filters)
+      when History pages are modeled"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-08-25-2026.md"
+  - id: "epic-1-retro-item-3-consider-adding-a-cli-tool-for-automatic"
+    epic: 1
+    action: "Consider adding a CLI tool for automatic test-plan regeneration from
+      feature tags"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-08-25-2026.md"
