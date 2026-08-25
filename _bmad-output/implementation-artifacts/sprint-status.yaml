@@ -41,7 +41,7 @@ development_status:
   1-3-discover-and-record-a-state-in-session: done
   1-4-dedup-query-against-the-corpus: done
   1-5-ai-proposes-qe-owns: done
-  1-6-assign-a-scenario-to-a-test-plan: backlog
+  1-6-assign-a-scenario-to-a-test-plan: done
   epic-1-retrospective: optional
 
   epic-2: backlog

@@ -1,3 +1,4 @@
+@plan:smoke
 Feature: Home page portfolio value
 
   Scenario: Current portfolio value agrees across Home surfaces

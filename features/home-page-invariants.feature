@@ -1,3 +1,4 @@
+@plan:smoke
 Feature: Home Page invariants
 
   # Structural guarantees that must hold on the Home Page at all times.

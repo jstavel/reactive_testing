@@ -1,3 +1,4 @@
+@plan:smoke
 Feature: Home page Layout menu
 
   Scenario: Clicking the layout button reveals the Layout configuration menu

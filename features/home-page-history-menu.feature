@@ -1,3 +1,4 @@
+@plan:smoke
 Feature: Home page History menu
 
   # Menu opens via hover in the UI; the mechanism is an implementation detail,

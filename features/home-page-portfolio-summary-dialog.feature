@@ -1,3 +1,4 @@
+@plan:smoke
 Feature: Home page Portfolio Summary dialog
 
   Scenario: Clicking the portfolio value opens the Portfolio Summary dialog
