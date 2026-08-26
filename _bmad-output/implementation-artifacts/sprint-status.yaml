@@ -45,7 +45,7 @@ development_status:
   epic-1-retrospective: done
 
   epic-2: in-progress
-  2-1-orchestrator-executes-a-test-plan-deterministically: review
+  2-1-orchestrator-executes-a-test-plan-deterministically: done
   2-2-collectors-capture-page-data: backlog
   2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: backlog
   2-4-collector-errors-are-isolated: backlog
