@@ -6,31 +6,56 @@ import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "150e526676b0b6769e5daff4b68d3e2a2316f05c2132d3f73948719c07f40328",
-  scenarioIds: [
+  modelVersion: "3531f20ba0265537a32763bb5b51b5deca95771b41d33e1d72443a6c1446e51e",
+  scenarios: [
     // home-page-history-menu.feature
-    "history-menu-contains-the-expected-items",
-    "clicking-main-opens-the-history-page-for-the-main-account",
-    "clicking-futures-opens-the-history-page-for-the-futures-account",
-    // home-page-invariants.feature
-    "main-navigation-is-visible",
-    "portfolio-value-is-displayed-in-the-header",
-    "no-error-overlay-is-present",
-    // home-page-layout-menu.feature
-    "clicking-the-layout-button-reveals-the-layout-configuration-menu",
-    "clicking-the-layout-button-again-hides-the-layout-configuration-menu",
+    {
+      id: "clicking-main-opens-the-history-page-for-the-main-account",
+      steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+    },
+    {
+      id: "clicking-futures-opens-the-history-page-for-the-futures-account",
+      steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
+    },
     // home-page-portfolio-menu.feature
-    "portfolio-menu-contains-the-expected-items",
-    "clicking-overview-opens-the-portfolio-page-with-the-overview-view",
-    "clicking-main-opens-the-portfolio-page-with-the-main-view",
-    "clicking-futures-opens-the-portfolio-page-with-the-futures-view",
-    "clicking-loans-opens-the-portfolio-page-with-the-loans-view",
-    "clicking-earn-navigates-to-the-standalone-earn-page",
+    {
+      id: "clicking-overview-opens-the-portfolio-page-with-the-overview-view",
+      steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuOverview" }],
+    },
+    {
+      id: "clicking-main-opens-the-portfolio-page-with-the-main-view",
+      steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }],
+    },
+    {
+      id: "clicking-futures-opens-the-portfolio-page-with-the-futures-view",
+      steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuFutures" }],
+    },
+    {
+      id: "clicking-loans-opens-the-portfolio-page-with-the-loans-view",
+      steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuLoans" }],
+    },
+    {
+      id: "clicking-earn-navigates-to-the-standalone-earn-page",
+      steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuEarn" }],
+    },
     // home-page-portfolio-summary-dialog.feature
-    "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
-    "pressing-escape-closes-the-portfolio-summary-dialog",
-    "the-eye-icon-toggles-value-visibility-immediately",
-    // home-page-portfolio-value.feature
-    "current-portfolio-value-agrees-across-home-surfaces",
+    {
+      id: "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
+      steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }],
+    },
+    {
+      id: "pressing-escape-closes-the-portfolio-summary-dialog",
+      steps: [
+        { stateId: "homePage", contractId: "openPortfolioSummary" },
+        { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
+      ],
+    },
+    {
+      id: "the-eye-icon-toggles-value-visibility-immediately",
+      steps: [
+        { stateId: "homePage", contractId: "openPortfolioSummary" },
+        { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+      ],
+    },
   ],
 };

@@ -1,0 +1,186 @@
+import type { Page } from "playwright";
+
+import { homePageModel } from "../model/fsm.js";
+import { computeModelVersion } from "../model/model-version.js";
+import type {
+  OrchestratorConfig,
+  RunResult,
+  ScenarioResult,
+  TestPlan,
+} from "../model/schemas.js";
+import { testPlanSchema } from "../model/schemas.js";
+import { actionMap } from "./action-map.js";
+import { closeBrowser, launchBrowser } from "./browser.js";
+
+const DEFAULT_STEP_TIMEOUT = 30_000;
+const DEFAULT_RUN_TIMEOUT = 300_000;
+
+/**
+ * Run a test plan against a live app. No AI in the loop — fully deterministic.
+ *
+ * Pre-execution: Zod parse, modelVersion check, FSM state/contract existence, path validity.
+ * Execution: initial-state bootstrap, then step-by-step with settling.
+ * Failure: step timeout → abort scenario; run timeout → abort all.
+ */
+export async function runTestPlan(
+  plan: TestPlan,
+  config: OrchestratorConfig,
+): Promise<RunResult> {
+  const stepTimeout = config.stepTimeout ?? DEFAULT_STEP_TIMEOUT;
+  const runTimeout = config.runTimeout ?? DEFAULT_RUN_TIMEOUT;
+
+  // --- Pre-execution validation ---
+  const parsed = testPlanSchema.parse(plan);
+
+  if (parsed.modelVersion !== computeModelVersion()) {
+    return {
+      planId: parsed.planId,
+      modelVersion: parsed.modelVersion,
+      scenarios: [],
+    };
+  }
+
+  validatePlan(parsed);
+
+  // --- Launch browser ---
+  let session;
+  try {
+    session = await launchBrowser({
+      baseUrl: config.baseUrl,
+      headless: config.headless,
+      readySelector: config.readySelector,
+    });
+  } catch (err) {
+    return {
+      planId: parsed.planId,
+      modelVersion: parsed.modelVersion,
+      scenarios: parsed.scenarios.map((s) => ({
+        id: s.id,
+        passed: false,
+        error: `Browser launch failed: ${err instanceof Error ? err.message : String(err)}`,
+      })),
+    };
+  }
+
+  const { page } = session;
+  const scenarioResults: ScenarioResult[] = [];
+  const runStart = Date.now();
+
+  try {
+    for (const scenario of parsed.scenarios) {
+      if (Date.now() - runStart >= runTimeout) {
+        scenarioResults.push({
+          id: scenario.id,
+          passed: false,
+          error: "Run timeout exceeded",
+        });
+        continue;
+      }
+
+      const result = await executeScenario(scenario, page, stepTimeout, config.readySelector);
+      scenarioResults.push(result);
+    }
+  } finally {
+    await closeBrowser();
+  }
+
+  return {
+    planId: parsed.planId,
+    modelVersion: parsed.modelVersion,
+    scenarios: scenarioResults,
+  };
+}
+
+// ---- Internal helpers ----
+
+function validatePlan(plan: TestPlan): void {
+  const stateIds = new Set(homePageModel.states.map((s) => s.stateId));
+  const contractIds = new Set(
+    homePageModel.transitions.map((t) => t.contractId),
+  );
+
+  for (const scenario of plan.scenarios) {
+    for (const step of scenario.steps) {
+      if (!stateIds.has(step.stateId)) {
+        throw new Error(
+          `Scenario "${scenario.id}" step references unknown stateId "${step.stateId}".`,
+        );
+      }
+      if (!contractIds.has(step.contractId)) {
+        throw new Error(
+          `Scenario "${scenario.id}" step references unknown contractId "${step.contractId}".`,
+        );
+      }
+      if (!(step.contractId in actionMap)) {
+        throw new Error(
+          `Scenario "${scenario.id}" step contractId "${step.contractId}" has no action-map entry.`,
+        );
+      }
+    }
+
+    // Path validity: each step's stateId must match a transition's from,
+    // and the next step's stateId must match the transition's to.
+    for (let i = 0; i < scenario.steps.length; i++) {
+      const step = scenario.steps[i]!;
+      const transition = homePageModel.transitions.find(
+        (t) => t.from === step.stateId && t.contractId === step.contractId,
+      );
+      if (!transition) {
+        throw new Error(
+          `Scenario "${scenario.id}" step ${i}: no transition from "${step.stateId}" via "${step.contractId}".`,
+        );
+      }
+      if (i < scenario.steps.length - 1) {
+        const nextStep = scenario.steps[i + 1]!;
+        if (transition.to !== nextStep.stateId) {
+          throw new Error(
+            `Scenario "${scenario.id}" step ${i} leads to "${transition.to}" but next step starts from "${nextStep.stateId}".`,
+          );
+        }
+      }
+    }
+  }
+}
+
+async function executeScenario(
+  scenario: { id: string; steps: Array<{ stateId: string; contractId: string }> },
+  page: Page,
+  stepTimeout: number,
+  readySelector: string,
+): Promise<ScenarioResult> {
+  try {
+    for (const step of scenario.steps) {
+      const action = actionMap[step.contractId];
+      if (!action) {
+        throw new Error(`No action for contractId "${step.contractId}".`);
+      }
+      await withTimeout(action({ page }), stepTimeout);
+      await page.waitForSelector(readySelector, { timeout: stepTimeout });
+    }
+    return { id: scenario.id, passed: true };
+  } catch (err) {
+    return {
+      id: scenario.id,
+      passed: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Step timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}

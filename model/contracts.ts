@@ -1,8 +1,9 @@
 // Dialog-contract type declaration + Home Page seed data (Story 1.2).
-// No Playwright dependency — the action is an abstract signature the Orchestrator supplies in Epic 2.
 
-/** Abstract action signature. The Orchestrator supplies the concrete implementation (via Playwright) in Epic 2. */
-export type ContractAction = (context: unknown) => Promise<void>;
+import type { Page } from "playwright";
+
+/** Action signature. The Orchestrator supplies the concrete implementation (via Playwright). */
+export type ContractAction = (context: { page: Page }) => Promise<void>;
 
 /** A dialog/screen's behavioral declaration: preconditions, action, postconditions, invariants. */
 export interface DialogContract {

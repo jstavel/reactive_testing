@@ -73,13 +73,67 @@ export const planIdSchema = z.enum([
 ] as const);
 export type PlanId = z.infer<typeof planIdSchema>;
 
-/** A named test plan (AD-19). Minimal for now; the per-scenario path/collection/validators shape lands with Story 1.6. */
+/** One step in a scenario's path through the FSM. */
+export interface ScenarioStep {
+  /** FSM stateId this step starts from. */
+  stateId: string;
+  /** ContractId to execute in this state. */
+  contractId: string;
+}
+
+/** A scenario with its execution path. */
+export interface ScenarioPath {
+  /** Stable scenario id (kebab-case slug). */
+  id: string;
+  /** Ordered steps through the FSM. */
+  steps: ScenarioStep[];
+}
+
+/** Result of a single scenario execution. */
+export interface ScenarioResult {
+  id: string;
+  passed: boolean;
+  error?: string;
+}
+
+/** Result of a test plan run. */
+export interface RunResult {
+  planId: PlanId;
+  modelVersion: string;
+  scenarios: ScenarioResult[];
+}
+
+/** Configuration for the orchestrator run. */
+export interface OrchestratorConfig {
+  /** Base URL of the app under test. */
+  baseUrl: string;
+  /** Run in headless mode. Default: true. */
+  headless: boolean;
+  /** CSS selector to wait for after initial navigation. */
+  readySelector: string;
+  /** Per-step timeout in ms. Default: 30000. */
+  stepTimeout: number;
+  /** Total run timeout in ms. Default: 300000. */
+  runTimeout: number;
+}
+
+/** A named test plan (AD-19) with per-scenario execution paths. */
 export const testPlanSchema = z.object({
   /** Which of the three named plans this is. */
   planId: planIdSchema,
   /** Model version this plan was derived from (SHA-256 of the model files, AD-17). */
   modelVersion: z.string(),
-  /** Ids of the scenarios this plan covers. */
-  scenarioIds: z.array(z.string()),
+  /** Per-scenario execution paths — replaces scenarioIds. */
+  scenarios: z.array(
+    z.object({
+      id: z.string(),
+      steps: z.array(
+        z.object({
+          stateId: z.string(),
+          contractId: z.string(),
+        }),
+      ),
+    }),
+  ),
 });
 export type TestPlan = z.infer<typeof testPlanSchema>;
