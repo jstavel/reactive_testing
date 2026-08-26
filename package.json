@@ -8,13 +8,16 @@
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "5.9.3"
+    "playwright": "^1.62.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.11"
   }
 }
