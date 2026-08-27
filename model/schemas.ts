@@ -50,6 +50,24 @@ export const screenshotRefSchema = z.object({
 });
 export type ScreenshotRef = z.infer<typeof screenshotRefSchema>;
 
+// ---- Shared collector input shapes (AD-13: single home for every shared shape) ----
+
+/** A targeted DOM probe definition: stable name + CSS selector (plain data). */
+export const probeSchema = z.object({
+  /** Stable probe name. */
+  name: z.string(),
+  /** CSS selector identifying the target element. */
+  selector: z.string(),
+});
+export type Probe = z.infer<typeof probeSchema>;
+
+/** Options for the snapshot collector: which FSM state the page was captured in. */
+export const snapshotCollectorOptionsSchema = z.object({
+  /** FSM stateId of the captured page — required, non-empty, and not whitespace. */
+  stateId: z.string().trim().min(1),
+});
+export type SnapshotCollectorOptions = z.infer<typeof snapshotCollectorOptionsSchema>;
+
 /** Result of running one validator over a corpus (AD-14). */
 export const validationResultSchema = z.object({
   /** Id of the contract the validator checks. */
