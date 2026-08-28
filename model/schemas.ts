@@ -133,7 +133,22 @@ export interface OrchestratorConfig {
   stepTimeout: number;
   /** Total run timeout in ms. Default: 300000. */
   runTimeout: number;
+  /** Absolute path to the corpus output directory. */
+  corpusDir: string;
+  /** Probe definitions passed to the probe collector. */
+  probes: Probe[];
 }
+
+/** Per-run manifest written to corpus/{runId}/run-manifest.json. */
+export const runManifestSchema = z.object({
+  /** Unique run identifier (UUID). */
+  runId: z.string(),
+  /** ISO-8601 timestamp of when the run started. */
+  timestamp: z.string(),
+  /** Corpus-relative file paths written during the run. */
+  files: z.array(z.string()),
+});
+export type RunManifest = z.infer<typeof runManifestSchema>;
 
 /** A named test plan (AD-19) with per-scenario execution paths. */
 export const testPlanSchema = z.object({

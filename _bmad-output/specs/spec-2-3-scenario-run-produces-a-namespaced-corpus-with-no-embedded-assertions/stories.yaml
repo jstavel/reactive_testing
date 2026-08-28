@@ -1,0 +1,9 @@
+- id: "2-3"
+  title: Scenario run produces a namespaced corpus with no embedded assertions
+  description: >-
+    Wire Story 2.2's in-memory collector output into namespaced plain-data
+    files under collectorType/run-id/stepIndex.ext, write a per-run
+    run-manifest.json, and keep the run phase free of assertions/verification.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: ""

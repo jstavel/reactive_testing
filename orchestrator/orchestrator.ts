@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 
+import { collectors } from "../collectors/collect.js";
 import { homePageModel } from "../model/fsm.js";
 import { computeModelVersion } from "../model/model-version.js";
 import type {
@@ -11,6 +12,12 @@ import type {
 import { testPlanSchema } from "../model/schemas.js";
 import { actionMap } from "./action-map.js";
 import { closeBrowser, launchBrowser } from "./browser.js";
+import {
+  type CorpusRun,
+  startCorpusRun,
+  writeCorpusFile,
+  finishRun,
+} from "./corpus.js";
 
 const DEFAULT_STEP_TIMEOUT = 30_000;
 const DEFAULT_RUN_TIMEOUT = 300_000;
@@ -65,8 +72,12 @@ export async function runTestPlan(
   const { page } = session;
   const scenarioResults: ScenarioResult[] = [];
   const runStart = Date.now();
+  const runTimestamp = new Date().toISOString();
+  const corpus = startCorpusRun();
 
   try {
+    let stepIndex = 0;
+
     for (const scenario of parsed.scenarios) {
       if (Date.now() - runStart >= runTimeout) {
         scenarioResults.push({
@@ -77,9 +88,20 @@ export async function runTestPlan(
         continue;
       }
 
-      const result = await executeScenario(scenario, page, stepTimeout, config.readySelector);
+      const result = await executeScenario(
+        scenario,
+        page,
+        stepTimeout,
+        config.readySelector,
+        config,
+        corpus,
+        stepIndex,
+      );
+      stepIndex += scenario.steps.length;
       scenarioResults.push(result);
     }
+
+    finishRun(config.corpusDir, corpus, runTimestamp);
   } finally {
     await closeBrowser();
   }
@@ -147,15 +169,58 @@ async function executeScenario(
   page: Page,
   stepTimeout: number,
   readySelector: string,
+  config: OrchestratorConfig,
+  corpus: CorpusRun,
+  startStepIndex: number,
 ): Promise<ScenarioResult> {
   try {
-    for (const step of scenario.steps) {
+    for (let i = 0; i < scenario.steps.length; i++) {
+      const step = scenario.steps[i]!;
+      const stepIndex = startStepIndex + i;
+
       const action = actionMap[step.contractId];
       if (!action) {
         throw new Error(`No action for contractId "${step.contractId}".`);
       }
       await withTimeout(action({ page }), stepTimeout);
       await page.waitForSelector(readySelector, { timeout: stepTimeout });
+
+      // Collect and persist after every step (all collectors run, Story 3.2 selects).
+      const snapshot = await withTimeout(
+        collectors.snapshot(page, { stateId: step.stateId }),
+        stepTimeout,
+      );
+      writeCorpusFile(
+        config.corpusDir, corpus, "snapshots", stepIndex, "json",
+        JSON.stringify(snapshot),
+      );
+
+      const network = await withTimeout(
+        collectors.network(page),
+        stepTimeout,
+      );
+      writeCorpusFile(
+        config.corpusDir, corpus, "network", stepIndex, "json",
+        JSON.stringify(network),
+      );
+
+      const screenshot = await withTimeout(
+        collectors.screenshot(page, `${config.corpusDir}/screenshots/${corpus.runId}/${stepIndex}`),
+        stepTimeout,
+      );
+      writeCorpusFile(
+        config.corpusDir, corpus, "screenshots", stepIndex, "json",
+        JSON.stringify(screenshot),
+      );
+
+      const probes = await withTimeout(
+        collectors.probe(page, config.probes),
+        stepTimeout,
+      );
+      writeCorpusFile(
+        config.corpusDir, corpus, "probes", stepIndex, "json",
+        JSON.stringify(probes),
+      );
     }
     return { id: scenario.id, passed: true };
   } catch (err) {

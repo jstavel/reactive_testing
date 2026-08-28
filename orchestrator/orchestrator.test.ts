@@ -40,6 +40,26 @@ vi.mock("playwright", () => ({
   },
 }));
 
+const mockCorpusRun: { runId: string; files: string[] } = { runId: "mock-run-id", files: [] };
+vi.mock("./corpus.js", () => ({
+  startCorpusRun: vi.fn(() => mockCorpusRun),
+  writeCorpusFile: vi.fn((_corpusDir: string, run: { runId: string; files: string[] }, kind: string, stepIndex: number, ext: string) => {
+    const path = `${kind}/${run.runId}/${stepIndex}.${ext}`;
+    run.files.push(path);
+    return path;
+  }),
+  finishRun: vi.fn(),
+}));
+
+vi.mock("../collectors/collect.js", () => ({
+  collectors: {
+    snapshot: vi.fn(async () => ({ stateId: "", snapshot: "", capturedAt: "" })),
+    network: vi.fn(async () => []),
+    screenshot: vi.fn(async (_page: unknown, dir: string) => ({ filePath: `${dir}/screenshot.png`, capturedAt: "" })),
+    probe: vi.fn(async () => []),
+  },
+}));
+
 import { runTestPlan } from "./orchestrator.js";
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 
@@ -49,6 +69,8 @@ const baseConfig: OrchestratorConfig = {
   readySelector: "#app",
   stepTimeout: 30_000,
   runTimeout: 300_000,
+  corpusDir: "/tmp/test-corpus",
+  probes: [],
 };
 
 function makePlan(scenarios: TestPlan["scenarios"]): TestPlan {
@@ -61,6 +83,7 @@ function makePlan(scenarios: TestPlan["scenarios"]): TestPlan {
 
 afterEach(() => {
   vi.clearAllMocks();
+  mockCorpusRun.files.length = 0;
 });
 
 describe("runTestPlan", () => {
@@ -283,5 +306,131 @@ describe("runTestPlan", () => {
     // waitForSelector called once during bootstrap + once after each of 2 steps = 3 total
     expect(mockWaitForSelector).toHaveBeenCalledTimes(3);
     expect(mockWaitForSelector).toHaveBeenCalledWith("#app", expect.objectContaining({ timeout: expect.any(Number) }));
+  });
+});
+
+describe("corpus wiring", () => {
+  it("persists one file per kind per step and finishes with a manifest", async () => {
+    const { collectors } = await import("../collectors/collect.js");
+    const { writeCorpusFile, finishRun } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "single",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    expect(collectors.snapshot).toHaveBeenCalledTimes(1);
+    expect(collectors.network).toHaveBeenCalledTimes(1);
+    expect(collectors.screenshot).toHaveBeenCalledTimes(1);
+    expect(collectors.probe).toHaveBeenCalledTimes(1);
+
+    expect(writeCorpusFile).toHaveBeenCalledTimes(4);
+    const kinds = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[2],
+    );
+    expect(kinds.sort()).toEqual(["network", "probes", "screenshots", "snapshots"]);
+
+    expect(finishRun).toHaveBeenCalledTimes(1);
+    expect(mockCorpusRun.files).toHaveLength(4);
+  });
+
+  it("increments stepIndex globally across steps and scenarios with no collisions", async () => {
+    const { writeCorpusFile } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "multi-step",
+        steps: [
+          { stateId: "homePage", contractId: "openPortfolioSummary" },
+          { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+        ],
+      },
+      {
+        id: "second-scenario",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    const snapshotCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => c[2] === "snapshots",
+    );
+    const stepIndexes = snapshotCalls.map((c) => c[3]);
+    expect(stepIndexes).toEqual([0, 1, 2]);
+    expect(new Set(stepIndexes).size).toBe(3);
+  });
+
+  it("still writes an empty network array", async () => {
+    const { collectors } = await import("../collectors/collect.js");
+    (collectors.network as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const plan = makePlan([
+      {
+        id: "empty-network",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    const { writeCorpusFile } = await import("./corpus.js");
+    const networkCall = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[2] === "network",
+    );
+    expect(networkCall).toBeTruthy();
+  });
+
+  it("gives each step a step-namespaced screenshot dir so PNGs never collide", async () => {
+    const { collectors } = await import("../collectors/collect.js");
+
+    const plan = makePlan([
+      {
+        id: "step-dirs",
+        steps: [
+          { stateId: "homePage", contractId: "openPortfolioSummary" },
+          { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+        ],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    const dirs = (collectors.screenshot as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[1],
+    );
+    expect(dirs).toEqual([
+      "/tmp/test-corpus/screenshots/mock-run-id/0",
+      "/tmp/test-corpus/screenshots/mock-run-id/1",
+    ]);
+    expect(new Set(dirs).size).toBe(2);
+  });
+
+  it("invokes exactly the four collectors — no validator/assertion logic", async () => {
+    const { collectors } = await import("../collectors/collect.js");
+    const { writeCorpusFile } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "collect-only",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    expect(Object.keys(collectors).sort()).toEqual([
+      "network",
+      "probe",
+      "screenshot",
+      "snapshot",
+    ]);
+    const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const kinds = writeCalls.map((c) => c[2]);
+    expect(new Set(kinds)).toEqual(new Set(["network", "probes", "screenshots", "snapshots"]));
   });
 });
