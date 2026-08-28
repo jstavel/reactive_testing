@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 08-28-2026 23:45
+last_updated: 08-29-2026
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -46,10 +46,10 @@ development_status:
 
   epic-2: in-progress
   2-1-orchestrator-executes-a-test-plan-deterministically: done
-  2-2-collectors-capture-page-data: review
-  2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: review
+  2-2-collectors-capture-page-data: done
+  2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: done
   2-4-collector-errors-are-isolated: backlog
-  2-5-connect-to-an-existing-authenticated-browser-via-cdp: review
+  2-5-connect-to-an-existing-authenticated-browser-via-cdp: done
   2-6-ai-assisted-action-specification: backlog
   epic-2-retrospective: optional
 

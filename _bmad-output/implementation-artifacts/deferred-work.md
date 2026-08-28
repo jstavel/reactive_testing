@@ -29,3 +29,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-5-connect-to-an-existing-authenticated-browser-via-cdp.md`
   summary: Specify the real per-contract actions against the live Kraken Pro home page (Epic 2 story 2.6). The action-map's role-based locators (getByRole link /history/i, /portfolio/i, button /eye/i, etc.) return 0 matches on the live DOM, so every smoke-plan scenario FAILs by timeout. This is the AI-assisted authoring step: discover the actual DOM target for each contract transition and write action-map entries that genuinely drive it, making "run a scenario against the live app" demonstrable end-to-end. Drafted as `_bmad-output/implementation-artifacts/spec-2-6-ai-assisted-action-specification.md` (status backlog; registered in epic-2-context.md and sprint-status.yaml under key `2-6-ai-assisted-action-specification`).
   evidence: Story 2.5 scope flag (spec line 88): action compatibility is explicitly out of 2.5 scope and a separate follow-up. Live diagnostic confirmed attach + new tab + confirmed readySelector all work, but the first action `locator.click` times out (0 match) — the connection layer is proven; only the action layer remains.
+
+## Deferred from: code review of spec-2-2-collectors-capture-page-data (2026-08-29)
+
+- `collectNetwork` captures only the networkidle settle-window, so responses that finished during the step action (before the listener attaches) are missed from the corpus; collection-hook placement in the step lifecycle is a design refinement for a later story.
+- Failed/aborted requests (`requestfailed`) are not captured — re-flagged by this review; already tracked above for Story 2-4 error isolation.
+- Probe fail-fast discards already-collected `ProbeResult`s when one selector is missing — re-flagged by this review; already tracked above for Story 2-4 partial-corpus/error-isolation policy.
+
+## Deferred from: code review of story-2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-assertions (2026-08-29)
+
+- `run-manifest.json` has no completeness marker, so a run with timeout-skipped scenarios is indistinguishable at the manifest level; add a status/complete field in a later story when validators consume manifests.
+- `writeCorpusFile` does not sanitize `kind`/`runId`/`stepIndex`, so a misbehaving caller could escape the corpus root (path traversal); defensive hardening deferred until external callers exist (current call sites are internal and hardcoded).
+- Per-step execution is bounded per operation (worst case ~6× stepTimeout: action + settle + 4 collectors), not per whole step; still bounded, so tightening to a strict per-step budget is a deliberate behavior choice for a later story.

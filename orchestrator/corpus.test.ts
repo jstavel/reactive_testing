@@ -12,8 +12,8 @@ import {
   screenshotRefSchema,
   snapshotRecordSchema,
 } from "../model/schemas.js";
+import type { CorpusRun } from "../model/schemas.js";
 import {
-  type CorpusRun,
   startCorpusRun,
   writeCorpusFile,
   finishRun,
@@ -155,5 +155,18 @@ describe("persisted values validate against their schemas", () => {
       const parsed = schema.safeParse(written);
       expect(parsed.success).toBe(true);
     }
+  });
+});
+
+describe("screenshotRefSchema", () => {
+  it("rejects absolute paths — refs must be corpus-relative", () => {
+    expect(
+      screenshotRefSchema.safeParse({ filePath: "/tmp/run/0.png", capturedAt: "t" })
+        .success,
+    ).toBe(false);
+    expect(
+      screenshotRefSchema.safeParse({ filePath: "C:\\secrets\\0.png", capturedAt: "t" })
+        .success,
+    ).toBe(false);
   });
 });

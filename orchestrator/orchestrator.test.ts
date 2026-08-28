@@ -569,4 +569,48 @@ describe("corpus wiring", () => {
     const kinds = writeCalls.map((c) => c[2]);
     expect(new Set(kinds)).toEqual(new Set(["network", "probes", "screenshots", "snapshots"]));
   });
+
+  it("round-trips the orchestrator-emitted screenshot ref against its schema", async () => {
+    const { screenshotRefSchema } = await import("../model/schemas.js");
+    const { writeCorpusFile } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "ref-roundtrip",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    const refJsonCall = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[2] === "screenshots" && c[4] === "json",
+    );
+    expect(refJsonCall).toBeTruthy();
+    const ref = JSON.parse(refJsonCall![5] as string);
+    expect(screenshotRefSchema.safeParse(ref).success).toBe(true);
+    expect(ref.filePath).toBe("screenshots/mock-run-id/0.png");
+  });
+
+  it("still writes the run manifest when a scenario/step fails (success or failure)", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+    (collectors.snapshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("collector boom"),
+    );
+
+    const plan = makePlan([
+      {
+        id: "fails-collection",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(result.scenarios[0]!.error).toMatch(/collector boom/);
+    expect(finishRun).toHaveBeenCalled();
+  });
 });

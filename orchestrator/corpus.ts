@@ -2,12 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import type { RunManifest } from "../model/schemas.js";
-
-export interface CorpusRun {
-  readonly runId: string;
-  readonly files: string[];
-}
+import type { CorpusRun, RunManifest } from "../model/schemas.js";
 
 /**
  * Start a new corpus run — assigns a unique run-id and initializes the file list.

@@ -67,12 +67,27 @@ context:
 - Given any collector's return value, when parsed by its schemas.ts schema, then it validates successfully.
 - Given `npm run typecheck` / `npm test`, when run, then exits 0.
 
+## Review Findings
+
+_Code review 2026-08-29 (spec-2-2, baseline `47537b5`, diff to `1c6f049`)._
+
+- [x] [Review][Patch] Tighten `probeSchema`: `name`/`selector` lack `trim().min(1)` (only `stateId` has it), so a whitespace-only probe def passes validation [model/schemas.ts:60]
+- [x] [Review][Patch] Bound `collectProbe` locator lookups with an explicit timeout so a never-matching selector fails fast instead of riding Playwright's ~30s auto-wait [collectors/collect-probe.ts:24]
+- [x] [Review][Patch] Test the `waitForLoadState` reject / partial-return path of `collectNetwork` (currently only the settle/resolve path is covered) [collectors/collect-network.ts:28]
+- [x] [Review][Patch] Cover the unexercised loop-2 guards: whitespace-only `stateId` rejection and broken (null) probes-array rejection through `z.array(probeSchema)` [collectors/collectors.test.ts:124]
+- [x] [Review][Patch] Assert `collectNetwork` detaches the exact handler reference on `off()`, not `expect.any(Function)` [collectors/collectors.test.ts:167]
+- [x] [Review][Defer] `collectNetwork` captures only the networkidle settle-window, so responses that finished during the step action (before the listener attaches) are missed — collection-hook placement is a design refinement [collectors/collect-network.ts:8]
+- [x] [Review][Defer] Failed/aborted requests (`requestfailed`) are not captured — already tracked in deferred-work.md for Story 2-4 [collectors/collect-network.ts:17]
+- [x] [Review][Defer] Probe fail-fast discards already-collected `ProbeResult`s — already tracked in deferred-work.md for Story 2-4 [collectors/collect-probe.ts:21]
+
 ## Spec Change Log
 
 - **2026-08-27 (loop 1, bad_spec)** — Finding: `Probe` and `SnapshotCollectorOptions` were declared in collector files (`collect.ts`/`collect-probe.ts`/`collect-snapshot.ts`), violating AD-13's rule that no player introduces a shared data shape outside `schemas.ts`. Amended: Code Map now directs shared input shapes (`Probe`, `SnapshotCollectorOptions`) into `model/schemas.ts`; Tasks route them there and import types from `schemas.ts`. Known-bad state avoided: Epic 3 validators and Story 2-3 wiring coupling to a collector module for shared shapes; a shared-shape change drifting out of sync in `schemas.ts`. Also folded in review patches (network listener now detaches to avoid accumulation/double-count; snapshot `stateId` required non-empty instead of silent `""`; `CollectorFn` made precise instead of `unknown[]` erasure; probe uses `.first()` to avoid strict-mode multi-match failure; tests use `vi.resetAllMocks()` and the screenshot test asserts a real PNG via a temp dir with teardown).
 - **KEEP (must survive re-derivation):** page-in → corpus-data-out contract per concern (CAP-1..4); each collector pins its return type to the inferred `schemas.ts` type and round-trips through the Zod schema (conformance-as-contract-test, CAP-5); screenshot writes bytes but returns a `ScreenshotRef`; probe takes plain `{name,selector}` defs; network event-buffer capture approach; mocked-Page unit-test style; no storage/writing and fixed screenshot basename (naming deferred to Story 2-3).
 
 - **2026-08-27 (loop 2, patch)** — Review confirmed no bad_spec/intent_gap; verification-gap layer found no gaps (all 8 matrix rows genuinely covered by passing tests). Applied patch-only robustness guards flagged by edge-case review: `collectNetwork` returns `events.slice()` so a late response can't mutate the returned array; `collectScreenshot` rejects an empty dir (avoids writing to CWD); `collectProbe` validates its input through `z.array(probeSchema)` (rejects null/broken entries and gives consistent input validation across collectors); `SnapshotCollectorOptions.stateId` tightened to `z.string().trim().min(1)` (rejects whitespace-only). Known-bad state avoided: silent CWD writes, TypeError on a broken probe entry, whitespace-only stateId passing as valid. KEEP unchanged; verification (`tsc --noEmit`, 24/24 tests) passes after patches.
+
+- **2026-08-29 (code review)** — Full review (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Patches applied: `probeSchema` `name`/`selector` tightened to `z.string().trim().min(1)` (was plain `z.string()`); `collectProbe` bounds each lookup with a 5s timeout so a never-matching selector fails fast instead of riding Playwright's ~30s auto-wait; added tests for the `waitForLoadState` reject/partial-return path, whitespace-only `stateId` rejection, and a broken (null) probes-array rejection; detach assertions now pin the exact handler reference. The acceptance-auditor's absolute-`ScreenshotRef` claim was dismissed — at this story's commit `screenshotRefSchema.filePath` was plain `z.string()` (the corpus-relative refine and in-memory capture arrived with Story 2.3's Option A, which made refs corpus-relative). Deferred: networkidle observation-window placement, failed/aborted requests, probe fail-fast partial discard (both latter already tracked). Verification: `tsc --noEmit` clean, 61/61 tests pass.
 
 ## Design Notes
 

@@ -9,6 +9,7 @@ import {
   probeResultSchema,
   snapshotRecordSchema,
 } from "../model/schemas.js";
+import type { Probe } from "../model/schemas.js";
 import { collectors } from "./collect.js";
 import { collectNetwork } from "./collect-network.js";
 import { collectProbe } from "./collect-probe.js";
@@ -126,6 +127,12 @@ describe("collectSnapshot", () => {
 
     await expect(collectSnapshot(page, { stateId: "" })).rejects.toThrow();
   });
+
+  it("rejects a whitespace-only stateId instead of accepting it", async () => {
+    const { page } = createPageMock();
+
+    await expect(collectSnapshot(page, { stateId: "   " })).rejects.toThrow();
+  });
 });
 
 describe("collectNetwork", () => {
@@ -165,7 +172,26 @@ describe("collectNetwork", () => {
 
     expect(events).toEqual([]);
     expect(mocks.on).toHaveBeenCalledWith("response", expect.any(Function));
-    expect(mocks.off).toHaveBeenCalledWith("response", expect.any(Function));
+    const handler = mocks.on.mock.calls[0]![1];
+    expect(mocks.off).toHaveBeenCalledWith("response", handler);
+  });
+
+  it("returns partial observations and still detaches when networkidle never settles", async () => {
+    const { page, mocks } = createPageMock();
+    mocks.waitForLoadState.mockRejectedValueOnce(
+      new Error("Timeout 5000ms exceeded"),
+    );
+
+    const eventsPromise = collectNetwork(page);
+    page.emit("response", makeResponse("https://app.test/api", "GET", 200));
+
+    const events = await eventsPromise;
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe("https://app.test/api");
+    expect(networkEventSchema.safeParse(events[0]!).success).toBe(true);
+    const handler = mocks.on.mock.calls[0]![1];
+    expect(mocks.off).toHaveBeenCalledWith("response", handler);
   });
 
   it("detaches its listener so repeated calls never double-count events", async () => {
@@ -182,7 +208,8 @@ describe("collectNetwork", () => {
     page.emit("response", makeResponse("https://app.test/one", "GET", 200));
     firstWindow.resolve();
     expect(await firstCollect).toHaveLength(1);
-    expect(mocks.off).toHaveBeenCalledWith("response", expect.any(Function));
+    const firstHandler = mocks.on.mock.calls[0]![1];
+    expect(mocks.off).toHaveBeenCalledWith("response", firstHandler);
 
     const secondCollect = collectNetwork(page);
     page.emit("response", makeResponse("https://app.test/two", "GET", 200));
@@ -283,6 +310,14 @@ describe("collectProbe", () => {
     await expect(
       collectProbe(page, [{ name: "ghost", selector: ".nope" }]),
     ).rejects.toThrow(/ghost/);
+  });
+
+  it("rejects a null/broken entry in the probes array", async () => {
+    const { page } = createPageMock();
+
+    await expect(
+      collectProbe(page, [null as unknown as Probe]),
+    ).rejects.toThrow();
   });
 });
 

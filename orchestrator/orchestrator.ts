@@ -4,6 +4,7 @@ import { collectors } from "../collectors/collect.js";
 import { homePageModel } from "../model/fsm.js";
 import { computeModelVersion } from "../model/model-version.js";
 import type {
+  CorpusRun,
   OrchestratorConfig,
   RunResult,
   ScenarioResult,
@@ -14,7 +15,6 @@ import { testPlanSchema } from "../model/schemas.js";
 import { actionMap } from "./action-map.js";
 import { closeBrowser, launchBrowser } from "./browser.js";
 import {
-  type CorpusRun,
   startCorpusRun,
   writeCorpusFile,
   finishRun,

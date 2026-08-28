@@ -71,10 +71,23 @@ context:
 - Given a scenario run, when it executes, then no validator or assertion logic runs and corpus files contain only captured plain data (FR-4).
 - Given `npm run typecheck` / `npm test`, when run, then exits 0.
 
+## Review Findings
+
+_Code review 2026-08-29 (story-2-3, baseline `1c6f049`, diff to `277e887`)._
+
+- [x] [Review][Patch] Move the shared shapes `ScreenshotCapture` (declared in `collect-screenshot.ts`) and `CorpusRun` (declared in `corpus.ts`) into `schemas.ts` — AD-13 requires every shared shape to live only there, mirroring the loop-1 `Probe`/`SnapshotCollectorOptions` correction [collectors/collect-screenshot.ts:6] [orchestrator/corpus.ts:7]
+- [x] [Review][Patch] Round-trip an orchestrator-emitted `ScreenshotRef` through `screenshotRefSchema` and add a negative absolute-path case (conformance-as-contract-test for the wiring path) [orchestrator/orchestrator.ts:245]
+- [x] [Review][Patch] Test that `finishRun` writes the manifest after a step/scenario failure — the "success or failure" matrix row is untested (code does write it; nothing pins it) [orchestrator/orchestrator.ts:111]
+- [x] [Review][Defer] `run-manifest.json` has no completeness marker, so a run with timeout-skipped scenarios is indistinguishable at the manifest level — not in spec; add in a later story [orchestrator/corpus.ts:44]
+- [x] [Review][Defer] `writeCorpusFile` doesn't sanitize `kind`/`runId`/`stepIndex`, so a misbehaving future caller could escape the corpus root (path traversal) — not reachable at current internal call sites [orchestrator/corpus.ts:25]
+- [x] [Review][Defer] Per-step execution is bounded per operation (worst case ~6× stepTimeout), not per whole step — still bounded; tightening is a deliberate behavior choice for a future story [orchestrator/orchestrator.ts:215]
+
 ## Spec Change Log
 
 - **2026-08-28** — During Step 3 implementation, corrected the screenshot collector dir to be run/step-namespaced (`screenshots/{runId}/{stepIndex}`) instead of run-only, so per-step PNGs (fixed `screenshot.png` basename) never collide across steps. This matches the frozen task text "screenshot: run/step-namespaced dir" and the matrix row "no two files collide", and resolves the deferred-work screenshot-overwrite item. No frozen intent changed.
 - **2026-08-28** — **Human renegotiation (Option A):** the corpus module becomes the full owner of screenshot persistence too. `collectScreenshot(page)` now returns in-memory PNG bytes (`{ buffer, capturedAt }`) with no disk write and no filename choice; the orchestrator hands the bytes to `writeCorpusFile(..., "png", buffer)`, which writes `screenshots/{runId}/{stepIndex}.png` and records it in `run.files`/the manifest; the persisted `ScreenshotRef.filePath` is corpus-relative (validated by `screenshotRefSchema`). Collectors now never touch disk at all. Supersedes the earlier "collector writes into the handed-over dir" design (and the Story 2.2 screenshot-collector mechanism).
+
+- **2026-08-29 (code review)** — Full review (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; edge-case-hunter layer returned empty). Patches applied: shared in-memory shapes `ScreenshotCapture` and `CorpusRun` moved into `schemas.ts`, closing the AD-13 deviation flagged by the acceptance auditor (they were declared in `collect-screenshot.ts`/`corpus.ts`); added a wiring round-trip test — the orchestrator-emitted `ScreenshotRef` validates against `screenshotRefSchema`, plus a negative absolute-path case; added a test pinning that `finishRun` writes the manifest after a failed scenario ("success or failure" matrix row). The auditor's manifest-not-written-on-failure claim was downgraded — the code does write it (step errors are caught in `executeScenario`); only the test was missing. Deferred: manifest completeness marker, unsanitized corpus paths, per-op vs per-step timeouts. Verification: `tsc --noEmit` clean, 61/61 tests pass.
 
 ## Design Notes
 

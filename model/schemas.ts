@@ -58,10 +58,10 @@ export type ScreenshotRef = z.infer<typeof screenshotRefSchema>;
 
 /** A targeted DOM probe definition: stable name + CSS selector (plain data). */
 export const probeSchema = z.object({
-  /** Stable probe name. */
-  name: z.string(),
-  /** CSS selector identifying the target element. */
-  selector: z.string(),
+  /** Stable probe name — required, non-empty, and not whitespace. */
+  name: z.string().trim().min(1),
+  /** CSS selector identifying the target element — required, non-empty, and not whitespace. */
+  selector: z.string().trim().min(1),
 });
 export type Probe = z.infer<typeof probeSchema>;
 
@@ -71,6 +71,22 @@ export const snapshotCollectorOptionsSchema = z.object({
   stateId: z.string().trim().min(1),
 });
 export type SnapshotCollectorOptions = z.infer<typeof snapshotCollectorOptionsSchema>;
+
+// ---- Shared in-memory shapes (AD-13: single home for every shared shape) ----
+
+/** In-memory screenshot capture: raw PNG bytes plus capture timestamp. Never persisted directly — the corpus module writes the bytes and a corpus-relative ref (Story 2.3). */
+export interface ScreenshotCapture {
+  /** Raw PNG bytes, returned in-memory so the corpus module owns writing and naming. */
+  buffer: Buffer;
+  /** ISO-8601 capture timestamp. */
+  capturedAt: string;
+}
+
+/** Live state of one corpus run: unique run-id plus the corpus-relative paths written so far. */
+export interface CorpusRun {
+  readonly runId: string;
+  readonly files: string[];
+}
 
 /** Result of running one validator over a corpus (AD-14). */
 export const validationResultSchema = z.object({

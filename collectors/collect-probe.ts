@@ -5,11 +5,14 @@ import { z } from "zod";
 import { probeSchema } from "../model/schemas.js";
 import type { CollectorFn } from "./collect.js";
 
+const PROBE_TEXT_TIMEOUT_MS = 5_000;
+
 /**
  * Extract a value for each probe definition via its DOM selector. Uses .first()
  * to avoid strict-mode multi-match failures; a selector that never matches
- * throws with the probe name attached. The probes array is validated against
- * probeSchema so a null/broken entry is rejected rather than crashing the loop.
+ * throws with the probe name attached after a bounded wait. The probes array is
+ * validated against probeSchema so a null/broken entry is rejected rather than
+ * crashing the loop.
  */
 export const collectProbe: CollectorFn<ProbeResult[], [Probe[]]> = async (
   page,
@@ -21,7 +24,11 @@ export const collectProbe: CollectorFn<ProbeResult[], [Probe[]]> = async (
   for (const probe of parsed) {
     let value: string;
     try {
-      value = (await page.locator(probe.selector).first().textContent()) ?? "";
+      value =
+        (await page
+          .locator(probe.selector)
+          .first()
+          .textContent({ timeout: PROBE_TEXT_TIMEOUT_MS })) ?? "";
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       throw new Error(
