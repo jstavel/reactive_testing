@@ -49,6 +49,7 @@ development_status:
   2-2-collectors-capture-page-data: review
   2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: review
   2-4-collector-errors-are-isolated: backlog
+  2-5-connect-to-an-existing-authenticated-browser-via-cdp: ready-for-dev
   epic-2-retrospective: optional
 
   epic-3: backlog

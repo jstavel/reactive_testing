@@ -10,6 +10,7 @@ Jan can run a scenario against the live app and produce a recorded corpus with n
 - 2.2 — Collectors capture page data
 - 2.3 — Scenario run produces a namespaced corpus with no embedded assertions
 - 2.4 — Collector errors are isolated
+- 2.5 — Connect to an existing authenticated browser via CDP
 
 ## Requirements & Constraints
 
@@ -17,6 +18,11 @@ Jan can run a scenario against the live app and produce a recorded corpus with n
 - Reads a Test Plan (TypeScript file) and executes it deterministically. No AI calls during execution.
 - Verifies `modelVersion` (SHA-256 content hash of `fsm.ts`, `contracts.ts`, `schemas.ts`) matches the current Model before execution; aborts with a clear error on mismatch.
 - Drives the browser via Playwright/CDP, passes the page to Collectors, and triggers Validators.
+
+**Live Connection (Story 2.5):**
+- Connects to an already-authenticated browser over CDP (`chromium.connectOverCDP`) — the only viable mode for Kraken Pro's 2FA; a fresh launch can never authenticate.
+- Opens a new tab in the authenticated context and navigates it to the app home (same-app navigation preserves login).
+- Detaches on completion — never closes the human's browser.
 
 **Collectors (Story 2.2):**
 - Multiple specialized collectors: SnapshotCollector, NetworkCollector, ScreenshotCollector, DOM Probe Collector.
