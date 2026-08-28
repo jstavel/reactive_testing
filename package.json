@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "run:smoke": "tsx bin/run-smoke.ts"
   },
   "dependencies": {
     "zod": "^4.0.0"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "playwright": "^1.62.1",
+    "tsx": "^4.23.12",
     "typescript": "5.9.3",
     "vitest": "^4.1.11"
   }

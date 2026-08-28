@@ -33,6 +33,7 @@ const DEFAULT_RUN_TIMEOUT = 300_000;
 export async function runTestPlan(
   plan: TestPlan,
   config: OrchestratorConfig,
+  onScenario?: (result: ScenarioResult) => void,
 ): Promise<RunResult> {
   const stepTimeout = config.stepTimeout ?? DEFAULT_STEP_TIMEOUT;
   const runTimeout = config.runTimeout ?? DEFAULT_RUN_TIMEOUT;
@@ -57,6 +58,7 @@ export async function runTestPlan(
       baseUrl: config.baseUrl,
       headless: config.headless,
       readySelector: config.readySelector,
+      cdpUrl: config.cdpUrl,
     });
   } catch (err) {
     return {
@@ -81,11 +83,13 @@ export async function runTestPlan(
 
     for (const scenario of parsed.scenarios) {
       if (Date.now() - runStart >= runTimeout) {
-        scenarioResults.push({
+        const timeoutResult: ScenarioResult = {
           id: scenario.id,
           passed: false,
           error: "Run timeout exceeded",
-        });
+        };
+        scenarioResults.push(timeoutResult);
+        onScenario?.(timeoutResult);
         continue;
       }
 
@@ -100,6 +104,7 @@ export async function runTestPlan(
       );
       stepIndex += scenario.steps.length;
       scenarioResults.push(result);
+      onScenario?.(result);
     }
 
     finishRun(config.corpusDir, corpus, runTimestamp);

@@ -109,6 +109,34 @@ describe("runTestPlan", () => {
     expect(result.scenarios.every((s) => s.passed)).toBe(true);
   });
 
+  it("reports each scenario via the onScenario progress callback", async () => {
+    const plan = makePlan([
+      {
+        id: "click-history-main",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+      {
+        id: "click-history-futures",
+        steps: [
+          { stateId: "homePage", contractId: "clickHistoryMenuFutures" },
+        ],
+      },
+    ]);
+
+    const seen: Array<{ id: string; passed: boolean }> = [];
+    const result = await runTestPlan(plan, baseConfig, (scenario) => {
+      seen.push({ id: scenario.id, passed: scenario.passed });
+    });
+
+    expect(seen).toEqual([
+      { id: "click-history-main", passed: true },
+      { id: "click-history-futures", passed: true },
+    ]);
+    expect(seen.map((s) => s.id)).toEqual(
+      result.scenarios.map((s) => s.id),
+    );
+  });
+
   it("aborts immediately on modelVersion mismatch", async () => {
     const plan = makePlan([
       {

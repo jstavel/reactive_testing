@@ -1,12 +1,13 @@
 // Smoke test plan — auto-generated from @plan:smoke tags in features/*.feature.
 // Model version: SHA-256 of fsm.ts + contracts.ts + schemas.ts.
 // Do not edit by hand; regenerate when model files or feature tags change.
+// Regenerated for Story 2.5 (schemas.ts gained OrchestratorConfig.cdpUrl).
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "3531f20ba0265537a32763bb5b51b5deca95771b41d33e1d72443a6c1446e51e",
+  modelVersion: "b96a1b8c94790a8bdb87a3e2e0ea26d5f5ef1d8d92821636a67a68ff65f1a740",
   scenarios: [
     // home-page-history-menu.feature
     {

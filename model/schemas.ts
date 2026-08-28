@@ -129,8 +129,8 @@ export interface RunResult {
 export interface OrchestratorConfig {
   /** Base URL of the app under test. */
   baseUrl: string;
-  /** Run in headless mode. Default: true. */
-  headless: boolean;
+  /** Run in headless mode. Default: true. Meaningless under CDP-attach. */
+  headless?: boolean;
   /** CSS selector to wait for after initial navigation. */
   readySelector: string;
   /** Per-step timeout in ms. Default: 30000. */
@@ -141,6 +141,12 @@ export interface OrchestratorConfig {
   corpusDir: string;
   /** Probe definitions passed to the probe collector. */
   probes: Probe[];
+  /**
+   * CDP endpoint to attach to an already-authenticated browser (AD-4 "via CDP").
+   * When set, the orchestrator connects over CDP (chromium.connectOverCDP) and
+   * reuses the human's logged-in session. Default: http://127.0.0.1:9222.
+   */
+  cdpUrl?: string;
 }
 
 /** Per-run manifest written to corpus/{runId}/run-manifest.json. */
