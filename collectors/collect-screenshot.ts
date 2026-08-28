@@ -1,26 +1,23 @@
-import { join } from "node:path";
-
 import type { Page } from "playwright";
 
-import type { ScreenshotRef } from "../model/schemas.js";
 import type { CollectorFn } from "./collect.js";
 
-const SCREENSHOT_BASENAME = "screenshot.png";
+/** In-memory screenshot capture: PNG bytes plus capture timestamp (no disk write — AD-15 / Story 2.3). */
+export interface ScreenshotCapture {
+  /** Raw PNG bytes, returned in-memory so the corpus module owns writing and naming. */
+  buffer: Buffer;
+  /** ISO-8601 capture timestamp. */
+  capturedAt: string;
+}
 
 /**
- * Capture a viewport screenshot of the live page into the given directory and
- * return a ScreenshotRef (file reference, never the image bytes). The fixed
- * basename is intentional — run/step file naming policy is Story 2.3.
+ * Capture a viewport screenshot as in-memory PNG bytes. The collector never
+ * touches disk or picks a filename — run/step naming and persistence live in
+ * the corpus module (AD-15, Story 2.3).
  */
-export const collectScreenshot: CollectorFn<ScreenshotRef, [string]> = async (
+export const collectScreenshot: CollectorFn<ScreenshotCapture, []> = async (
   page,
-  dir,
 ) => {
-  if (!dir) {
-    throw new Error("screenshot dir is required");
-  }
-  const filePath = join(dir, SCREENSHOT_BASENAME);
-  const capturedAt = new Date().toISOString();
-  await page.screenshot({ path: filePath });
-  return { filePath, capturedAt };
+  const buffer = await page.screenshot();
+  return { buffer, capturedAt: new Date().toISOString() };
 };

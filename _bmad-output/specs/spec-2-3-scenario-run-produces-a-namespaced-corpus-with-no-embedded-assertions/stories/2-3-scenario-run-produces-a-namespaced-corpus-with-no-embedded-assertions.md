@@ -33,7 +33,7 @@ context:
 | Multiple steps / scenarios | Run with >1 step | stepIndex increments monotonically, no two files collide | N/A |
 | Empty collector result (e.g. no network events) | `collectNetwork` returns `[]` | An empty JSON array is still persisted; step file exists | N/A |
 | Run-id uniqueness | Two runs in the same corpus | Different UUIDs; manifest namespaced per run, never overwritten | N/A |
-| Screenshot capture | Collector writes PNG to namespaced dir | `ScreenshotRef.filePath` points into corpus; PNG on disk; ref not the bytes | Passed-through collector error |
+| Screenshot capture | Collector returns in-memory PNG bytes | Corpus module writes PNG to namespaced path and records it (manifest lists the `.png`); `ScreenshotRef.filePath` is corpus-relative; ref is not the bytes | Passed-through collector error |
 | Manifest write | Run completes (success or failure) | `run-manifest.json` lists run-id, timestamp, and every corpus file written | Write failure thrown from orchestrator run |
 
 </frozen-after-approval>
@@ -46,7 +46,7 @@ context:
 - `collectors/collect.ts:19` — `collectors` record keyed by concern (snapshot/network/screenshot/probe); the registry the orchestrator consumes
 - `collectors/collect-snapshot.ts:15` — `collectSnapshot(page, { stateId })` → `SnapshotRecord`; pass `step.stateId`
 - `collectors/collect-network.ts:14` — `collectNetwork(page)` → `NetworkEvent[]`; detaches its listener
-- `collectors/collect-screenshot.ts:15` — `collectScreenshot(page, dir)` → `ScreenshotRef`; writes PNG into `dir` (pass run/step-namespaced dir so it lands in corpus)
+- `collectors/collect-screenshot.ts:15` — `collectScreenshot(page)` → `ScreenshotCapture { buffer, capturedAt }`; returns in-memory PNG bytes (no disk write); corpus module names/persists the file
 - `collectors/collect-probe.ts:14` — `collectProbe(page, probes)` → `ProbeResult[]`; needs a probe list (config)
 - `model/schemas.ts:9-51` — corpus record schemas + inferred types (SnapshotRecord, NetworkEvent, ProbeResult, ScreenshotRef); conformance target
 - `model/schemas.ts:53-69` — shared collector input shapes (`Probe`, `SnapshotCollectorOptions`) per AD-13
@@ -59,8 +59,8 @@ context:
 
 **Execution:**
 - [x] `model/schemas.ts` -- ADD `runManifestSchema` (run-id, timestamp, file list) + inferred `RunManifest` type per AD-13; extend `OrchestratorConfig` with corpus output-dir and `probes: Probe[]` as approved; export types -- shared shapes live only in schemas.ts
-- [x] `orchestrator/corpus.ts` (NEW) -- Create a persistence module: `startCorpusRun()` assigns a run-id via `crypto.randomUUID()`; `writeCorpusFile(kind, runId, stepIndex, data)` writes plain data to `corpus/{kind}/{runId}/{stepIndex}.{json|png}` and records the corpus-relative path; `finishRun(manifest)` writes `corpus/{runId}/run-manifest.json` -- the single owner of file naming, never the collectors
-- [x] `orchestrator/orchestrator.ts` -- Wire `runTestPlan`/`executeScenario` to invoke each collector after a step action + settling, pass collector-specific args (snapshot: `{ stateId: step.stateId }`; screenshot: run/step-namespaced dir; probe: `config.probes`), and persist each collector's returned data via the corpus module; assign one global stepIndex across the run so files never collide -- CAP-1, CAP-2, CAP-3, CAP-4
+- [x] `orchestrator/corpus.ts` (NEW) -- Create a persistence module: `startCorpusRun()` assigns a run-id via `crypto.randomUUID()`; `writeCorpusFile(kind, runId, stepIndex, data)` writes plain data (string or raw bytes, e.g. PNG buffers) to `corpus/{kind}/{runId}/{stepIndex}.{json|png}` and records the corpus-relative path; `finishRun(manifest)` writes `corpus/{runId}/run-manifest.json` -- the single owner of file naming, never the collectors
+- [x] `orchestrator/orchestrator.ts` -- Wire `runTestPlan`/`executeScenario` to invoke each collector after a step action + settling, pass collector-specific args (snapshot: `{ stateId: step.stateId }`; probe: `config.probes`), and persist each collector's returned data via the corpus module; the screenshot collector returns in-memory PNG bytes and the corpus module writes+names the `.png` and a relative `ScreenshotRef`; assign one global stepIndex across the run so files never collide -- CAP-1, CAP-2, CAP-3, CAP-4
 - [x] `orchestrator/orchestrator.ts` -- Write `run-manifest.json` when the run completes (success or failure), listing run-id, timestamp, and every corpus file written -- CAP-2
 - [x] `orchestrator/corpus.test.ts` (NEW) + extend `orchestrator/orchestrator.test.ts` -- unit tests with a mocked Page + mocked `collectors` registry: (a) happy path writes `stepIndex.ext` per kind and a manifest listing them; (b) stepIndex increments across steps/scenarios with no collisions; (c) empty `NetworkEvent[]` still writes a file; (d) two runs get distinct run-ids; (e) no assertion/validator invoked during the run; (f) each persisted value validates against its schema -- cover every I/O matrix row
 - [x] Verify: `npm run typecheck` clean, `npm test` passes
@@ -74,10 +74,11 @@ context:
 ## Spec Change Log
 
 - **2026-08-28** — During Step 3 implementation, corrected the screenshot collector dir to be run/step-namespaced (`screenshots/{runId}/{stepIndex}`) instead of run-only, so per-step PNGs (fixed `screenshot.png` basename) never collide across steps. This matches the frozen task text "screenshot: run/step-namespaced dir" and the matrix row "no two files collide", and resolves the deferred-work screenshot-overwrite item. No frozen intent changed.
+- **2026-08-28** — **Human renegotiation (Option A):** the corpus module becomes the full owner of screenshot persistence too. `collectScreenshot(page)` now returns in-memory PNG bytes (`{ buffer, capturedAt }`) with no disk write and no filename choice; the orchestrator hands the bytes to `writeCorpusFile(..., "png", buffer)`, which writes `screenshots/{runId}/{stepIndex}.png` and records it in `run.files`/the manifest; the persisted `ScreenshotRef.filePath` is corpus-relative (validated by `screenshotRefSchema`). Collectors now never touch disk at all. Supersedes the earlier "collector writes into the handed-over dir" design (and the Story 2.2 screenshot-collector mechanism).
 
 ## Design Notes
 
-- **The corpus module is the single owner of file naming.** All run-id/stepIndex/path computation lives in `orchestrator/corpus.ts`. Collectors return typed in-memory data and never touch filenames (AD-15); the screenshot collector merely writes into the dir the orchestrator hands it.
+- **The corpus module is the single owner of file naming and persistence.** All run-id/stepIndex/path computation and every disk write (including screenshot PNGs, written from in-memory bytes) lives in `orchestrator/corpus.ts`. Collectors return typed in-memory data and never touch disk or filenames (AD-15); the screenshot collector returns PNG bytes and the ref the orchestrator persists is corpus-relative.
 - **stepIndex is a global monotonic counter across the whole run**, not per-scenario — so `snapshots/<runId>/0.json`, `…/1.json` never collide across multiple scenarios. AD-15's per-step index is satisfied; the exact global vs per-scenario ordinal is an implementation detail the reviewer can confirm.
 - **All collectors run after every step in this story.** AD-6 (validator-declared collection planning) is Story 3.2 and out of scope; 2-3 persists the full per-concern evidence.
 - **Manifest stores corpus-relative paths** (`snapshots/<runId>/0.json`, …) so the corpus is portable and validators can resolve them independent of the absolute working directory.
@@ -125,5 +126,5 @@ context:
 - Unit-tests the corpus module against a real temp filesystem
   [`corpus.test.ts:37`](../../../../orchestrator/corpus.test.ts#L37)
 
-- Verifies orchestrator wiring: one file per kind per step, global stepIndex, step-namespaced screenshot dir, and no voiding/assertion logic
+- Verifies orchestrator wiring: one file per kind per step, global stepIndex, corpus-written per-step PNGs + relative refs, and no voiding/assertion logic
   [`orchestrator.test.ts:312`](../../../../orchestrator/orchestrator.test.ts#L312)

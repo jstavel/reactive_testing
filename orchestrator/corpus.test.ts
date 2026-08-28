@@ -76,6 +76,20 @@ describe("writeCorpusFile", () => {
     expect(new Set(paths).size).toBe(3);
     expect(run.files).toEqual(paths);
   });
+
+  it("writes raw bytes (e.g. a PNG buffer) and records the relative path", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    const rel = writeCorpusFile(corpusDir, run, "screenshots", 0, "png", png);
+
+    expect(rel).toBe(`screenshots/${run.runId}/0.png`);
+    const abs = join(corpusDir, rel);
+    expect(existsSync(abs)).toBe(true);
+    expect(readFileSync(abs).equals(png)).toBe(true);
+    expect(run.files).toContain(rel);
+  });
 });
 
 describe("finishRun", () => {
@@ -126,7 +140,7 @@ describe("persisted values validate against their schemas", () => {
     const snapshot = { stateId: "homePage", snapshot: "<div/>", capturedAt: "t" };
     const network = [{ url: "https://a", method: "GET", status: 200, capturedAt: "t" }];
     const probe = [{ name: "title", value: "x", capturedAt: "t" }];
-    const screenshot = { filePath: `${corpusDir}/screenshots/seed/screenshot.png`, capturedAt: "t" };
+    const screenshot = { filePath: "screenshots/seed/0.png", capturedAt: "t" };
 
     for (const [kind, data, schema] of [
       ["snapshots", snapshot, snapshotRecordSchema],

@@ -7,6 +7,7 @@ import type {
   OrchestratorConfig,
   RunResult,
   ScenarioResult,
+  ScreenshotRef,
   TestPlan,
 } from "../model/schemas.js";
 import { testPlanSchema } from "../model/schemas.js";
@@ -204,13 +205,21 @@ async function executeScenario(
         JSON.stringify(network),
       );
 
-      const screenshot = await withTimeout(
-        collectors.screenshot(page, `${config.corpusDir}/screenshots/${corpus.runId}/${stepIndex}`),
+      const capture = await withTimeout(
+        collectors.screenshot(page),
         stepTimeout,
       );
+      const pngPath = writeCorpusFile(
+        config.corpusDir, corpus, "screenshots", stepIndex, "png",
+        capture.buffer,
+      );
+      const screenshotRef: ScreenshotRef = {
+        filePath: pngPath,
+        capturedAt: capture.capturedAt,
+      };
       writeCorpusFile(
         config.corpusDir, corpus, "screenshots", stepIndex, "json",
-        JSON.stringify(screenshot),
+        JSON.stringify(screenshotRef),
       );
 
       const probes = await withTimeout(

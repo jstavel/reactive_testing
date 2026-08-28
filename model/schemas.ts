@@ -43,8 +43,12 @@ export type ProbeResult = z.infer<typeof probeResultSchema>;
 
 /** A reference to a screenshot file, never the image bytes (plain data). */
 export const screenshotRefSchema = z.object({
-  /** Path to the screenshot file within the run-namespaced corpus. */
-  filePath: z.string(),
+  /** Corpus-relative path to the PNG within the run (e.g. screenshots/<runId>/<stepIndex>.png). */
+  filePath: z
+    .string()
+    .refine((p) => !/^([A-Za-z]:[\\/]|[\\/])/.test(p), {
+      message: "filePath must be corpus-relative, not absolute",
+    }),
   /** ISO-8601 capture timestamp. */
   capturedAt: z.string(),
 });

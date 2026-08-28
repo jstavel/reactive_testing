@@ -55,7 +55,7 @@ vi.mock("../collectors/collect.js", () => ({
   collectors: {
     snapshot: vi.fn(async () => ({ stateId: "", snapshot: "", capturedAt: "" })),
     network: vi.fn(async () => []),
-    screenshot: vi.fn(async (_page: unknown, dir: string) => ({ filePath: `${dir}/screenshot.png`, capturedAt: "" })),
+    screenshot: vi.fn(async () => ({ buffer: Buffer.from("png"), capturedAt: "" })),
     probe: vi.fn(async () => []),
   },
 }));
@@ -328,14 +328,20 @@ describe("corpus wiring", () => {
     expect(collectors.screenshot).toHaveBeenCalledTimes(1);
     expect(collectors.probe).toHaveBeenCalledTimes(1);
 
-    expect(writeCorpusFile).toHaveBeenCalledTimes(4);
+    expect(writeCorpusFile).toHaveBeenCalledTimes(5);
     const kinds = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
       (c) => c[2],
     );
-    expect(kinds.sort()).toEqual(["network", "probes", "screenshots", "snapshots"]);
+    expect(kinds.sort()).toEqual([
+      "network",
+      "probes",
+      "screenshots",
+      "screenshots",
+      "snapshots",
+    ]);
 
     expect(finishRun).toHaveBeenCalledTimes(1);
-    expect(mockCorpusRun.files).toHaveLength(4);
+    expect(mockCorpusRun.files).toHaveLength(5);
   });
 
   it("increments stepIndex globally across steps and scenarios with no collisions", async () => {
@@ -385,8 +391,9 @@ describe("corpus wiring", () => {
     expect(networkCall).toBeTruthy();
   });
 
-  it("gives each step a step-namespaced screenshot dir so PNGs never collide", async () => {
+  it("collector never names files; corpus writes a PNG and ref per step (no collisions)", async () => {
     const { collectors } = await import("../collectors/collect.js");
+    const { writeCorpusFile } = await import("./corpus.js");
 
     const plan = makePlan([
       {
@@ -400,14 +407,20 @@ describe("corpus wiring", () => {
 
     await runTestPlan(plan, baseConfig);
 
-    const dirs = (collectors.screenshot as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
-      (c) => c[1],
+    expect(collectors.screenshot).toHaveBeenCalledTimes(2);
+    for (const call of (collectors.screenshot as unknown as ReturnType<typeof vi.fn>).mock
+      .calls) {
+      expect(call).toHaveLength(1);
+    }
+
+    const pngCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => c[2] === "screenshots" && c[4] === "png",
     );
-    expect(dirs).toEqual([
-      "/tmp/test-corpus/screenshots/mock-run-id/0",
-      "/tmp/test-corpus/screenshots/mock-run-id/1",
-    ]);
-    expect(new Set(dirs).size).toBe(2);
+    const stepIndexes = pngCalls.map((c) => c[3]);
+    expect(stepIndexes).toEqual([0, 1]);
+    expect(new Set(stepIndexes).size).toBe(2);
+    expect(mockCorpusRun.files).toContain("screenshots/mock-run-id/0.png");
+    expect(mockCorpusRun.files).toContain("screenshots/mock-run-id/1.png");
   });
 
   it("invokes exactly the four collectors — no validator/assertion logic", async () => {

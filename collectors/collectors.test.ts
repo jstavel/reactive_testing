@@ -1,6 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +7,6 @@ import type { Page, Response } from "playwright";
 import {
   networkEventSchema,
   probeResultSchema,
-  screenshotRefSchema,
   snapshotRecordSchema,
 } from "../model/schemas.js";
 import { collectors } from "./collect.js";
@@ -18,12 +15,10 @@ import { collectProbe } from "./collect-probe.js";
 import { collectScreenshot } from "./collect-screenshot.js";
 import { collectSnapshot } from "./collect-snapshot.js";
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64",
 );
-const SCREENSHOT_BASENAME = "screenshot.png";
 
 let tempDirs: string[] = [];
 
@@ -200,34 +195,23 @@ describe("collectNetwork", () => {
 });
 
 describe("collectScreenshot", () => {
-  it("writes a PNG file and returns a conforming ScreenshotRef", async () => {
+  it("returns in-memory PNG bytes and a timestamp without touching disk", async () => {
     const { page, mocks } = createPageMock();
-    mocks.screenshot.mockImplementation(async ({ path }: { path: string }) => {
-      writeFileSync(path, ONE_PIXEL_PNG);
-    });
+    mocks.screenshot.mockResolvedValue(ONE_PIXEL_PNG);
 
-    const dir = mkdtempSync(join(tmpdir(), "collectors-screenshot-"));
-    tempDirs.push(dir);
+    const capture = await collectScreenshot(page);
 
-    const ref = await collectScreenshot(page, dir);
-
-    const expectedPath = join(dir, SCREENSHOT_BASENAME);
-    expect(mocks.screenshot).toHaveBeenCalledWith({ path: expectedPath });
-    expect(ref.filePath).toBe(expectedPath);
-    expect(ref.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(existsSync(expectedPath)).toBe(true);
-    expect(readFileSync(expectedPath).subarray(0, 8).equals(PNG_SIGNATURE)).toBe(true);
-    expect(screenshotRefSchema.safeParse(ref).success).toBe(true);
+    expect(mocks.screenshot).toHaveBeenCalledWith();
+    expect(Buffer.isBuffer(capture.buffer)).toBe(true);
+    expect(capture.buffer.equals(ONE_PIXEL_PNG)).toBe(true);
+    expect(capture.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("throws when the screenshot capture fails", async () => {
     const { page, mocks } = createPageMock();
     mocks.screenshot.mockRejectedValue(new Error("screenshot crashed"));
 
-    const dir = mkdtempSync(join(tmpdir(), "collectors-screenshot-"));
-    tempDirs.push(dir);
-
-    await expect(collectScreenshot(page, dir)).rejects.toThrow("screenshot crashed");
+    await expect(collectScreenshot(page)).rejects.toThrow("screenshot crashed");
   });
 });
 
