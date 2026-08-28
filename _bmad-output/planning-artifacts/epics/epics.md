@@ -4,6 +4,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-reactive-testing-2026-08-15/prd.md
   - _bmad-output/planning-artifacts/architecture/architecture-reactive-testing-2026-08-17/ARCHITECTURE-SPINE.md
   - _bmad-output/specs/spec-reactive-testing/SPEC.md
+  - _bmad-output/implementation-artifacts/spec-2-5-connect-to-an-existing-authenticated-browser-via-cdp.md
+  - _bmad-output/implementation-artifacts/spec-2-6-ai-assisted-action-specification.md
 ---
 
 # Reactive Testing — Epic Breakdown
@@ -243,6 +245,36 @@ So that one failure never aborts the whole run.
 **Given** a collector that throws during a run
 **When** the orchestrator runs the suite
 **Then** that collector records `status=error`, remaining collectors still run, and the reporter flags the collection gap (AD-16)
+
+### Story 2.5: Connect to an existing authenticated browser via CDP
+
+As a QE,
+I want the orchestrator to attach to an already-authenticated browser over CDP instead of launching a fresh anonymous one,
+So that a deterministic run can drive Kraken Pro, which 2FA makes unreachable to a machine-launched browser (AD-4).
+
+**Acceptance Criteria:**
+
+**Given** Chromium running with CDP on `http://127.0.0.1:9222` and Kraken Pro logged in
+**When** I run the smoke plan
+**Then** the orchestrator attaches via CDP, opens a new tab in the authenticated context, navigates to the app home, waits on the confirmed `readySelector`, executes the steps, and writes a namespaced corpus + `run-manifest.json` (AD-4, AD-15)
+**And** given a CDP-attached run that finishes (success or failure), the human's browser is left open — only a disconnect occurs (`browser.close()` on the CDP handle, which never terminates the browser), and `activeSession` is reset so a later run can re-attach
+**And** given a run with no reachable CDP endpoint, it fails fast with an actionable error and no partial corpus
+**And** `npm run typecheck` / `npm test` exit 0
+
+### Story 2.6: AI-assisted action specification
+
+As a QE,
+I want every contract's action in the `actionMap` to target the real DOM element on the live authenticated Kraken Pro home page, discovered from the live DOM rather than guessed,
+So that smoke-plan scenarios actually drive the app and Epic 2's "run a scenario against the live app" goal is demonstrable end-to-end (AD-4, NFR-1).
+
+**Acceptance Criteria:**
+
+**Given** the authenticated Kraken Pro home page (CDP `:9222`)
+**When** I run the smoke plan
+**Then** all scenarios PASS — every broken contract's action reaches its postcondition (post-nav URL, ledger/view selected, dialog open, values toggled)
+**And** given any contract in `allContracts`, its `actionMap` entry is static, deterministic, strict-mode single-target, and satisfies the contract's `postconditions`/`invariants`, with no AI call at runtime
+**And** `npm run typecheck` / `npm test` exit 0
+**And** locators with no discoverable stable target are flagged and deferred, never fabricated
 
 ## Epic 3: Verification & Gherkin Governance
 

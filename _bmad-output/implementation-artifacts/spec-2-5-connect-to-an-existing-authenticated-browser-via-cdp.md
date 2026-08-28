@@ -2,7 +2,7 @@
 title: 'Story 2.5: Connect to an existing authenticated browser via CDP'
 type: 'feature'
 created: '2026-08-28'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '277e8878449f4f32ca395558e91145d0c5df74b2'
 context:
@@ -98,3 +98,43 @@ This closes the gap that currently keeps Epic 2's stated goal — "run a scenari
 
 **Manual check:**
 - Keep Chromium on `:9222` with Kraken Pro logged in at `https://pro.kraken.com/app/home`; run the smoke plan; confirm corpus files appear and that the browser tab is STILL open and authenticated afterward (never closed).
+
+## Suggested Review Order
+
+**CDP connection semantics — the design intent**
+
+- CDP-attach path: connects over CDP, requires exactly one authenticated context, opens a new tab, navigates (2FA preserved)
+  [`browser.ts:31`](../../orchestrator/browser.ts#L31)
+
+- Detach, never close: run's own tab closed first, then `browser.close()` = disconnect; the human's browser is never terminated
+  [`browser.ts:105`](../../orchestrator/browser.ts#L105)
+
+- Fail-fast connect: timeout on a stalled endpoint + late-arriving handle released so no connection leaks
+  [`browser.ts:164`](../../orchestrator/browser.ts#L164)
+
+- Teardown helper: releases an acquired handle when bootstrap fails, so the original error propagates
+  [`browser.ts:147`](../../orchestrator/browser.ts#L147)
+
+**Config threading through the orchestrator**
+
+- `OrchestratorConfig` gains `cdpUrl` and `stepTimeout` as shared shapes (AD-13)
+  [`schemas.ts:129`](../../model/schemas.ts#L129)
+
+- `runTestPlan` threads `cdpUrl`/`stepTimeout` into `launchBrowser`; `notify()` shields the progress callback so a throwing caller never aborts corpus finalization
+  [`orchestrator.ts:33`](../../orchestrator/orchestrator.ts#L33)
+
+- Regenerated `modelVersion` reflecting the changed model
+  [`smoke.test-plan.ts:10`](../../model/smoke.test-plan.ts#L10)
+
+**Live runner entry point**
+
+- `bin/run-smoke.ts` drives a real live run against the authenticated browser; exit code now reflects total failure, not just zero scenarios
+  [`run-smoke.ts:10`](../../bin/run-smoke.ts#L10)
+
+**Tests and proof**
+
+- Browser-layer suite: attach, detach + tab close, unreachable endpoint, stall timeout, ambiguity/empty-context fail-fast
+  [`browser.test.ts:1`](../../orchestrator/browser.test.ts#L1)
+
+- Orchestrator-boundary suite: CDP wiring used (not launch) and no-partial-corpus on attach failure
+  [`orchestrator.test.ts:1`](../../orchestrator/orchestrator.test.ts#L1)

@@ -59,6 +59,7 @@ export async function runTestPlan(
       headless: config.headless,
       readySelector: config.readySelector,
       cdpUrl: config.cdpUrl,
+      stepTimeout,
     });
   } catch (err) {
     return {
@@ -89,7 +90,7 @@ export async function runTestPlan(
           error: "Run timeout exceeded",
         };
         scenarioResults.push(timeoutResult);
-        onScenario?.(timeoutResult);
+        notify(onScenario, timeoutResult);
         continue;
       }
 
@@ -104,7 +105,7 @@ export async function runTestPlan(
       );
       stepIndex += scenario.steps.length;
       scenarioResults.push(result);
-      onScenario?.(result);
+      notify(onScenario, result);
     }
 
     finishRun(config.corpusDir, corpus, runTimestamp);
@@ -120,6 +121,29 @@ export async function runTestPlan(
 }
 
 // ---- Internal helpers ----
+
+/**
+ * Invoke the optional progress callback, shielding the run from a throwing
+ * caller. A misbehaving onScenario must never abort the run before the corpus
+ * is finalized.
+ */
+function notify(
+  onScenario: ((result: ScenarioResult) => void) | undefined,
+  result: ScenarioResult,
+): void {
+  if (!onScenario) {
+    return;
+  }
+  try {
+    onScenario(result);
+  } catch (err) {
+    console.warn(
+      `Progress callback threw for scenario "${result.id}": ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
 
 function validatePlan(plan: TestPlan): void {
   const stateIds = new Set(homePageModel.states.map((s) => s.stateId));

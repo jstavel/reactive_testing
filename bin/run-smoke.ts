@@ -36,6 +36,9 @@ const result = await runTestPlan(smokeTestPlan, config, (scenario) => {
   );
 });
 
+const passed = result.scenarios.filter((s) => s.passed).length;
+const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+
 if (result.scenarios.length === 0) {
   console.error(
     `Run produced zero scenarios (plan "${result.planId}", modelVersion "${result.modelVersion}"). ` +
@@ -45,8 +48,15 @@ if (result.scenarios.length === 0) {
   process.exit(1);
 }
 
-const passed = result.scenarios.filter((s) => s.passed).length;
-const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+if (passed === 0) {
+  console.error(
+    `Run failed: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s. ` +
+      `All scenarios failed — inspect the per-scenario errors above and the corpus in ` +
+      `${config.corpusDir}/ to diagnose. Exiting non-zero.`,
+  );
+  process.exit(1);
+}
+
 console.log(
   `Run complete: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s. ` +
     `CDP connection closed on completion; the human's browser stays open (detached, never closed). ` +

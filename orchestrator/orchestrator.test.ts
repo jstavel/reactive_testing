@@ -16,6 +16,7 @@ const mockGetByText = vi.fn(() => ({
   first: vi.fn(() => ({ click: vi.fn() })),
 }));
 const mockBrowserClose = vi.fn();
+const mockConnectOverCDP = vi.fn();
 
 vi.mock("playwright", () => ({
   chromium: {
@@ -37,6 +38,7 @@ vi.mock("playwright", () => ({
         close: mockBrowserClose,
       }),
     ),
+    connectOverCDP: (...args: unknown[]) => mockConnectOverCDP(...args),
   },
 }));
 
@@ -78,6 +80,24 @@ function makePlan(scenarios: TestPlan["scenarios"]): TestPlan {
     planId: "smoke",
     modelVersion: MODEL_VERSION,
     scenarios,
+  };
+}
+
+/** Build a CDP-style browser handle that yields a functioning page for runTestPlan. */
+function makeCdpBrowserForOrchestrator() {
+  const page = {
+    goto: mockGoto,
+    waitForSelector: mockWaitForSelector,
+    keyboard: { press: mockKeyboardPress },
+    getByRole: mockGetByRole,
+    getByText: mockGetByText,
+    close: mockBrowserClose,
+  };
+  const context = { newPage: vi.fn(() => Promise.resolve(page)) };
+  return {
+    contexts: vi.fn(() => [context]),
+    newContext: vi.fn(() => Promise.resolve(context)),
+    close: mockBrowserClose,
   };
 }
 
@@ -334,6 +354,81 @@ describe("runTestPlan", () => {
     // waitForSelector called once during bootstrap + once after each of 2 steps = 3 total
     expect(mockWaitForSelector).toHaveBeenCalledTimes(3);
     expect(mockWaitForSelector).toHaveBeenCalledWith("#app", expect.objectContaining({ timeout: expect.any(Number) }));
+  });
+
+  it("attaches over CDP when cdpUrl is set and writes a corpus on success", async () => {
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    const browser = makeCdpBrowserForOrchestrator();
+    mockConnectOverCDP.mockResolvedValue(browser);
+
+    const plan = makePlan([
+      {
+        id: "cdp-attach",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const config = {
+      ...baseConfig,
+      cdpUrl: "http://127.0.0.1:9222",
+    };
+
+    const result = await runTestPlan(plan, config);
+
+    // (a) attached via connectOverCDP, not launch
+    expect(mockConnectOverCDP).toHaveBeenCalledWith("http://127.0.0.1:9222");
+    expect(
+      (await import("playwright")).chromium.launch,
+    ).not.toHaveBeenCalled();
+    // (b) scenario passes and a corpus is written + finalized
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(writeCorpusFile).toHaveBeenCalled();
+    expect(finishRun).toHaveBeenCalled();
+  });
+
+  it("returns all scenarios failed with no partial corpus when CDP attach fails", async () => {
+    const { startCorpusRun, finishRun } = await import("./corpus.js");
+    mockConnectOverCDP.mockRejectedValue(new Error("ECONNREFUSED 127.0.0.1:9222"));
+
+    const plan = makePlan([
+      {
+        id: "cdp-fail",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const config = {
+      ...baseConfig,
+      cdpUrl: "http://127.0.0.1:9222",
+    };
+
+    const result = await runTestPlan(plan, config);
+
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(result.scenarios[0]!.error).toMatch(/Browser launch failed/);
+    // No partial corpus: the launch failure path never starts/finishes a run.
+    expect(startCorpusRun).not.toHaveBeenCalled();
+    expect(finishRun).not.toHaveBeenCalled();
+  });
+
+  it("shields a throwing onScenario callback and still finishes the run with a manifest", async () => {
+    const { finishRun } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "cb-throws",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig, () => {
+      throw new Error("caller callback exploded");
+    });
+
+    // A throwing progress callback must not abort the run.
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(finishRun).toHaveBeenCalled();
   });
 });
 

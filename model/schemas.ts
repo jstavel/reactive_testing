@@ -143,8 +143,10 @@ export interface OrchestratorConfig {
   probes: Probe[];
   /**
    * CDP endpoint to attach to an already-authenticated browser (AD-4 "via CDP").
-   * When set, the orchestrator connects over CDP (chromium.connectOverCDP) and
-   * reuses the human's logged-in session. Default: http://127.0.0.1:9222.
+   * When set, the orchestrator connects over CDP (chromium.connectOverCDP) to the
+   * human's logged-in session, preserving 2FA state. When omitted, the orchestrator
+   * launches a fresh anonymous Chromium — kept for local/CI tests only, never
+   * viable against Kraken Pro's 2FA (no default; the runner sets it explicitly).
    */
   cdpUrl?: string;
 }
