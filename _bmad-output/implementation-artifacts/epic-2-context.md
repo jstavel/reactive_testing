@@ -11,6 +11,7 @@ Jan can run a scenario against the live app and produce a recorded corpus with n
 - 2.3 — Scenario run produces a namespaced corpus with no embedded assertions
 - 2.4 — Collector errors are isolated
 - 2.5 — Connect to an existing authenticated browser via CDP
+- 2.6 — Specify the real per-contract actions against the live Kraken Pro home page (AI-assisted)
 
 ## Requirements & Constraints
 
