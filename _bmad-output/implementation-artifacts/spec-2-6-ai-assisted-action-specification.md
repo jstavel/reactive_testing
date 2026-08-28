@@ -55,7 +55,7 @@ The output `actionMap` stays **static and deterministic** (AD-4, NFR-1): the AI 
 
 ## Code Map
 
-- `orchestrator/action-map.ts` — **REWRITE the 8 broken entries** with locators discovered from the live DOM. The `Record<contractId, ContractAction>` shape and determinism contract stay. Only the locator implementations change:
+- `orchestrator/action-map.ts` — **REWRITE the 9 broken entries** with locators discovered from the live DOM. The `Record<contractId, ContractAction>` shape and determinism contract stay. Only the locator implementations change:
   - `clickHistoryMenuMain`, `clickHistoryMenuFutures` (History menu nav)
   - `clickPortfolioMenuOverview`, `clickPortfolioMenuMain`, `clickPortfolioMenuFutures`, `clickPortfolioMenuLoans`, `clickPortfolioMenuEarn` (Portfolio menu nav / Earn)
   - `openPortfolioSummary`, `toggleEyeIcon` (summary dialog + eye toggle)
@@ -68,10 +68,21 @@ The output `actionMap` stays **static and deterministic** (AD-4, NFR-1): the AI 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Discovery pass: connect to the authenticated browser over CDP (reuse 2.5), open a new tab at `https://pro.kraken.com/app/home`, wait on the CONFIRMED readySelector (`[data-testid="overview-portfolio-hero-value-text"]`), and dump the accessibility/DOM subtree covering the main navigation, the Portfolio Summary trigger, and the eye toggle.
-- [ ] For each of the 8 broken contracts, identify the exact live element (stable selector / role / aria-label) and write the corresponding `actionMap` entry (strict-mode, anchored, single-target); confirm each action reaches its contract's postcondition URL / dialog state.
-- [ ] `closePortfolioSummary` — verify Escape still correct on live; change only if discovered otherwise.
-- [ ] Add/extend `action-map.test.ts`: for every contract, a mocked-page test asserting the action runs (well-formed locator) and that no entry is a bare/unanchored wildcard; keep `npm run typecheck` clean and `npm test` passing.
+
+Per-contract mode: the discovery aid is run once to reach each contract's live starting state and dump the DOM/accessibility subtree. Then **one task per contract** — the AI writes that contract's `actionMap` entry (strict-mode, anchored, single-target), you **verify** it against the live app, and only then does the AI proceed to the next contract. Each contract is confirmed in isolation before the next begins.
+
+- [ ] Discovery aid: connect to the authenticated browser over CDP (reuse 2.5), open a new tab at `https://pro.kraken.com/app/home`, wait on the CONFIRMED readySelector (`[data-testid="overview-portfolio-hero-value-text"]`), and dump the accessibility/DOM subtree covering the main navigation, the Portfolio Summary trigger, and the eye toggle (dev aid, not in the deterministic path).
+- [ ] Contract `clickHistoryMenuMain` — discover the real History → Main nav element; write the action; reach `/app/history/main/ledger` with Ledger selected.
+- [ ] Contract `clickHistoryMenuFutures` — discover the real History → Futures nav element; write the action; reach `/app/history/derivatives/ledger` with Ledger selected.
+- [ ] Contract `clickPortfolioMenuOverview` — discover the real Portfolio → Overview nav element; write the action; reach `/app/portfolio/overview`.
+- [ ] Contract `clickPortfolioMenuMain` — discover the real Portfolio → Main nav element; write the action; reach `/app/portfolio/main`.
+- [ ] Contract `clickPortfolioMenuFutures` — discover the real Portfolio → Futures nav element; write the action; reach `/app/portfolio/derivatives`.
+- [ ] Contract `clickPortfolioMenuLoans` — discover the real Portfolio → Loans nav element; write the action; reach `/app/portfolio/loans`.
+- [ ] Contract `clickPortfolioMenuEarn` — discover the real Portfolio → Earn nav element; write the action; reach `/app/earn`.
+- [ ] Contract `openPortfolioSummary` — discover the real portfolio-value trigger; write the action; Portfolio Summary dialog opens with sections for Main/Spot/Margin/Futures/Loans/Earn.
+- [ ] Contract `toggleEyeIcon` — discover the real eye control in the open dialog; write the action; values hide then show.
+- [ ] Contract `closePortfolioSummary` — verify Escape still closes the dialog on live; change only if discovered otherwise.
+- [ ] Tests: extend `action-map.test.ts` — for every contract, a mocked-page test asserting the action runs (well-formed strict-mode locator) and no entry is a bare/unanchored wildcard; keep `npm run typecheck` clean and `npm test` passing.
 - [ ] Live check (MANUAL — drives Jan's authenticated browser): `npm run run:smoke` → all smoke-plan scenarios PASS; corpus + `run-manifest.json` written; browser stays open & authenticated.
 
 **Acceptance Criteria:**
@@ -82,6 +93,7 @@ The output `actionMap` stays **static and deterministic** (AD-4, NFR-1): the AI 
 ## Spec Change Log
 
 - **2026-08-28** — Initial story. Created by the human request after Story 2.5's live run confirmed the connection layer works (attach + new tab + confirmed readySelector + clean detach) but every smoke-plan scenario FAILs because `orchestrator/action-map.ts`'s hardcoded role-based locators return 0 matches on the live home page. Story 2.5's scope flag (spec line 88) named this a follow-up; the human confirmed it belongs in Epic 2. This story makes the AI-assisted authoring step concrete: discover the real DOM target per contract and write working, deterministic actions — completing Epic 2's "run against the live app" goal. Recorded in `deferred-work.md` with the Epic 2 placement prior to drafting.
+- **2026-08-28** — Renegotiated execution mode during checkpoint review: split the single bulk "rewrite all broken contracts" task into **one task per contract** (9 broken + `closePortfolioSummary` verify). The AI writes one contract's `actionMap` entry, the human **verifies** it live, and only then does the AI proceed to the next contract — matching the "AI proposes, human approves" pairing loop. Lowers blast radius (a wrong locator is caught on contract 1, not after all 9), narrows rework if Kraken's DOM shifts, and makes the acceptance bar explicit per contract. Also corrected the broken-contract count from 8 to 9 (2 History + 5 Portfolio/Earn + 2 dialog).
 
 ## Design Notes
 
