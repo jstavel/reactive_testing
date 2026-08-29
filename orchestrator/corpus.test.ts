@@ -6,13 +6,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  collectorErrorSchema,
   networkEventSchema,
   probeResultSchema,
   runManifestSchema,
   screenshotRefSchema,
   snapshotRecordSchema,
 } from "../model/schemas.js";
-import type { CorpusRun } from "../model/schemas.js";
+import type { CollectorError, CorpusRun } from "../model/schemas.js";
 import {
   startCorpusRun,
   writeCorpusFile,
@@ -93,7 +94,7 @@ describe("writeCorpusFile", () => {
 });
 
 describe("finishRun", () => {
-  it("writes a conforming run-manifest.json listing run-id, timestamp, and all files", () => {
+  it("writes a conforming run-manifest.json listing run-id, timestamp, errors, and all files", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
     const timestamp = "2026-08-28T00:00:00.000Z";
@@ -101,7 +102,7 @@ describe("finishRun", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     writeCorpusFile(corpusDir, run, "network", 0, "json", "[]");
 
-    finishRun(corpusDir, run, timestamp);
+    finishRun(corpusDir, run, timestamp, []);
 
     const manifestPath = join(corpusDir, run.runId, "run-manifest.json");
     expect(existsSync(manifestPath)).toBe(true);
@@ -109,19 +110,25 @@ describe("finishRun", () => {
     expect(runManifestSchema.safeParse(manifest).success).toBe(true);
     expect(manifest.runId).toBe(run.runId);
     expect(manifest.timestamp).toBe(timestamp);
+    expect(manifest.errors).toEqual([]);
     expect(manifest.files).toEqual([
       `snapshots/${run.runId}/0.json`,
       `network/${run.runId}/0.json`,
     ]);
   });
 
-  it("namespaces manifests per run so two runs never overwrite", () => {
+  it("is namespaced per run and records a populated errors array per run", () => {
     const corpusDir = makeCorpusDir();
     const first = startCorpusRun();
     const second = startCorpusRun();
 
-    finishRun(corpusDir, first, "t1");
-    finishRun(corpusDir, second, "t2");
+    const probeGap = {
+      collector: "probe",
+      stepIndex: 0,
+      error: 'Probe "balance" selector "[data-balance]" failed: boom',
+    } as const;
+    finishRun(corpusDir, first, "t1", [probeGap]);
+    finishRun(corpusDir, second, "t2", []);
 
     const firstManifest = join(corpusDir, first.runId, "run-manifest.json");
     const secondManifest = join(corpusDir, second.runId, "run-manifest.json");
@@ -129,6 +136,40 @@ describe("finishRun", () => {
     expect(existsSync(secondManifest)).toBe(true);
     expect(JSON.parse(readFileSync(firstManifest, "utf8")).runId).toBe(first.runId);
     expect(JSON.parse(readFileSync(secondManifest, "utf8")).runId).toBe(second.runId);
+    expect(JSON.parse(readFileSync(firstManifest, "utf8")).errors).toEqual([probeGap]);
+    expect(JSON.parse(readFileSync(secondManifest, "utf8")).errors).toEqual([]);
+  });
+
+  it("round-trips populated collector gaps through the manifest schema", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    const errors: CollectorError[] = [
+      { collector: "snapshot", stepIndex: 2, error: "snapshot boom" },
+      { collector: "network", stepIndex: 5, error: "network boom" },
+    ];
+
+    finishRun(corpusDir, run, "t", errors);
+
+    const manifest = JSON.parse(
+      readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
+    );
+    expect(runManifestSchema.safeParse(manifest).success).toBe(true);
+    expect(manifest.errors).toEqual(errors);
+    for (const gap of manifest.errors) {
+      expect(collectorErrorSchema.safeParse(gap).success).toBe(true);
+    }
+  });
+
+  it("rejects a malformed collector gap against collectorErrorSchema", () => {
+    expect(
+      collectorErrorSchema.safeParse({ collector: "nope", stepIndex: 0, error: "x" })
+        .success,
+    ).toBe(false);
+    expect(
+      collectorErrorSchema.safeParse({ collector: "probe", error: "x" })
+        .success,
+    ).toBe(false);
   });
 });
 

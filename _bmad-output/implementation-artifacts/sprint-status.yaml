@@ -48,7 +48,7 @@ development_status:
   2-1-orchestrator-executes-a-test-plan-deterministically: done
   2-2-collectors-capture-page-data: done
   2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: done
-  2-4-collector-errors-are-isolated: backlog
+  2-4-collector-errors-are-isolated: review
   2-5-connect-to-an-existing-authenticated-browser-via-cdp: done
   2-6-ai-assisted-action-specification: backlog
   epic-2-retrospective: optional

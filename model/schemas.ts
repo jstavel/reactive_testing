@@ -17,18 +17,41 @@ export const snapshotRecordSchema = z.object({
 });
 export type SnapshotRecord = z.infer<typeof snapshotRecordSchema>;
 
-/** A single captured HTTP request/response event (plain data). */
-export const networkEventSchema = z.object({
-  /** Request URL. */
-  url: z.string(),
-  /** HTTP method (e.g. GET, POST). */
-  method: z.string(),
-  /** HTTP response status code. */
-  status: z.number(),
-  /** ISO-8601 capture timestamp. */
-  capturedAt: z.string(),
-});
-export type NetworkEvent = z.infer<typeof networkEventSchema>;
+/** A single captured HTTP request/response event (plain data). Exactly one of
+ * `status` / `error` is present: an exchange that produced a response carries
+ * the HTTP status, a failed/aborted request (`requestfailed`) carries an error
+ * string instead. */
+export const networkEventSchema = z
+  .object({
+    /** Request URL. */
+    url: z.string(),
+    /** HTTP method (e.g. GET, POST). */
+    method: z.string(),
+    /** HTTP response status code — present only when the request produced a
+     * response (any HTTP status code, including 4xx/5xx). */
+    status: z.number().optional(),
+    /** Failure description — present only when the request failed/aborted. */
+    error: z.string().min(1).optional(),
+    /** ISO-8601 capture timestamp. */
+    capturedAt: z.string(),
+  })
+  .superRefine((event, ctx) => {
+    const hasStatus = event.status !== undefined;
+    const hasError = event.error !== undefined;
+    if (hasStatus === hasError) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "network event must have exactly one of `status` or `error`",
+      });
+    }
+  });
+/** A captured HTTP event. The exactly-one invariant is enforced at parse time
+ * by the schema; the exported type is a discriminated union so invalid objects
+ * (both/neither field) fail to typecheck. */
+export type NetworkEvent =
+  | { url: string; method: string; status: number; capturedAt: string }
+  | { url: string; method: string; error: string; capturedAt: string };
 
 /** A targeted DOM probe result — one extracted value (plain data). */
 export const probeResultSchema = z.object({
@@ -100,6 +123,35 @@ export const validationResultSchema = z.object({
   corpusRefs: z.array(z.string()),
 });
 export type ValidationResult = z.infer<typeof validationResultSchema>;
+
+// ---- Collector gap records (AD-16: isolation) ----
+
+/** The four collectors, as recorded by name in a collector gap (AD-13). */
+export const collectorNameSchema = z.enum([
+  "snapshot",
+  "network",
+  "screenshot",
+  "probe",
+]);
+export type CollectorName = z.infer<typeof collectorNameSchema>;
+
+/** A recorded collector failure gap: one collector threw for one step. The
+ * orchestrator owns the isolation boundary and gap recording (AD-5/AD-15);
+ * the collector functions themselves still throw rather than swallow. A
+ * collector body's internal listener quarantine (collect-network.ts) only
+ * stops one bad event from losing its siblings — it is distinct from the
+ * collector-level isolation boundary and never masks a collector throw. A
+ * future reporter (Epic 3) flags the gap from `runManifestSchema.errors`
+ * (AD-16). */
+export const collectorErrorSchema = z.object({
+  /** Which collector failed — matches the collector key in `collectors`. */
+  collector: collectorNameSchema,
+  /** Global step index (across scenarios) of the failing step — a non-negative integer. */
+  stepIndex: z.number().int().nonnegative(),
+  /** Serialized throw message. */
+  error: z.string(),
+});
+export type CollectorError = z.infer<typeof collectorErrorSchema>;
 
 // ---- Plan / artifact types ----
 
@@ -175,6 +227,9 @@ export const runManifestSchema = z.object({
   timestamp: z.string(),
   /** Corpus-relative file paths written during the run. */
   files: z.array(z.string()),
+  /** Collector gaps recorded across the run (AD-16); `[]` means no gaps.
+   * Defaulted so legacy pre-`errors` manifests still parse (AD-13). */
+  errors: z.array(collectorErrorSchema).default([]),
 });
 export type RunManifest = z.infer<typeof runManifestSchema>;
 

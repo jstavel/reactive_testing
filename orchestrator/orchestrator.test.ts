@@ -592,8 +592,8 @@ describe("corpus wiring", () => {
     expect(ref.filePath).toBe("screenshots/mock-run-id/0.png");
   });
 
-  it("still writes the run manifest when a scenario/step fails (success or failure)", async () => {
-    const { finishRun } = await import("./corpus.js");
+  it("isolates a collector throw into a gap: scenario passes, siblings run, manifest errors recorded", async () => {
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
     const { collectors } = await import("../collectors/collect.js");
     (collectors.snapshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("collector boom"),
@@ -608,9 +608,174 @@ describe("corpus wiring", () => {
 
     const result = await runTestPlan(plan, baseConfig);
 
+    // A collector throw is a gap, not a scenario failure.
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(result.scenarios[0]!.error).toBeUndefined();
+    // The remaining collectors for the same step still ran.
+    expect(collectors.network).toHaveBeenCalledTimes(1);
+    expect(collectors.screenshot).toHaveBeenCalledTimes(1);
+    expect(collectors.probe).toHaveBeenCalledTimes(1);
+    // The failed collector's file is absent; the manifest records the gap.
+    const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(writeCalls.some((c) => c[2] === "snapshots")).toBe(false);
+    // The sibling collectors' files were still written at the same stepIndex.
+    const kindsAtStepZero = writeCalls
+      .filter((c) => c[3] === 0)
+      .map((c) => c[2]);
+    expect(kindsAtStepZero).toEqual(
+      expect.arrayContaining(["network", "screenshots", "probes"]),
+    );
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [{ collector: "snapshot", stepIndex: 0, error: "collector boom" }],
+    );
+  });
+
+  it("records gaps with true global step indexes across multi-step scenarios", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+    // Step 0 succeeds, the gap lands on a LATER step of the first scenario,
+    // then on the second scenario's step.
+    (collectors.snapshot as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("fake-snapshot")
+      .mockRejectedValueOnce(new Error("step-1 boom"))
+      .mockRejectedValueOnce(new Error("scenario-2 boom"));
+
+    const plan = makePlan([
+      {
+        id: "multi-step",
+        steps: [
+          { stateId: "homePage", contractId: "openPortfolioSummary" },
+          { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+        ],
+      },
+      {
+        id: "second-scenario",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    // Both scenarios completed; the snapshot gaps never failed them.
+    expect(result.scenarios).toHaveLength(2);
+    expect(result.scenarios.every((s) => s.passed)).toBe(true);
+    // Step indexes are global: scenario 1's step 1 → 1, scenario 2's step 0 → 2.
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [
+        { collector: "snapshot", stepIndex: 1, error: "step-1 boom" },
+        { collector: "snapshot", stepIndex: 2, error: "scenario-2 boom" },
+      ],
+    );
+  });
+
+  it("persists partial probe results and records a gap when the probe collector fails partway", async () => {
+    const { ProbePartialError } = await import("../collectors/collect-probe.js");
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+    (collectors.probe as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ProbePartialError(
+        'Probe "balance" selector "[data-balance]" failed: boom',
+        [{ name: "title", value: "Portfolio", capturedAt: "t" }],
+        "balance",
+      ),
+    );
+
+    const plan = makePlan([
+      {
+        id: "partial-probe",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios[0]!.passed).toBe(true);
+    // Partial probe results were persisted to the probes corpus file.
+    const probeWrite = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[2] === "probes",
+    );
+    expect(probeWrite).toBeTruthy();
+    expect(JSON.parse(probeWrite![5] as string)).toEqual([
+      { name: "title", value: "Portfolio", capturedAt: "t" },
+    ]);
+    // And the missing probe is recorded as a gap for a future reporter.
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [
+        {
+          collector: "probe",
+          stepIndex: 0,
+          error: expect.stringContaining('Probe "balance"'),
+        },
+      ],
+    );
+  });
+
+  it("fails the scenario when a collector exceeds stepTimeout (timeout is not a gap)", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+    (collectors.snapshot as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise(() => {}),
+    );
+
+    const plan = makePlan([
+      {
+        id: "hung-collector",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, { ...baseConfig, stepTimeout: 50 });
+
+    // A collector that exceeds stepTimeout still fails the scenario; the run
+    // finalizes with a manifest but no gap is recorded.
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0]!.passed).toBe(false);
-    expect(result.scenarios[0]!.error).toMatch(/collector boom/);
-    expect(finishRun).toHaveBeenCalled();
+    expect(result.scenarios[0]!.error).toContain("timed out");
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [],
+    );
+  });
+
+  it("does not isolate a corpus-write IO failure: the scenario fails and no gap is recorded", async () => {
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => {
+        throw new Error("disk full");
+      },
+    );
+
+    const plan = makePlan([
+      {
+        id: "io",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    // Corpus-write IO is orchestrator-authoritative: a write failure is a
+    // scenario failure, never silenced into a collector gap (I/O matrix).
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(result.scenarios[0]!.error).toContain("disk full");
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [],
+    );
   });
 });

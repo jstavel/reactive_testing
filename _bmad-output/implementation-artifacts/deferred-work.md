@@ -41,3 +41,10 @@
 - `run-manifest.json` has no completeness marker, so a run with timeout-skipped scenarios is indistinguishable at the manifest level; add a status/complete field in a later story when validators consume manifests.
 - `writeCorpusFile` does not sanitize `kind`/`runId`/`stepIndex`, so a misbehaving caller could escape the corpus root (path traversal); defensive hardening deferred until external callers exist (current call sites are internal and hardcoded).
 - Per-step execution is bounded per operation (worst case ~6× stepTimeout: action + settle + 4 collectors), not per whole step; still bounded, so tightening to a strict per-step budget is a deliberate behavior choice for a later story.
+
+## Deferred from: code review of spec-2-4-collector-errors-are-isolated (2026-08-29)
+
+- The network collector's `waitForLoadState("networkidle")` is a single one-shot observation window: requests that start after the idle settle (debounced/lazy SPA traffic) are never captured, and the window closes without an explicit quiet-period guarantee; a capture-hook/window design is a later story.
+- Probe collection fail-fasts at the first missing selector, so probes ordered after the failure are never evaluated and their evidence is lost; probe-batch continuation (evaluate all, report the missing set) is a focused future design item.
+- `capturedAt` is an unvalidated `z.string()` across ALL corpus schemas (pre-existing since offer/snapshot shapes), so non-ISO timestamps parse; schema-wide ISO validation belongs with the field-level contract tightening already tracked for Epic 2 collectors.
+- `probeSchema.name` has no uniqueness enforcement among the probes of a plan, so two probes sharing a name silently both run; duplicate-name detection belongs at plan-config time in a later story.

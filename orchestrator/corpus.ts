@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import type { CorpusRun, RunManifest } from "../model/schemas.js";
+import type { CollectorError, CorpusRun, RunManifest } from "../model/schemas.js";
 
 /**
  * Start a new corpus run — assigns a unique run-id and initializes the file list.
@@ -35,16 +35,20 @@ export function writeCorpusFile(
 
 /**
  * Write the run-manifest.json at `{corpusDir}/{runId}/run-manifest.json`.
+ * `errors` is always present (AD-16): the collector gaps recorded across the
+ * run, so a future reporter can flag collection gaps from the manifest.
  */
 export function finishRun(
   corpusDir: string,
   run: CorpusRun,
   timestamp: string,
+  errors: CollectorError[],
 ): void {
   const manifest: RunManifest = {
     runId: run.runId,
     timestamp,
     files: [...run.files],
+    errors: [...errors],
   };
   const manifestDir = join(corpusDir, run.runId);
   mkdirSync(manifestDir, { recursive: true });
