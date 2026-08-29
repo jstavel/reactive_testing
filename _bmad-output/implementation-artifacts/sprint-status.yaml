@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 08-29-2026
+last_updated: 08-29-2026 22:05
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -48,10 +48,10 @@ development_status:
   2-1-orchestrator-executes-a-test-plan-deterministically: done
   2-2-collectors-capture-page-data: done
   2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: done
-  2-4-collector-errors-are-isolated: review
+  2-4-collector-errors-are-isolated: done
   2-5-connect-to-an-existing-authenticated-browser-via-cdp: done
   2-6-ai-assisted-action-specification: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   epic-3: backlog
   3-1-validators-are-pure-functions-over-the-corpus: backlog
@@ -87,3 +87,18 @@ action_items:
     owner: "Jan"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-08-25-2026.md"
+  - id: "epic-2-retro-item-4-add-a-unit-test-asserting-smoketestplan"
+    epic: 2
+    action: "Add a unit test asserting smokeTestPlan.modelVersion equals computeModelVersion()
+      against the real model files, so schema edits that forget to bump the plan hash
+      fail CI"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-08-29-2026.md"
+  - id: "epic-2-retro-item-5-remove-the-dead-action-field-and-placeho"
+    epic: 2
+    action: "Remove the dead action field and placeholder from model/contracts.ts
+      (keep ContractAction), reconciling actionMap as the canonical action home"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-08-29-2026.md"
