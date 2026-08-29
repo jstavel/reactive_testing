@@ -50,7 +50,7 @@ development_status:
   2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-a: done
   2-4-collector-errors-are-isolated: review
   2-5-connect-to-an-existing-authenticated-browser-via-cdp: done
-  2-6-ai-assisted-action-specification: backlog
+  2-6-ai-assisted-action-specification: done
   epic-2-retrospective: optional
 
   epic-3: backlog

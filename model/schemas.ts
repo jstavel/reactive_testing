@@ -201,6 +201,13 @@ export interface OrchestratorConfig {
   headless?: boolean;
   /** CSS selector to wait for after initial navigation. */
   readySelector: string;
+  /**
+   * CSS selector waited for after each step action (the settle wait). Defaults
+   * to `readySelector`. Navigation actions leave the home page, where
+   * `readySelector` is often absent, so a runner may point this at a persistent
+   * app-shell element (e.g. `[aria-label="Side navigation"]`) instead.
+   */
+  settleSelector?: string;
   /** Per-step timeout in ms. Default: 30000. */
   stepTimeout: number;
   /** Total run timeout in ms. Default: 300000. */

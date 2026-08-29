@@ -103,7 +103,6 @@ export async function runTestPlan(
         scenario,
         page,
         stepTimeout,
-        config.readySelector,
         config,
         corpus,
         stepIndex,
@@ -204,7 +203,6 @@ async function executeScenario(
   scenario: { id: string; steps: Array<{ stateId: string; contractId: string }> },
   page: Page,
   stepTimeout: number,
-  readySelector: string,
   config: OrchestratorConfig,
   corpus: CorpusRun,
   startStepIndex: number,
@@ -220,7 +218,8 @@ async function executeScenario(
         throw new Error(`No action for contractId "${step.contractId}".`);
       }
       await withTimeout(action({ page }), stepTimeout);
-      await page.waitForSelector(readySelector, { timeout: stepTimeout });
+      const settleSelector = config.settleSelector ?? config.readySelector;
+      await page.waitForSelector(settleSelector, { timeout: stepTimeout });
 
       // Collect and persist after every step. Each collector runs under its own
       // isolation boundary (AD-16): a collector THROW becomes a recorded gap in

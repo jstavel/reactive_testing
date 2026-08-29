@@ -8,8 +8,10 @@ vi.mock("../model/model-version.js", () => ({
 
 const mockGoto = vi.fn();
 const mockWaitForSelector = vi.fn();
+const mockWaitForURL = vi.fn();
 const mockKeyboardPress = vi.fn();
 const mockGetByRole = vi.fn(() => ({
+  click: vi.fn(),
   first: vi.fn(() => ({ click: vi.fn() })),
 }));
 const mockGetByText = vi.fn(() => ({
@@ -28,6 +30,7 @@ vi.mock("playwright", () => ({
               Promise.resolve({
                 goto: mockGoto,
                 waitForSelector: mockWaitForSelector,
+                waitForURL: mockWaitForURL,
                 keyboard: { press: mockKeyboardPress },
                 getByRole: mockGetByRole,
                 getByText: mockGetByText,
@@ -88,6 +91,7 @@ function makeCdpBrowserForOrchestrator() {
   const page = {
     goto: mockGoto,
     waitForSelector: mockWaitForSelector,
+    waitForURL: mockWaitForURL,
     keyboard: { press: mockKeyboardPress },
     getByRole: mockGetByRole,
     getByText: mockGetByText,
@@ -176,15 +180,14 @@ describe("runTestPlan", () => {
     const savedImpl = mockGetByRole.getMockImplementation();
     let callCount = 0;
     mockGetByRole.mockImplementation(() => ({
-      first: vi.fn(() => ({
-        click: vi.fn(() => {
-          callCount++;
-          if (callCount === 1) {
-            return new Promise((resolve) => setTimeout(resolve, 100_000));
-          }
-          return Promise.resolve();
-        }),
-      })),
+      click: vi.fn(() => {
+        callCount++;
+        if (callCount === 1) {
+          return new Promise((resolve) => setTimeout(resolve, 100_000));
+        }
+        return Promise.resolve();
+      }),
+      first: vi.fn(() => ({ click: vi.fn() })),
     }));
 
     const plan = makePlan([
@@ -214,15 +217,14 @@ describe("runTestPlan", () => {
     const savedImpl = mockGetByRole.getMockImplementation();
     let slowCall = true;
     mockGetByRole.mockImplementation(() => ({
-      first: vi.fn(() => ({
-        click: vi.fn(() => {
-          if (slowCall) {
-            slowCall = false;
-            return new Promise((resolve) => setTimeout(resolve, 200));
-          }
-          return Promise.resolve();
-        }),
-      })),
+      click: vi.fn(() => {
+        if (slowCall) {
+          slowCall = false;
+          return new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        return Promise.resolve();
+      }),
+      first: vi.fn(() => ({ click: vi.fn() })),
     }));
 
     const plan = makePlan([
@@ -354,6 +356,27 @@ describe("runTestPlan", () => {
     // waitForSelector called once during bootstrap + once after each of 2 steps = 3 total
     expect(mockWaitForSelector).toHaveBeenCalledTimes(3);
     expect(mockWaitForSelector).toHaveBeenCalledWith("#app", expect.objectContaining({ timeout: expect.any(Number) }));
+  });
+
+  it("settles on settleSelector when provided instead of readySelector", async () => {
+    const plan = makePlan([
+      {
+        id: "click-history-main",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, { ...baseConfig, settleSelector: ".app-shell" });
+
+    // bootstrap waits readySelector, the settle waits settleSelector
+    expect(mockWaitForSelector).toHaveBeenCalledWith(
+      "#app",
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
+    expect(mockWaitForSelector).toHaveBeenCalledWith(
+      ".app-shell",
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
   });
 
   it("attaches over CDP when cdpUrl is set and writes a corpus on success", async () => {

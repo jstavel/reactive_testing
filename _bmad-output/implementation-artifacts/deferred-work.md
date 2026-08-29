@@ -48,3 +48,9 @@
 - Probe collection fail-fasts at the first missing selector, so probes ordered after the failure are never evaluated and their evidence is lost; probe-batch continuation (evaluate all, report the missing set) is a focused future design item.
 - `capturedAt` is an unvalidated `z.string()` across ALL corpus schemas (pre-existing since offer/snapshot shapes), so non-ISO timestamps parse; schema-wide ISO validation belongs with the field-level contract tightening already tracked for Epic 2 collectors.
 - `probeSchema.name` has no uniqueness enforcement among the probes of a plan, so two probes sharing a name silently both run; duplicate-name detection belongs at plan-config time in a later story.
+
+## Deferred from: plan split of spec-2-6-ai-assisted-action-specification (2026-08-29)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-ai-assisted-action-specification.md`
+  summary: Portfolio Summary dialog actions (`openPortfolioSummary`, `toggleEyeIcon`, `closePortfolioSummary`) as their own dialog-surface story (own spec, once the navigation story ships).
+  evidence: Split during story 2.6 planning by the SCOPE STANDARD token gate ([S]). The nav and dialog surfaces are independently shippable and verifiable against the live app; the dialog contracts carry the later-acceptance risk the Ask-First rules flag (dialog must show value + six sections; the eye control may have no discoverable stable locator → defer with a note rather than guess). Smoke scenarios 8-10 (open-summary, escape-closes, eye-toggle) stay failing until that story.

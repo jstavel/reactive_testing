@@ -11,12 +11,17 @@ import { runTestPlan } from "../orchestrator/orchestrator.js";
 const config: OrchestratorConfig = {
   baseUrl: "https://pro.kraken.com/app/home",
   // Confirmed live readySelector: reflects the authenticated portfolio value.
+  // The home hero renders in ~6.3s, so stepTimeout must exceed that AND real
+  // nav actions (up to ~5s); 10s still fast-fails broken locators vs Playwright's 30s.
   readySelector: '[data-testid="overview-portfolio-hero-value-text"]',
+  // After a nav action the home hero is absent (history/portfolio/earn pages),
+  // so the settle wait targets the persistent side-nav shell instead.
+  settleSelector: '[aria-label="Side navigation"]',
   corpusDir: "corpus",
   probes: [],
   cdpUrl: "http://127.0.0.1:9222",
-  stepTimeout: 3_000,
-  runTimeout: 30_000,
+  stepTimeout: 10_000,
+  runTimeout: 180_000,
 };
 
 const startedAt = Date.now();
