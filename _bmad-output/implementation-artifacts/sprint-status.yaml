@@ -55,7 +55,7 @@ development_status:
   epic-2-retrospective: done
 
   epic-3: backlog
-  3-1-validators-are-pure-functions-over-the-corpus: ready-for-dev
+  3-1-validators-are-pure-functions-over-the-corpus: done
   3-2-validator-declares-corpus-dependencies-one-navigation-funds: backlog
   3-3-new-validation-rule-without-re-running-the-scenario: backlog
   3-4-failure-surfaces-as-reviewable-gherkin: backlog
@@ -94,12 +94,12 @@ action_items:
       against the real model files, so schema edits that forget to bump the plan hash
       fail CI"
     owner: "Jan"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-08-29-2026.md"
   - id: "epic-2-retro-item-5-remove-the-dead-action-field-and-placeho"
     epic: 2
     action: "Remove the dead action field and placeholder from model/contracts.ts
       (keep ContractAction), reconciling actionMap as the canonical action home"
     owner: "Jan"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-08-29-2026.md"

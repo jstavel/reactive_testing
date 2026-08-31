@@ -1,52 +1,51 @@
 // Dialog-contract type declaration + Home Page seed data (Story 1.2).
+//
+// Story 3.1: pre/postconditions are machine-compatible predicate declarations
+// (typed `ContractPredicate` objects); the human-readable prose lives in the
+// Gherkin layer as the trace (FR-9), never in the model. The action's concrete
+// implementation lives in orchestrator/action-map.ts (retro F1) — the contract
+// carries no behavior.
 
 import type { Page } from "playwright";
+
+import type { ContractPredicate } from "./schemas.js";
 
 /** Action signature. The Orchestrator supplies the concrete implementation (via Playwright). */
 export type ContractAction = (context: { page: Page }) => Promise<void>;
 
-/** A dialog/screen's behavioral declaration: preconditions, action, postconditions, invariants. */
+/** A dialog/screen's behavioral declaration: preconditions, postconditions, invariants. */
 export interface DialogContract {
   /** Stable camelCase verb-phrase id (e.g. "filterByType"). */
   contractId: string;
-  /** Conditions that must hold before the action may run. */
-  preconditions: string[];
-  /** The action the contract describes; the concrete implementation is supplied by the Orchestrator. */
-  action: ContractAction;
-  /** Conditions that must hold after the action succeeds. */
-  postconditions: string[];
-  /** Conditions that must hold at all times within the contract's scope. */
+  /** Conditions that must hold before the action may run (evaluated against the pre-step snapshot). */
+  preconditions: ContractPredicate[];
+  /** Conditions that must hold after the action succeeds (evaluated against the post-step snapshot). */
+  postconditions: ContractPredicate[];
+  /** Conditions that must hold at all times within the contract's scope (Epic 4 standing invariants). */
   invariants: string[];
 }
 
 // ---------------------------------------------------------------------------
-// Seed data — Home Page contracts (Story 1.2, scoped)
+// Seed data — Home Page contracts (Story 1.2, migrated to predicates in 3.1)
 // ---------------------------------------------------------------------------
-
-/** Placeholder action — the Orchestrator replaces this with Playwright calls in Epic 2. */
-const placeholder: ContractAction = async () => {
-  /* implemented by Orchestrator in Epic 2 */
-};
 
 const homePageContracts: DialogContract[] = [
   // --- History menu navigation ---
   {
     contractId: "clickHistoryMenuMain",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "History page is displayed at /app/history/main/ledger",
-      "Ledger sub-view is selected",
+      { assert: "url-is", url: "/app/history/main/ledger" },
+      { assert: "view-selected", view: "ledger" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
   {
     contractId: "clickHistoryMenuFutures",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "History page is displayed at /app/history/derivatives/ledger",
-      "Ledger sub-view is selected",
+      { assert: "url-is", url: "/app/history/derivatives/ledger" },
+      { assert: "view-selected", view: "ledger" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
@@ -54,81 +53,67 @@ const homePageContracts: DialogContract[] = [
   // --- Portfolio menu navigation ---
   {
     contractId: "clickPortfolioMenuOverview",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "Portfolio page is displayed at /app/portfolio/overview",
-      "Overview view is selected",
+      { assert: "url-is", url: "/app/portfolio/overview" },
+      { assert: "view-selected", view: "overview" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
   {
     contractId: "clickPortfolioMenuMain",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "Portfolio page is displayed at /app/portfolio/main",
-      "Main view is selected",
+      { assert: "url-is", url: "/app/portfolio/main" },
+      { assert: "view-selected", view: "main" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
   {
     contractId: "clickPortfolioMenuFutures",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "Portfolio page is displayed at /app/portfolio/derivatives",
-      "Futures view is selected",
+      { assert: "url-is", url: "/app/portfolio/derivatives" },
+      { assert: "view-selected", view: "futures" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
   {
     contractId: "clickPortfolioMenuLoans",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
     postconditions: [
-      "Portfolio page is displayed at /app/portfolio/loans",
-      "Loans view is selected",
+      { assert: "url-is", url: "/app/portfolio/loans" },
+      { assert: "view-selected", view: "loans" },
     ],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
   {
     contractId: "clickPortfolioMenuEarn",
-    preconditions: ["user is on the Home Page"],
-    action: placeholder,
-    postconditions: ["application navigates to /app/earn"],
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
+    postconditions: [{ assert: "url-is", url: "/app/earn" }],
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
 
   // --- Portfolio Summary dialog ---
+  // The un-mappable prose postconditions ("shows total value in USD", "shows
+  // sections for…", "values hidden/visible") have no predicate yet — they stay
+  // in the Gherkin layer and are re-added by the dialog-surface story.
   {
     contractId: "openPortfolioSummary",
-    preconditions: ["user is on the Home Page", "portfolio value is displayed in the header"],
-    action: placeholder,
-    postconditions: [
-      "Portfolio Summary dialog is open",
-      "dialog shows total portfolio value in USD",
-      "dialog shows sections for: Main, Spot, Margin, Futures, Loans, Earn",
-    ],
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
+    postconditions: [{ assert: "dialog-open" }],
     invariants: ["main navigation is visible"],
   },
   {
     contractId: "closePortfolioSummary",
-    preconditions: ["Portfolio Summary dialog is open"],
-    action: placeholder,
-    postconditions: ["Portfolio Summary dialog is closed"],
+    preconditions: [{ assert: "dialog-open" }],
+    postconditions: [{ assert: "dialog-closed" }],
     invariants: [],
   },
-
-  // --- Eye toggle (dialog) ---
   {
     contractId: "toggleEyeIcon",
-    preconditions: ["Portfolio Summary dialog is open"],
-    action: placeholder,
-    postconditions: [
-      "values become hidden if icon was showing EyeOff",
-      "values become visible if icon was showing Eye",
-    ],
+    preconditions: [{ assert: "dialog-open" }],
+    postconditions: [],
     invariants: ["dialog remains open"],
   },
 ];

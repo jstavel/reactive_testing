@@ -130,6 +130,35 @@ export const validationResultSchema = z.object({
 });
 export type ValidationResult = z.infer<typeof validationResultSchema>;
 
+// ---- Machine-compatible contract declarations (Story 3.1) ----
+
+/** The closed predicate vocabulary for contract declarations. A discriminated
+ * union so a declaration using an unknown predicate is rejected at schema/type
+ * time, never at runtime (Story 3.1). */
+export const contractPredicateSchema = z.discriminatedUnion("assert", [
+  z.object({ assert: z.literal("state-is"), stateId: z.string() }),
+  z.object({ assert: z.literal("url-is"), url: z.string() }),
+  z.object({ assert: z.literal("view-selected"), view: z.string() }),
+  z.object({ assert: z.literal("dialog-open") }),
+  z.object({ assert: z.literal("dialog-closed") }),
+]);
+export type ContractPredicate = z.infer<typeof contractPredicateSchema>;
+
+/** The slice of a recorded corpus a validator reads (Story 3.1 minimal shape;
+ * Story 3.2 replaces this with declared corpus dependencies). */
+export interface ContractEvidence {
+  /** Pre-step snapshot — the state before the action ran. */
+  pre?: SnapshotRecord;
+  /** Post-step snapshot — the state after the action ran. */
+  post?: SnapshotRecord;
+  /** Probe results captured for the step (e.g. `selected-view`). */
+  probes?: ProbeResult[];
+}
+
+/** A shared validator: a pure function corpus → result, with no browser access
+ * (AD-3, FR-5, NFR-1). The no-`Page` guarantee is this type itself. */
+export type Validator = (evidence: ContractEvidence) => ValidationResult;
+
 // ---- Collector gap records (AD-16: isolation) ----
 
 /** The four collectors, as recorded by name in a collector gap (AD-13). */
