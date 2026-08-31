@@ -115,7 +115,7 @@ describe("finishRun", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     writeCorpusFile(corpusDir, run, "network", 0, "json", "[]");
 
-    finishRun(corpusDir, run, timestamp, [], []);
+    finishRun(corpusDir, run, timestamp, [], [], ["snapshot", "probe"]);
 
     const manifestPath = join(corpusDir, run.runId, "run-manifest.json");
     expect(existsSync(manifestPath)).toBe(true);
@@ -125,6 +125,7 @@ describe("finishRun", () => {
     expect(manifest.timestamp).toBe(timestamp);
     expect(manifest.errors).toEqual([]);
     expect(manifest.failures).toEqual([]);
+    expect(manifest.collectors).toEqual(["snapshot", "probe"]);
     expect(manifest.files).toEqual([
       `snapshots/${run.runId}/0.json`,
       `network/${run.runId}/0.json`,
@@ -141,8 +142,8 @@ describe("finishRun", () => {
       stepIndex: 0,
       error: 'Probe "balance" selector "[data-balance]" failed: boom',
     } as const;
-    finishRun(corpusDir, first, "t1", [probeGap], []);
-    finishRun(corpusDir, second, "t2", [], []);
+    finishRun(corpusDir, first, "t1", [probeGap], [], []);
+    finishRun(corpusDir, second, "t2", [], [], []);
 
     const firstManifest = join(corpusDir, first.runId, "run-manifest.json");
     const secondManifest = join(corpusDir, second.runId, "run-manifest.json");
@@ -163,7 +164,7 @@ describe("finishRun", () => {
       { collector: "network", stepIndex: 5, error: "network boom" },
     ];
 
-    finishRun(corpusDir, run, "t", errors, []);
+    finishRun(corpusDir, run, "t", errors, [], []);
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -183,7 +184,7 @@ describe("finishRun", () => {
       { stepIndex: 1, contractId: "clickHistoryMenuMain", stateId: "homePage", error: "locator.click: Timeout" },
     ];
 
-    finishRun(corpusDir, run, "t", [], failures);
+    finishRun(corpusDir, run, "t", [], failures, []);
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),

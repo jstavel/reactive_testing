@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   CollectorError,
+  CollectorName,
   CorpusRun,
   RunManifest,
   StepFailure,
@@ -47,7 +48,9 @@ export function writeCorpusFile(
  * `errors` is always present (AD-16): the collector gaps recorded across the
  * run, so a future reporter can flag collection gaps from the manifest.
  * `failures` is always present (Story 2.7): the step failures recorded across
- * the run — a distinct axis from collector gaps.
+ * the run — a distinct axis from collector gaps. `collectors` is always present
+ * (Story 3.2): the post-step collectors the plan declared, so a skipped
+ * collector is distinguishable from a failed one.
  */
 export function finishRun(
   corpusDir: string,
@@ -55,6 +58,7 @@ export function finishRun(
   timestamp: string,
   errors: CollectorError[],
   failures: StepFailure[],
+  collectors: CollectorName[],
 ): void {
   const manifest: RunManifest = {
     runId: run.runId,
@@ -62,6 +66,7 @@ export function finishRun(
     files: [...run.files],
     errors: [...errors],
     failures: [...failures],
+    collectors: [...collectors],
   };
   const manifestDir = join(corpusDir, run.runId);
   mkdirSync(manifestDir, { recursive: true });

@@ -56,7 +56,7 @@ development_status:
 
   epic-3: backlog
   3-1-validators-are-pure-functions-over-the-corpus: done
-  3-2-validator-declares-corpus-dependencies-one-navigation-funds: backlog
+  3-2-validator-declares-corpus-dependencies-one-navigation-funds: done
   3-3-new-validation-rule-without-re-running-the-scenario: backlog
   3-4-failure-surfaces-as-reviewable-gherkin: backlog
   3-5-adjudicated-spec-change-only: backlog

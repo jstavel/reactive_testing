@@ -292,6 +292,11 @@ export const runManifestSchema = z.object({
   /** Step failures recorded across the run (Story 2.7); `[]` means no step failed.
    * Defaulted so legacy pre-`failures` manifests still parse (AD-13). */
   failures: z.array(stepFailureSchema).default([]),
+  /** The post-step collectors the plan declared (Story 3.2, AD-6). The pre-step
+   * snapshot and any best-effort failure capture (Story 2.7) are separate and not
+   * listed here, so a failure screenshot may appear in `files` even when
+   * `screenshot` is absent from `collectors`. `[]` on a legacy manifest. */
+  collectors: z.array(collectorNameSchema).default([]),
 });
 export type RunManifest = z.infer<typeof runManifestSchema>;
 
