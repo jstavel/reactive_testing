@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 08-29-2026 22:05
+last_updated: 08-30-2026
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -51,10 +51,11 @@ development_status:
   2-4-collector-errors-are-isolated: done
   2-5-connect-to-an-existing-authenticated-browser-via-cdp: done
   2-6-ai-assisted-action-specification: done
+  2-7-capture-the-evidence-validators-need: done
   epic-2-retrospective: done
 
   epic-3: backlog
-  3-1-validators-are-pure-functions-over-the-corpus: backlog
+  3-1-validators-are-pure-functions-over-the-corpus: ready-for-dev
   3-2-validator-declares-corpus-dependencies-one-navigation-funds: backlog
   3-3-new-validation-rule-without-re-running-the-scenario: backlog
   3-4-failure-surfaces-as-reviewable-gherkin: backlog

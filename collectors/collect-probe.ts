@@ -47,6 +47,17 @@ export const collectProbe: CollectorFn<ProbeResult[], [Probe[]]> = async (
   const results: ProbeResult[] = [];
 
   for (const probe of parsed) {
+    // An optional probe is absent on surfaces that don't carry the element —
+    // record an empty value immediately (no gap, no auto-wait).
+    if (probe.optional && (await page.locator(probe.selector).count()) === 0) {
+      results.push({
+        name: probe.name,
+        value: "",
+        capturedAt: new Date().toISOString(),
+      });
+      continue;
+    }
+
     let value: string;
     try {
       value =

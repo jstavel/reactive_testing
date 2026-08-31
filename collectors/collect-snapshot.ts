@@ -18,5 +18,6 @@ export const collectSnapshot: CollectorFn<
 > = async (page, options) => {
   const { stateId } = snapshotCollectorOptionsSchema.parse(options);
   const snapshot = await page.locator("body").innerHTML();
-  return { stateId, snapshot, capturedAt: new Date().toISOString() };
+  const url = page.url();
+  return { stateId, url, snapshot, capturedAt: new Date().toISOString() };
 };

@@ -48,8 +48,9 @@ vi.mock("playwright", () => ({
 const mockCorpusRun: { runId: string; files: string[] } = { runId: "mock-run-id", files: [] };
 vi.mock("./corpus.js", () => ({
   startCorpusRun: vi.fn(() => mockCorpusRun),
-  writeCorpusFile: vi.fn((_corpusDir: string, run: { runId: string; files: string[] }, kind: string, stepIndex: number, ext: string) => {
-    const path = `${kind}/${run.runId}/${stepIndex}.${ext}`;
+  writeCorpusFile: vi.fn((_corpusDir: string, run: { runId: string; files: string[] }, kind: string, stepIndex: number, ext: string, _data: unknown, stem?: string) => {
+    const name = stem ?? String(stepIndex);
+    const path = `${kind}/${run.runId}/${name}.${ext}`;
     run.files.push(path);
     return path;
   }),
@@ -469,12 +470,12 @@ describe("corpus wiring", () => {
 
     await runTestPlan(plan, baseConfig);
 
-    expect(collectors.snapshot).toHaveBeenCalledTimes(1);
+    expect(collectors.snapshot).toHaveBeenCalledTimes(2);
     expect(collectors.network).toHaveBeenCalledTimes(1);
     expect(collectors.screenshot).toHaveBeenCalledTimes(1);
     expect(collectors.probe).toHaveBeenCalledTimes(1);
 
-    expect(writeCorpusFile).toHaveBeenCalledTimes(5);
+    expect(writeCorpusFile).toHaveBeenCalledTimes(6);
     const kinds = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
       (c) => c[2],
     );
@@ -484,10 +485,11 @@ describe("corpus wiring", () => {
       "screenshots",
       "screenshots",
       "snapshots",
+      "snapshots",
     ]);
 
     expect(finishRun).toHaveBeenCalledTimes(1);
-    expect(mockCorpusRun.files).toHaveLength(5);
+    expect(mockCorpusRun.files).toHaveLength(6);
   });
 
   it("increments stepIndex globally across steps and scenarios with no collisions", async () => {
@@ -513,7 +515,8 @@ describe("corpus wiring", () => {
       (c) => c[2] === "snapshots",
     );
     const stepIndexes = snapshotCalls.map((c) => c[3]);
-    expect(stepIndexes).toEqual([0, 1, 2]);
+    // pre + post snapshots per step; the step index stays global across scenarios.
+    expect(stepIndexes).toEqual([0, 0, 1, 1, 2, 2]);
     expect(new Set(stepIndexes).size).toBe(3);
   });
 
@@ -618,7 +621,7 @@ describe("corpus wiring", () => {
   it("isolates a collector throw into a gap: scenario passes, siblings run, manifest errors recorded", async () => {
     const { finishRun, writeCorpusFile } = await import("./corpus.js");
     const { collectors } = await import("../collectors/collect.js");
-    (collectors.snapshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    (collectors.network as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("collector boom"),
     );
 
@@ -635,35 +638,36 @@ describe("corpus wiring", () => {
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0]!.passed).toBe(true);
     expect(result.scenarios[0]!.error).toBeUndefined();
-    // The remaining collectors for the same step still ran.
-    expect(collectors.network).toHaveBeenCalledTimes(1);
+    // The pre-step and post-action snapshots still ran (2 calls).
+    expect(collectors.snapshot).toHaveBeenCalledTimes(2);
     expect(collectors.screenshot).toHaveBeenCalledTimes(1);
     expect(collectors.probe).toHaveBeenCalledTimes(1);
     // The failed collector's file is absent; the manifest records the gap.
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
-    expect(writeCalls.some((c) => c[2] === "snapshots")).toBe(false);
+    expect(writeCalls.some((c) => c[2] === "network")).toBe(false);
     // The sibling collectors' files were still written at the same stepIndex.
     const kindsAtStepZero = writeCalls
       .filter((c) => c[3] === 0)
       .map((c) => c[2]);
     expect(kindsAtStepZero).toEqual(
-      expect.arrayContaining(["network", "screenshots", "probes"]),
+      expect.arrayContaining(["snapshots", "screenshots", "probes"]),
     );
     expect(finishRun).toHaveBeenCalledWith(
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
-      [{ collector: "snapshot", stepIndex: 0, error: "collector boom" }],
+      [{ collector: "network", stepIndex: 0, error: "collector boom" }],
+      [],
     );
   });
 
   it("records gaps with true global step indexes across multi-step scenarios", async () => {
     const { finishRun } = await import("./corpus.js");
     const { collectors } = await import("../collectors/collect.js");
-    // Step 0 succeeds, the gap lands on a LATER step of the first scenario,
-    // then on the second scenario's step.
-    (collectors.snapshot as unknown as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce("fake-snapshot")
+    // network runs once per step (not duplicated pre/post), so the queue is
+    // simple: step 0 succeeds, step 1 of scenario 1 fails, scenario 2's step fails.
+    (collectors.network as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error("step-1 boom"))
       .mockRejectedValueOnce(new Error("scenario-2 boom"));
 
@@ -683,7 +687,7 @@ describe("corpus wiring", () => {
 
     const result = await runTestPlan(plan, baseConfig);
 
-    // Both scenarios completed; the snapshot gaps never failed them.
+    // Both scenarios completed; the network gaps never failed them.
     expect(result.scenarios).toHaveLength(2);
     expect(result.scenarios.every((s) => s.passed)).toBe(true);
     // Step indexes are global: scenario 1's step 1 → 1, scenario 2's step 0 → 2.
@@ -692,9 +696,10 @@ describe("corpus wiring", () => {
       mockCorpusRun,
       expect.any(String),
       [
-        { collector: "snapshot", stepIndex: 1, error: "step-1 boom" },
-        { collector: "snapshot", stepIndex: 2, error: "scenario-2 boom" },
+        { collector: "network", stepIndex: 1, error: "step-1 boom" },
+        { collector: "network", stepIndex: 2, error: "scenario-2 boom" },
       ],
+      [],
     );
   });
 
@@ -740,6 +745,7 @@ describe("corpus wiring", () => {
           error: expect.stringContaining('Probe "balance"'),
         },
       ],
+      [],
     );
   });
 
@@ -768,6 +774,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      [],
       [],
     );
   });
@@ -799,6 +806,157 @@ describe("corpus wiring", () => {
       mockCorpusRun,
       expect.any(String),
       [],
+      [],
     );
+  });
+
+  it("writes a pre-step snapshot before the action and a post snapshot with the target state", async () => {
+    const { writeCorpusFile } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+
+    const plan = makePlan([
+      {
+        id: "single",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    await runTestPlan(plan, baseConfig);
+
+    // Pre-step uses the from-state; post-step uses the target state (historyMain).
+    expect(collectors.snapshot).toHaveBeenCalledWith(expect.anything(), {
+      stateId: "homePage",
+    });
+    expect(collectors.snapshot).toHaveBeenCalledWith(expect.anything(), {
+      stateId: "historyMain",
+    });
+
+    const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const pre = writeCalls.find((c) => c[2] === "snapshots" && c[6] === "pre");
+    const post = writeCalls.find((c) => c[2] === "snapshots" && c[6] === undefined);
+    expect(pre).toBeTruthy();
+    expect(post).toBeTruthy();
+    expect(writeCalls.indexOf(pre!)).toBeLessThan(writeCalls.indexOf(post!));
+  });
+
+  it("captures best-effort failure evidence and records a StepFailure when the action throws", async () => {
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => Promise.reject(new Error("locator boom"))),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const plan = makePlan([
+      {
+        id: "action-fails",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(result.scenarios[0]!.error).toContain("locator boom");
+
+    // Pre-step snapshot written before the action; failure snapshot + screenshot after.
+    const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "pre")).toBe(true);
+    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "failure")).toBe(true);
+    expect(
+      writeCalls.some((c) => c[2] === "screenshots" && c[6] === "failure" && c[4] === "png"),
+    ).toBe(true);
+
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [],
+      [
+        {
+          stepIndex: 0,
+          contractId: "clickHistoryMenuMain",
+          stateId: "homePage",
+          error: "locator boom",
+        },
+      ],
+    );
+
+    if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+  });
+
+  it("records a StepFailure when the settle wait throws", async () => {
+    const { finishRun } = await import("./corpus.js");
+    mockWaitForSelector
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("settle boom"));
+
+    const plan = makePlan([
+      {
+        id: "settle-fails",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(result.scenarios[0]!.error).toContain("settle boom");
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [],
+      [
+        {
+          stepIndex: 0,
+          contractId: "clickHistoryMenuMain",
+          stateId: "homePage",
+          error: "settle boom",
+        },
+      ],
+    );
+  });
+
+  it("swallows a failure-capture error and still records the StepFailure", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const { collectors } = await import("../collectors/collect.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => Promise.reject(new Error("locator boom"))),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+    (collectors.screenshot as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("failure screenshot boom"),
+    );
+
+    const plan = makePlan([
+      {
+        id: "action-fails",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    // The failure screenshot threw, but the run still finalized and the
+    // StepFailure was recorded (failure capture is best-effort).
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      [],
+      [
+        {
+          stepIndex: 0,
+          contractId: "clickHistoryMenuMain",
+          stateId: "homePage",
+          error: "locator boom",
+        },
+      ],
+    );
+
+    if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
   });
 });

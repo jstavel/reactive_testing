@@ -58,7 +58,7 @@ function makeRequest(
 function createPageMock(): {
   page: Page & { emit: (event: string, ...args: unknown[]) => boolean };
   mocks: Record<
-    "locator" | "innerHTML" | "first" | "textContent" | "screenshot" | "waitForLoadState" | "on" | "off",
+    "locator" | "innerHTML" | "first" | "textContent" | "screenshot" | "waitForLoadState" | "on" | "off" | "url" | "count",
     ReturnType<typeof vi.fn>
   >;
 } {
@@ -84,9 +84,11 @@ function createPageMock(): {
   const innerHTML = vi.fn(async () => '<div class="app"><p>Loaded</p></div>');
   const textContent = vi.fn(async () => "extracted-value");
   const first = vi.fn(() => ({ textContent }));
-  const locator = vi.fn(() => ({ innerHTML, first }));
+  const count = vi.fn(async () => 1);
+  const locator = vi.fn(() => ({ innerHTML, first, count }));
   const screenshot = vi.fn(async () => undefined);
   const waitForLoadState = vi.fn(async () => undefined);
+  const url = vi.fn(() => "https://app.test/current");
 
   // Playwright's Page inherits `emit` from EventEmitter at runtime but does not
   // declare it in its types; augment locally so tests can fire captured listeners.
@@ -97,11 +99,12 @@ function createPageMock(): {
     emit,
     screenshot,
     waitForLoadState,
+    url,
   } as unknown as Page & { emit: (event: string, ...args: unknown[]) => boolean };
 
   return {
     page,
-    mocks: { locator, innerHTML, first, textContent, screenshot, waitForLoadState, on, off },
+    mocks: { locator, innerHTML, first, textContent, screenshot, waitForLoadState, on, off, url, count },
   };
 }
 
@@ -125,6 +128,7 @@ describe("collectSnapshot", () => {
 
     expect(mocks.locator).toHaveBeenCalledWith("body");
     expect(record.stateId).toBe("homePage");
+    expect(record.url).toBe("https://app.test/current");
     expect(record.snapshot).toBe('<div class="app"><p>Loaded</p></div>');
     expect(record.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(snapshotRecordSchema.safeParse(record).success).toBe(true);
@@ -550,6 +554,23 @@ describe("collectProbe", () => {
     await expect(
       collectProbe(page, [null as unknown as Probe]),
     ).rejects.toThrow();
+  });
+
+  it("records an empty value for an optional probe whose selector is absent", async () => {
+    const { page, mocks } = createPageMock();
+    mocks.locator.mockImplementation(() => ({
+      innerHTML: vi.fn(async () => ""),
+      first: vi.fn(() => ({ textContent: vi.fn(async () => "unused") })),
+      count: vi.fn(async () => 0),
+    }));
+
+    const results = await collectProbe(page, [
+      { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
+    ]);
+
+    expect(results).toEqual([
+      { name: "selected-view", value: "", capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) },
+    ]);
   });
 });
 

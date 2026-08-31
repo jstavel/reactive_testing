@@ -13,6 +13,7 @@ import type {
   RunResult,
   ScenarioResult,
   ScreenshotRef,
+  StepFailure,
   TestPlan,
 } from "../model/schemas.js";
 import { testPlanSchema } from "../model/schemas.js";
@@ -80,6 +81,7 @@ export async function runTestPlan(
   const { page } = session;
   const scenarioResults: ScenarioResult[] = [];
   const collectorErrors: CollectorError[] = [];
+  const stepFailures: StepFailure[] = [];
   const runStart = Date.now();
   const runTimestamp = new Date().toISOString();
   const corpus = startCorpusRun();
@@ -107,13 +109,14 @@ export async function runTestPlan(
         corpus,
         stepIndex,
         collectorErrors,
+        stepFailures,
       );
       stepIndex += scenario.steps.length;
       scenarioResults.push(result);
       notify(onScenario, result);
     }
 
-    finishRun(config.corpusDir, corpus, runTimestamp, collectorErrors);
+    finishRun(config.corpusDir, corpus, runTimestamp, collectorErrors, stepFailures);
   } finally {
     await closeBrowser();
   }
@@ -207,6 +210,7 @@ async function executeScenario(
   corpus: CorpusRun,
   startStepIndex: number,
   errors: CollectorError[],
+  failures: StepFailure[],
 ): Promise<ScenarioResult> {
   try {
     for (let i = 0; i < scenario.steps.length; i++) {
@@ -217,9 +221,40 @@ async function executeScenario(
       if (!action) {
         throw new Error(`No action for contractId "${step.contractId}".`);
       }
-      await withTimeout(action({ page }), stepTimeout);
-      const settleSelector = config.settleSelector ?? config.readySelector;
-      await page.waitForSelector(settleSelector, { timeout: stepTimeout });
+
+      // Pre-step snapshot — the "before" state (Story 2.7). Captured under the
+      // same AD-16 isolation boundary as the post-action collectors: a throw
+      // becomes a gap in `errors`, a timeout still fails the scenario.
+      const pre = await isolateCollector(
+        "snapshot",
+        stepIndex,
+        stepTimeout,
+        errors,
+        () => collectors.snapshot(page, { stateId: step.stateId }),
+      );
+      if (pre.status === "ok") {
+        writeCorpusFile(
+          config.corpusDir, corpus, "snapshots", stepIndex, "json",
+          JSON.stringify(pre.value), "pre",
+        );
+      }
+
+      // The post-action snapshot records the transition's TARGET state, not the
+      // state the step left (Story 2.7 fix for the `state-is` predicate).
+      const targetStateId = resolveTargetState(step);
+
+      // Action + settle, wrapped so a failure captures best-effort evidence and
+      // records a step failure before rethrowing (the scenario still fails).
+      try {
+        await withTimeout(action({ page }), stepTimeout);
+        const settleSelector = config.settleSelector ?? config.readySelector;
+        await page.waitForSelector(settleSelector, { timeout: stepTimeout });
+      } catch (err) {
+        await recordStepFailure(
+          config, corpus, page, stepIndex, step, stepTimeout, err, failures,
+        );
+        throw err;
+      }
 
       // Collect and persist after every step. Each collector runs under its own
       // isolation boundary (AD-16): a collector THROW becomes a recorded gap in
@@ -231,7 +266,7 @@ async function executeScenario(
         stepIndex,
         stepTimeout,
         errors,
-        () => collectors.snapshot(page, { stateId: step.stateId }),
+        () => collectors.snapshot(page, { stateId: targetStateId }),
       );
       if (snapshot.status === "ok") {
         writeCorpusFile(
@@ -305,6 +340,73 @@ async function executeScenario(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/** Resolve a step's target FSM state from the transition it drives. validatePlan
+ * guarantees a matching transition exists, so the throw is purely defensive. */
+function resolveTargetState(step: { stateId: string; contractId: string }): string {
+  const transition = homePageModel.transitions.find(
+    (t) => t.from === step.stateId && t.contractId === step.contractId,
+  );
+  if (!transition) {
+    throw new Error(
+      `No transition from "${step.stateId}" via "${step.contractId}".`,
+    );
+  }
+  return transition.to;
+}
+
+/** Best-effort failure evidence (Story 2.7): capture the page at the failure
+ * moment (snapshot + screenshot, phase-tagged "failure") and record a StepFailure.
+ * Failure-capture errors are swallowed — they must never abort the run, since the
+ * scenario has already failed. */
+async function recordStepFailure(
+  config: OrchestratorConfig,
+  corpus: CorpusRun,
+  page: Page,
+  stepIndex: number,
+  step: { stateId: string; contractId: string },
+  stepTimeout: number,
+  err: unknown,
+  failures: StepFailure[],
+): Promise<void> {
+  try {
+    const snap = await withTimeout(
+      collectors.snapshot(page, { stateId: step.stateId }),
+      stepTimeout,
+    );
+    writeCorpusFile(
+      config.corpusDir, corpus, "snapshots", stepIndex, "json",
+      JSON.stringify(snap), "failure",
+    );
+  } catch {
+    // swallowed — best-effort
+  }
+
+  try {
+    const shot = await withTimeout(collectors.screenshot(page), stepTimeout);
+    const pngPath = writeCorpusFile(
+      config.corpusDir, corpus, "screenshots", stepIndex, "png",
+      shot.buffer, "failure",
+    );
+    const ref: ScreenshotRef = {
+      filePath: pngPath,
+      capturedAt: shot.capturedAt,
+    };
+    writeCorpusFile(
+      config.corpusDir, corpus, "screenshots", stepIndex, "json",
+      JSON.stringify(ref), "failure",
+    );
+  } catch {
+    // swallowed — best-effort
+  }
+
+  failures.push({
+    stepIndex,
+    contractId: step.contractId,
+    stateId: step.stateId,
+    error: err instanceof Error ? err.message : String(err),
+  });
 }
 
 /** Result of one isolated collector call: its value, or a recorded gap. */

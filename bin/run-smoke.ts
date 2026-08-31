@@ -18,7 +18,13 @@ const config: OrchestratorConfig = {
   // so the settle wait targets the persistent side-nav shell instead.
   settleSelector: '[aria-label="Side navigation"]',
   corpusDir: "corpus",
-  probes: [],
+  // Selected-view probe (Story 2.7): the active sub-view tab (e.g. "Ledger",
+  // "Overview", "Futures") is marked `aria-current="page"` on History/Portfolio
+  // pages. Optional — absent on the home/dialog surfaces, it records an empty
+  // value there rather than a collection gap.
+  probes: [
+    { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
+  ],
   cdpUrl: "http://127.0.0.1:9222",
   stepTimeout: 10_000,
   runTimeout: 180_000,

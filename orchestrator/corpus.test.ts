@@ -12,8 +12,9 @@ import {
   runManifestSchema,
   screenshotRefSchema,
   snapshotRecordSchema,
+  stepFailureSchema,
 } from "../model/schemas.js";
-import type { CollectorError, CorpusRun } from "../model/schemas.js";
+import type { CollectorError, CorpusRun, StepFailure } from "../model/schemas.js";
 import {
   startCorpusRun,
   writeCorpusFile,
@@ -91,6 +92,18 @@ describe("writeCorpusFile", () => {
     expect(readFileSync(abs).equals(png)).toBe(true);
     expect(run.files).toContain(rel);
   });
+
+  it("phase-tags the filename stem when provided (pre/failure)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    const pre = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.pre");
+    const failure = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.failure");
+
+    expect(pre).toBe(`snapshots/${run.runId}/0.pre.json`);
+    expect(failure).toBe(`snapshots/${run.runId}/0.failure.json`);
+    expect(run.files).toEqual([pre, failure]);
+  });
 });
 
 describe("finishRun", () => {
@@ -102,7 +115,7 @@ describe("finishRun", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     writeCorpusFile(corpusDir, run, "network", 0, "json", "[]");
 
-    finishRun(corpusDir, run, timestamp, []);
+    finishRun(corpusDir, run, timestamp, [], []);
 
     const manifestPath = join(corpusDir, run.runId, "run-manifest.json");
     expect(existsSync(manifestPath)).toBe(true);
@@ -111,6 +124,7 @@ describe("finishRun", () => {
     expect(manifest.runId).toBe(run.runId);
     expect(manifest.timestamp).toBe(timestamp);
     expect(manifest.errors).toEqual([]);
+    expect(manifest.failures).toEqual([]);
     expect(manifest.files).toEqual([
       `snapshots/${run.runId}/0.json`,
       `network/${run.runId}/0.json`,
@@ -127,8 +141,8 @@ describe("finishRun", () => {
       stepIndex: 0,
       error: 'Probe "balance" selector "[data-balance]" failed: boom',
     } as const;
-    finishRun(corpusDir, first, "t1", [probeGap]);
-    finishRun(corpusDir, second, "t2", []);
+    finishRun(corpusDir, first, "t1", [probeGap], []);
+    finishRun(corpusDir, second, "t2", [], []);
 
     const firstManifest = join(corpusDir, first.runId, "run-manifest.json");
     const secondManifest = join(corpusDir, second.runId, "run-manifest.json");
@@ -149,7 +163,7 @@ describe("finishRun", () => {
       { collector: "network", stepIndex: 5, error: "network boom" },
     ];
 
-    finishRun(corpusDir, run, "t", errors);
+    finishRun(corpusDir, run, "t", errors, []);
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -158,6 +172,26 @@ describe("finishRun", () => {
     expect(manifest.errors).toEqual(errors);
     for (const gap of manifest.errors) {
       expect(collectorErrorSchema.safeParse(gap).success).toBe(true);
+    }
+  });
+
+  it("round-trips populated step failures through the manifest schema", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    const failures: StepFailure[] = [
+      { stepIndex: 1, contractId: "clickHistoryMenuMain", stateId: "homePage", error: "locator.click: Timeout" },
+    ];
+
+    finishRun(corpusDir, run, "t", [], failures);
+
+    const manifest = JSON.parse(
+      readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
+    );
+    expect(runManifestSchema.safeParse(manifest).success).toBe(true);
+    expect(manifest.failures).toEqual(failures);
+    for (const failure of manifest.failures) {
+      expect(stepFailureSchema.safeParse(failure).success).toBe(true);
     }
   });
 
@@ -178,7 +212,7 @@ describe("persisted values validate against their schemas", () => {
     const corpusDir = makeCorpusDir();
     const run: CorpusRun = { runId: "seed", files: [] };
 
-    const snapshot = { stateId: "homePage", snapshot: "<div/>", capturedAt: "t" };
+    const snapshot = { stateId: "homePage", url: "https://app.test/home", snapshot: "<div/>", capturedAt: "t" };
     const network = [{ url: "https://a", method: "GET", status: 200, capturedAt: "t" }];
     const probe = [{ name: "title", value: "x", capturedAt: "t" }];
     const screenshot = { filePath: "screenshots/seed/0.png", capturedAt: "t" };

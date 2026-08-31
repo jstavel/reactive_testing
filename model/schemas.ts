@@ -10,6 +10,8 @@ import { z } from "zod";
 export const snapshotRecordSchema = z.object({
   /** Id of the FSM state the snapshot was captured in. */
   stateId: z.string(),
+  /** Page URL at capture time — primary evidence for the `url-is` predicate (Story 2.7). */
+  url: z.string(),
   /** Serialized snapshot content (plain text). */
   snapshot: z.string(),
   /** ISO-8601 capture timestamp. */
@@ -85,6 +87,10 @@ export const probeSchema = z.object({
   name: z.string().trim().min(1),
   /** CSS selector identifying the target element — required, non-empty, and not whitespace. */
   selector: z.string().trim().min(1),
+  /** When true, the probe is optional on the surface it runs against: a selector
+   * that matches nothing records an empty value instead of a ProbePartialError
+   * (Story 2.7 — the selected-view probe is absent on non-nav surfaces). */
+  optional: z.boolean().optional(),
 });
 export type Probe = z.infer<typeof probeSchema>;
 
@@ -152,6 +158,23 @@ export const collectorErrorSchema = z.object({
   error: z.string(),
 });
 export type CollectorError = z.infer<typeof collectorErrorSchema>;
+
+/** A recorded step failure: the action/settle leg failed to reach completion.
+ * Distinct from `CollectorError` (a collector gap after a successful step) — a
+ * step failure means the scenario aborted (`passed: false`) and the corpus keeps
+ * only the pre-step and best-effort failure evidence. `stepIndex` is the same
+ * global index used by `CollectorError.stepIndex` (across scenarios). (Story 2.7) */
+export const stepFailureSchema = z.object({
+  /** Global step index (across scenarios) of the failing step — a non-negative integer. */
+  stepIndex: z.number().int().nonnegative(),
+  /** The contract whose action failed. */
+  contractId: z.string(),
+  /** The FSM state the step started from. */
+  stateId: z.string(),
+  /** Serialized throw message. */
+  error: z.string(),
+});
+export type StepFailure = z.infer<typeof stepFailureSchema>;
 
 // ---- Plan / artifact types ----
 
@@ -237,6 +260,9 @@ export const runManifestSchema = z.object({
   /** Collector gaps recorded across the run (AD-16); `[]` means no gaps.
    * Defaulted so legacy pre-`errors` manifests still parse (AD-13). */
   errors: z.array(collectorErrorSchema).default([]),
+  /** Step failures recorded across the run (Story 2.7); `[]` means no step failed.
+   * Defaulted so legacy pre-`failures` manifests still parse (AD-13). */
+  failures: z.array(stepFailureSchema).default([]),
 });
 export type RunManifest = z.infer<typeof runManifestSchema>;
 
