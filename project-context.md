@@ -1,5 +1,12 @@
 # Reactive Testing
 
+> **HISTORICKÝ DOKUMENT — ZMRAZENO, NEMĚNIT.**
+> Toto je historický záznam původní vize. Neodráží aktuální architekturu: sekce "Interceptor/Chain of Responsibility" a "Tech Stack" popisují inline validaci (validation chain běžící při každém kroku scénáře), kterou epiky nahradily dvoufázovým modelem — capture leg (orchestrator + collectory, žádné asserty, FR-4) a offline validace (pure funkce nad corpus, FR-5). Terminologie "aspect" je též mrtvá — nahrazena "shared validator" (NFR-4).
+>
+> Živý SSOT: `_bmad-output/specs/spec-reactive-testing/SPEC.md` · `_bmad-output/planning-artifacts/prds/prd-reactive-testing-2026-08-15/prd.md` · `_bmad-output/planning-artifacts/architecture/architecture-reactive-testing-2026-08-17/ARCHITECTURE-SPINE.md` · `_bmad-output/planning-artifacts/epics/epics.md`.
+>
+> Přežívající hodnota (harvest): motivace, state-reuse value, role mapping — viz PRD.
+
 ## Vize
 
 Aplikuji Reactive Testing v TypeScriptu s pomocí Playwright MCP serveru jako nástroje pro párové programování nad živým prohlížečem. Cílem je POC za 1–2 týdny → funkční demo.
