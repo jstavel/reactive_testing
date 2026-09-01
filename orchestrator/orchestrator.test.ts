@@ -753,7 +753,7 @@ describe("corpus wiring", () => {
     });
 
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
-    const pre = writeCalls.find((c) => c[2] === "snapshots" && c[6] === "pre");
+    const pre = writeCalls.find((c) => c[2] === "snapshots" && c[6] === "0.pre");
     const post = writeCalls.find((c) => c[2] === "snapshots" && c[6] === undefined);
     expect(pre).toBeTruthy();
     expect(post).toBeTruthy();
@@ -782,7 +782,7 @@ describe("corpus wiring", () => {
 
     // Pre-step snapshot written before the action; failure snapshot + screenshot after.
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
-    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "pre")).toBe(true);
+    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "0.pre")).toBe(true);
     expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "failure")).toBe(true);
     expect(
       writeCalls.some((c) => c[2] === "screenshots" && c[6] === "failure" && c[4] === "png"),

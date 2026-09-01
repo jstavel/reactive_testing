@@ -273,9 +273,12 @@ async function executeScenario(
         () => collectors.snapshot(page, { stateId: step.stateId }),
       );
       if (pre.status === "ok") {
+        // Phase-tag the pre-step snapshot per step (`0.pre.json`, `1.pre.json`…)
+        // so each step keeps its own before-state evidence and the corpus loader
+        // (`{stepIndex}.pre.json`, Story 3.3) can reconstruct it (retro F1).
         writeCorpusFile(
           config.corpusDir, corpus, "snapshots", stepIndex, "json",
-          JSON.stringify(pre.value), "pre",
+          JSON.stringify(pre.value), `${stepIndex}.pre`,
         );
       }
 
