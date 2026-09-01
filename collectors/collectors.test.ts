@@ -11,7 +11,7 @@ import {
 } from "../model/schemas.js";
 import type { Probe } from "../model/schemas.js";
 import { collectors } from "./collect.js";
-import { collectNetwork } from "./collect-network.js";
+import { collectNetwork, startNetworkCapture } from "./collect-network.js";
 import { ProbePartialError, collectProbe } from "./collect-probe.js";
 import { collectScreenshot } from "./collect-screenshot.js";
 import { collectSnapshot } from "./collect-snapshot.js";
@@ -422,6 +422,146 @@ describe("collectNetwork", () => {
     expect(mocks.off).toHaveBeenCalledWith("requestfailed", expect.any(Function));
     expect(secondEvents).toHaveLength(1);
     expect(secondEvents[0]!.url).toBe("https://app.test/fail-two");
+  });
+});
+
+describe("startNetworkCapture", () => {
+  it("captures responses observed while the handle is open", async () => {
+    const { page } = createPageMock();
+    const handle = startNetworkCapture(page);
+
+    page.emit("response", makeResponse("https://app.test/api", "GET", 200));
+    page.emit("response", makeResponse("https://app.test/submit", "POST", 201));
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual({
+      url: "https://app.test/api",
+      method: "GET",
+      status: 200,
+      capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+    expect(events[1]).toEqual({
+      url: "https://app.test/submit",
+      method: "POST",
+      status: 201,
+      capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+    for (const event of events) {
+      expect(networkEventSchema.safeParse(event).success).toBe(true);
+    }
+  });
+
+  it("records exactly one event when a request fires both response and requestfailed", async () => {
+    const { page, mocks } = createPageMock();
+    mocks.waitForLoadState.mockRejectedValueOnce(
+      new Error("Timeout 5000ms exceeded"),
+    );
+
+    const handle = startNetworkCapture(page);
+    const sharedRequest = makeRequest("https://app.test/both", "GET", "net::ERR_ABORTED");
+    const bothResponse = {
+      url: () => "https://app.test/both",
+      status: () => 500,
+      request: () => sharedRequest,
+    } as unknown as Response;
+
+    page.emit("response", bothResponse);
+    page.emit("requestfailed", sharedRequest);
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toHaveProperty("status", 500);
+    expect(events[0]).not.toHaveProperty("error");
+    expect(networkEventSchema.safeParse(events[0]!).success).toBe(true);
+  });
+
+  it("close() detaches listeners immediately and finish() returns events captured so far", async () => {
+    const { page, mocks } = createPageMock();
+
+    const handle = startNetworkCapture(page);
+    page.emit("response", makeResponse("https://app.test/pre", "GET", 200));
+
+    handle.close();
+
+    // Listeners are already detached — subsequent events are not captured.
+    page.emit("response", makeResponse("https://app.test/post", "GET", 201));
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe("https://app.test/pre");
+    expect(mocks.off).toHaveBeenCalledWith("response", expect.any(Function));
+    expect(mocks.off).toHaveBeenCalledWith("requestfailed", expect.any(Function));
+  });
+
+  it("close() is idempotent and does not throw", async () => {
+    const { page, mocks } = createPageMock();
+
+    const handle = startNetworkCapture(page);
+    handle.close();
+    handle.close();
+
+    expect(mocks.off).toHaveBeenCalledTimes(2);
+    const events = await handle.finish();
+    expect(events).toEqual([]);
+  });
+
+  it("finish() returns captured events without throwing when the page closes", async () => {
+    const { page, mocks } = createPageMock();
+    mocks.waitForLoadState.mockRejectedValueOnce(
+      new Error("Target page, context or browser has been closed"),
+    );
+
+    const handle = startNetworkCapture(page);
+    page.emit("response", makeResponse("https://app.test/api", "GET", 200));
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe("https://app.test/api");
+    expect(networkEventSchema.safeParse(events[0]!).success).toBe(true);
+  });
+
+  it("finish() detaches both listeners (idempotent)", async () => {
+    const { page, mocks } = createPageMock();
+
+    const handle = startNetworkCapture(page);
+    const events = await handle.finish();
+
+    expect(events).toEqual([]);
+    expect(mocks.off).toHaveBeenCalledWith("response", expect.any(Function));
+    expect(mocks.off).toHaveBeenCalledWith("requestfailed", expect.any(Function));
+  });
+
+  it("finish() after close() does not re-await or re-throw", async () => {
+    const { page, mocks } = createPageMock();
+
+    const handle = startNetworkCapture(page);
+    page.emit("response", makeResponse("https://app.test/api", "GET", 200));
+    handle.close();
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe("https://app.test/api");
+    expect(mocks.waitForLoadState).not.toHaveBeenCalled();
+  });
+
+  it("attaches listeners before traffic, capturing exchanges during the action", async () => {
+    const { page } = createPageMock();
+
+    const handle = startNetworkCapture(page);
+    // Traffic fires immediately — the handle should capture it because
+    // listeners were attached before the traffic started.
+    page.emit("response", makeResponse("https://app.test/action-api", "POST", 200));
+
+    const events = await handle.finish();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe("https://app.test/action-api");
   });
 });
 
