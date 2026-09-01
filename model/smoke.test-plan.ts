@@ -42,7 +42,10 @@ export const smokeTestPlan: TestPlan = {
     // home-page-portfolio-summary-dialog.feature
     {
       id: "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
-      steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }],
+      steps: [
+        { stateId: "homePage", contractId: "openPortfolioSummary" },
+        { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
+      ],
     },
     {
       id: "pressing-escape-closes-the-portfolio-summary-dialog",
@@ -56,6 +59,7 @@ export const smokeTestPlan: TestPlan = {
       steps: [
         { stateId: "homePage", contractId: "openPortfolioSummary" },
         { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+        { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
       ],
     },
   ],
