@@ -66,3 +66,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-4-failure-surfaces-as-reviewable-gherkin.md`
   summary: Same input-trust hardening as tracked under story-2-3 (2026-08-29): `emitFailureGherkin` interpolates an untrusted `runId` into the output path. Defensive narrowing/validation (`runId` and `kind` are trusted only because every call site stems from `randomUUID()` in `startCorpusRun` or hardcoded literals) should land once external callers exist.
   evidence: Blind-hunter review of the 3.4 diff flagged `join(corpusDir, runId, "failure.feature")` with `../` risk. Pre-existing pattern: `orchestrator/corpus.ts:38-40` writes into `{corpusDir}/{kind}/{runId}/` with the same trust model, already deferred under the story-2-3 review.
+
+## Deferred from: code review of spec-3-5-adjudicated-spec-change-only (2026-09-01)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-adjudicated-spec-change-only.md`
+  summary: Same input-trust hardening as tracked under story-2-3 (2026-08-29) and spec-3-4 (2026-09-01): `emitAdjudicationRecord` interpolates an untrusted `runId` into the output path (`join(corpusDir, runId, "adjudication.json")`). Defensive narrowing should land once external callers exist.
+  evidence: Blind-hunter review of the 3.5 diff flagged the same `../` risk the 3.4 review did; runId remains trusted because internal call sites use `randomUUID()` or hardcoded literals.
