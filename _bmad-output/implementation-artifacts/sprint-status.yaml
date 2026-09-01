@@ -59,7 +59,7 @@ development_status:
   3-2-validator-declares-corpus-dependencies-one-navigation-funds: done
   3-3-new-validation-rule-without-re-running-the-scenario: done
   3-4-failure-surfaces-as-reviewable-gherkin: done
-  3-5-adjudicated-spec-change-only: backlog
+  3-5-adjudicated-spec-change-only: review
   3-6-gherkin-is-never-the-ssot: backlog
   epic-3-retrospective: optional
 
