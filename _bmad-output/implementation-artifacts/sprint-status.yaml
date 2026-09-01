@@ -60,7 +60,7 @@ development_status:
   3-3-new-validation-rule-without-re-running-the-scenario: done
   3-4-failure-surfaces-as-reviewable-gherkin: done
   3-5-adjudicated-spec-change-only: done
-  3-6-gherkin-is-never-the-ssot: backlog
+  3-6-gherkin-is-never-the-ssot: review
   epic-3-retrospective: optional
 
   epic-4: backlog
