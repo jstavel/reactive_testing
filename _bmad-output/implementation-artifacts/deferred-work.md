@@ -34,6 +34,7 @@
 
 - `collectNetwork` captures only the networkidle settle-window, so responses that finished during the step action (before the listener attaches) are missed from the corpus; collection-hook placement in the step lifecycle is a design refinement for a later story.
   DECISION (2026-09-01): BUILD — attach the `response`/`requestfailed` listeners before the action and keep them across the settle, so exchanges that finish during the action are captured. See decision 1a.
+  RESOLVED (2026-09-01): collector half shipped — `collectors/collect-network.ts` now exposes `startNetworkCapture(page)` returning a two-phase handle (`finish()` bounded networkidle + idempotent detach; `close()` immediate detach; `finish()` short-circuits after `close()`). `collectNetwork` stays a one-shot wrapper. PR #7 (merged, `9b4fcc9`). The orchestrator wiring that attaches the handle before the action is split out below.
 - Failed/aborted requests (`requestfailed`) are not captured — re-flagged by this review; already tracked above for Story 2-4 error isolation.
 - Probe fail-fast discards already-collected `ProbeResult`s when one selector is missing — re-flagged by this review; already tracked above for Story 2-4 partial-corpus/error-isolation policy.
 
@@ -47,6 +48,7 @@
 
 - The network collector's `waitForLoadState("networkidle")` is a single one-shot observation window: requests that start after the idle settle (debounced/lazy SPA traffic) are never captured, and the window closes without an explicit quiet-period guarantee; a capture-hook/window design is a later story.
   DECISION (2026-09-01): BUILD — same as decision 1a; widen the window to span action + settle + idle. The one-shot networkidle window stays for the settle-bound tail but the listener span now covers the action too.
+  RESOLVED (2026-09-01): collector half shipped — same as decision 1a via PR #7 (`9b4fcc9`); see the RESOLVED note on line 36.
 - Probe collection fail-fasts at the first missing selector, so probes ordered after the failure are never evaluated and their evidence is lost; probe-batch continuation (evaluate all, report the missing set) is a focused future design item.
 - `capturedAt` is an unvalidated `z.string()` across ALL corpus schemas (pre-existing since offer/snapshot shapes), so non-ISO timestamps parse; schema-wide ISO validation belongs with the field-level contract tightening already tracked for Epic 2 collectors.
 - `probeSchema.name` has no uniqueness enforcement among the probes of a plan, so two probes sharing a name silently both run; duplicate-name detection belongs at plan-config time in a later story.
