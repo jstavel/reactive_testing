@@ -57,7 +57,7 @@ development_status:
   epic-3: in-progress
   3-1-validators-are-pure-functions-over-the-corpus: done
   3-2-validator-declares-corpus-dependencies-one-navigation-funds: done
-  3-3-new-validation-rule-without-re-running-the-scenario: review
+  3-3-new-validation-rule-without-re-running-the-scenario: done
   3-4-failure-surfaces-as-reviewable-gherkin: backlog
   3-5-adjudicated-spec-change-only: backlog
   3-6-gherkin-is-never-the-ssot: backlog
