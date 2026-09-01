@@ -33,6 +33,7 @@
 ## Deferred from: code review of spec-2-2-collectors-capture-page-data (2026-08-29)
 
 - `collectNetwork` captures only the networkidle settle-window, so responses that finished during the step action (before the listener attaches) are missed from the corpus; collection-hook placement in the step lifecycle is a design refinement for a later story.
+  DECISION (2026-09-01): BUILD — attach the `response`/`requestfailed` listeners before the action and keep them across the settle, so exchanges that finish during the action are captured. See decision 1a.
 - Failed/aborted requests (`requestfailed`) are not captured — re-flagged by this review; already tracked above for Story 2-4 error isolation.
 - Probe fail-fast discards already-collected `ProbeResult`s when one selector is missing — re-flagged by this review; already tracked above for Story 2-4 partial-corpus/error-isolation policy.
 
@@ -45,6 +46,7 @@
 ## Deferred from: code review of spec-2-4-collector-errors-are-isolated (2026-08-29)
 
 - The network collector's `waitForLoadState("networkidle")` is a single one-shot observation window: requests that start after the idle settle (debounced/lazy SPA traffic) are never captured, and the window closes without an explicit quiet-period guarantee; a capture-hook/window design is a later story.
+  DECISION (2026-09-01): BUILD — same as decision 1a; widen the window to span action + settle + idle. The one-shot networkidle window stays for the settle-bound tail but the listener span now covers the action too.
 - Probe collection fail-fasts at the first missing selector, so probes ordered after the failure are never evaluated and their evidence is lost; probe-batch continuation (evaluate all, report the missing set) is a focused future design item.
 - `capturedAt` is an unvalidated `z.string()` across ALL corpus schemas (pre-existing since offer/snapshot shapes), so non-ISO timestamps parse; schema-wide ISO validation belongs with the field-level contract tightening already tracked for Epic 2 collectors.
 - `probeSchema.name` has no uniqueness enforcement among the probes of a plan, so two probes sharing a name silently both run; duplicate-name detection belongs at plan-config time in a later story.
@@ -54,6 +56,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-6-ai-assisted-action-specification.md`
   summary: Portfolio Summary dialog actions (`openPortfolioSummary`, `toggleEyeIcon`, `closePortfolioSummary`) as their own dialog-surface story (own spec, once the navigation story ships).
   evidence: Split during story 2.6 planning by the SCOPE STANDARD token gate ([S]). The nav and dialog surfaces are independently shippable and verifiable against the live app; the dialog contracts carry the later-acceptance risk the Ask-First rules flag (dialog must show value + six sections; the eye control may have no discoverable stable locator → defer with a note rather than guess). Smoke scenarios 8-10 (open-summary, escape-closes, eye-toggle) stay failing until that story.
+  DECISION (2026-09-01): BUILD — decision 2a: write and ship the dialog-surface spec now; live-app verification available. Ask-First on the eye control locator stands.
 
 ## Deferred from: post-review architecture discussion of spec-3-3 (2026-09-01)
 
