@@ -1,8 +1,8 @@
 // Minimal runner: point the orchestrator at a live, logged-in browser via CDP
-// and produce a real corpus on disk (Epic 2 goal). The smoke plan's actions
-// still return 0 matches on the live home page (action compatibility is a
-// follow-up story), but this wires the CDP-attach connection + new tab +
-// confirmed readySelector and leaves the human's browser open.
+// and produce a real corpus on disk (Epic 2 goal). Actions come from the
+// live-discovered action-map (Story 2.6), so this wires the CDP-attach
+// connection + new tab + confirmed readySelector and leaves the human's
+// browser open.
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { OrchestratorConfig } from "../model/schemas.js";
