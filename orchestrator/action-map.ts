@@ -10,6 +10,13 @@ import type { ContractAction } from "../model/contracts.js";
  * that navigates to the contract's postcondition URL, then waits for that URL
  * (the action owns its nav wait). All locators are strict-mode single-target
  * (verified single match); no runtime AI (AD-4/NFR-1).
+ *
+ * The 3 Portfolio Summary dialog entries (openPortfolioSummary, closePortfolioSummary,
+ * toggleEyeIcon) were discovered live against the authenticated home page
+ * (decision 2a): the open uses the nav-scoped value button (value-agnostic —
+ * matches any magnitude and the masked form), the eye is the dialog's
+ * button:has(svg[name="Eye"|"EyeOff"]), and close focuses inside the dialog
+ * before Escape (a bare Escape only closes when an inner element has focus).
  */
 export const actionMap: Record<string, ContractAction> = {
   clickHistoryMenuMain: async ({ page }) => {
@@ -55,14 +62,26 @@ export const actionMap: Record<string, ContractAction> = {
   },
 
   openPortfolioSummary: async ({ page }) => {
-    await page.getByText(/portfolio value/i).first().click();
+    // The header portfolio value button, scoped to the nav. Matches any magnitude
+    // and the masked form (text always ends in "USD"); value-agnostic by design.
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: /USD$/ })
+      .click();
   },
 
   closePortfolioSummary: async ({ page }) => {
-    await page.keyboard.press("Escape");
+    // Focus inside the dialog before Escape: the app only closes on Escape when an
+    // element inside the dialog has focus (openPortfolioSummary leaves focus on the
+    // header button, so a bare Escape would not close).
+    await page.getByRole("dialog").press("Escape");
   },
 
   toggleEyeIcon: async ({ page }) => {
-    await page.getByRole("button", { name: /eye/i }).first().click();
+    // The eye control (svg[name="Eye"|"EyeOff"], no accessible text name).
+    await page
+      .getByRole("dialog")
+      .locator('button:has(svg[name="Eye"]), button:has(svg[name="EyeOff"])')
+      .click();
   },
 };

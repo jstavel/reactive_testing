@@ -10,13 +10,15 @@ const mockGoto = vi.fn();
 const mockWaitForSelector = vi.fn();
 const mockWaitForURL = vi.fn();
 const mockKeyboardPress = vi.fn();
-const mockGetByRole = vi.fn(() => ({
-  click: vi.fn(),
-  first: vi.fn(() => ({ click: vi.fn() })),
-}));
-const mockGetByText = vi.fn(() => ({
-  first: vi.fn(() => ({ click: vi.fn() })),
-}));
+const fluentLocator = (): unknown => ({
+  click: vi.fn(async () => {}),
+  press: vi.fn(async () => {}),
+  locator: vi.fn(() => fluentLocator()),
+  first: vi.fn(() => fluentLocator()),
+  getByRole: vi.fn(() => fluentLocator()),
+});
+const mockGetByRole = vi.fn(() => fluentLocator());
+const mockGetByText = vi.fn(() => fluentLocator());
 const mockBrowserClose = vi.fn();
 const mockConnectOverCDP = vi.fn();
 
@@ -322,7 +324,6 @@ describe("runTestPlan", () => {
     const result = await runTestPlan(plan, baseConfig);
 
     expect(result.scenarios[0]!.passed).toBe(true);
-    expect(mockGetByText).toHaveBeenCalled();
     expect(mockGetByRole).toHaveBeenCalled();
   });
 

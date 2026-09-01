@@ -4,7 +4,7 @@ Feature: Home page Portfolio Summary dialog
   Scenario: Clicking the portfolio value opens the Portfolio Summary dialog
     Given I am on the Kraken Pro home page
     When I click the portfolio value shown in the header
-      # unique locator: header button matching /\d[\d,.]*\s*USD/, e.g. "4,977.93 USD"
+      # unique locator: header button matching /USD$/ within the navigation, any magnitude or masked form
     Then the Portfolio Summary dialog opens showing the total portfolio value in USD
     And the dialog shows a section for each wallet:
       | Main    |
@@ -13,6 +13,7 @@ Feature: Home page Portfolio Summary dialog
       | Futures |
       | Loans   |
       | Earn    |
+    And I close the Portfolio Summary dialog so the shared Smoke page starts clean for the next scenario
 
   Scenario: Pressing Escape closes the Portfolio Summary dialog
     Given I am on the Kraken Pro home page
@@ -28,3 +29,4 @@ Feature: Home page Portfolio Summary dialog
       # the icon shows "EyeOff" while values are visible and "Eye" while they are hidden
     Then the values become hidden if the icon was showing "EyeOff"
     And the values become visible again if the icon was showing "Eye"
+    And I close the Portfolio Summary dialog so the shared Smoke page starts clean for the next scenario
