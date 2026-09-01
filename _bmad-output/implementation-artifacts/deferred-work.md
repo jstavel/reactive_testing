@@ -75,3 +75,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-adjudicated-spec-change-only.md`
   summary: Same input-trust hardening as tracked under story-2-3 (2026-08-29) and spec-3-4 (2026-09-01): `emitAdjudicationRecord` interpolates an untrusted `runId` into the output path (`join(corpusDir, runId, "adjudication.json")`). Defensive narrowing should land once external callers exist.
   evidence: Blind-hunter review of the 3.5 diff flagged the same `../` risk the 3.4 review did; runId remains trusted because internal call sites use `randomUUID()` or hardcoded literals.
+
+## Deferred from: plan split of spec-decision-1a-network-capture-window (2026-09-01)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-decision-1a-network-capture-window.md`
+  summary: Orchestrator wiring of the two-phase network capture — start `startNetworkCapture` before the action when `planned.has("network")`, call `capture.finish()` after the settle (isolated, then corpus write), `capture.close()` on the action-failure path — plus the orchestrator wiring tests (mock the imported `startNetworkCapture`; assert start-before-action, finish-after-settle, close-on-failure, no corpus write when start gaps).
+  evidence: Split during planning of decision 1a by the SCOPE STANDARD token gate ([S]). The collector two-phase handle is independently shippable and testable at the unit level and is the narrower goal; the orchestrator wiring only becomes observable once a contract declares a network dependency, so it is deferred as its own focused change rather than inflating the current spec.
