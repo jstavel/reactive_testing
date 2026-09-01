@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-01-2026
+last_updated: 09-02-2026 00:58
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -61,7 +61,7 @@ development_status:
   3-4-failure-surfaces-as-reviewable-gherkin: done
   3-5-adjudicated-spec-change-only: done
   3-6-gherkin-is-never-the-ssot: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   epic-4: backlog
   4-1-standalone-repro-script-from-the-model: backlog
@@ -103,3 +103,42 @@ action_items:
     owner: "Jan"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-08-29-2026.md"
+  - id: "epic-3-retro-item-6-fix-the-pre-step-snapshot-seam-make-the"
+    epic: 3
+    action: "Fix the pre-step snapshot seam: make the orchestrator write per-step
+      pre snapshots that loadCorpusSteps reads (or vice versa) and add an integration
+      test recording a corpus through the orchestrator path then loading it offline.
+      (retro F1; restores FR-6)"
+    owner: "Jan"
+    status: done
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+  - id: "epic-3-retro-item-7-make-blockedcontractids-reachable-to-a-r"
+    epic: 3
+    action: "Make blockedContractIds reachable to a reporter (failure/adjudication)
+      or retire the spec-3-2 claim that 3.4 surfaces it. (retro F2)"
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+  - id: "epic-3-retro-item-8-add-a-plan-step-iteration-helper-shared"
+    epic: 3
+    action: "Add a plan-step iteration helper shared by loadCorpusSteps, planCollectors,
+      and validateProbeDependencies so the global stepIndex mapping drifts only once.
+      (retro F3)"
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+  - id: "epic-3-retro-item-9-commit-feature-subjects-with-the-story-i"
+    epic: 3
+    action: "Commit feature subjects with the story id (3-N-slug) so git_evidence
+      per-story attribution survives; extend Epic-2 F4 working rule. (retro F5)"
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+  - id: "epic-3-retro-item-10-decide-whether-fr-7-fr-8-need-a-cli-path"
+    epic: 3
+    action: "Decide whether FR-7/FR-8 need a CLI path in the next epic or stay library-only
+      Reporter modules, and whether blocked-validator surfacing is orchestrator preflight
+      or reporter."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
