@@ -128,3 +128,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-cross-view-standing-invariant-validator.md`
   summary: Add an automated integration test proving a cross-view failure renders through `emitFailureGherkin` (the reporter consumes the AD-14 `ValidationResult` unchanged, but nothing pins that a failing invariant lands in `failure.feature`).
   evidence: Blind-hunter review noted tests never exercise the claimed failure-gherkin compatibility; conformance to `validationResultSchema` is asserted but not the reporter round-trip.
+
+## Deferred from: code review of spec-user-documentation-set (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-user-documentation-set.md`
+  summary: There is no executable way to regenerate the smoke test plan — model/smoke.test-plan.ts's header says "regenerate when model files change" and the docs now tell readers the model is grown via authoring, but no script or npm command re-derives the plan from the @plan:smoke tags (only model/model-version.test.ts detects staleness).
+  evidence: Docs review of the new usage set: the plan file header (model/smoke.test-plan.ts:3-4) instructs regeneration that no repo tool performs; grep of package.json and bin/ shows only run-smoke.ts. Pre-existing (plan is AI-authored per AD-4/AD-19); the docs made the gap visible.
