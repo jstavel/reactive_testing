@@ -118,3 +118,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
   summary: The acceptance criterion "the emitted script also typechecks" is verified manually at review time (regenerate `scripts/repro-<slug>.ts`, run `npm run typecheck`) but is not an automated test or CI gate; add a test that generates a script and shells out to `tsc --noEmit` on it if a permanent gate is wanted.
   evidence: Verification-gap reviewer found no automated coverage for emitted-script typechecking; `npm run typecheck --noEmit` was run with a regenerated repro present and exited 0 at review time, but nothing enforces it later.
+
+## Deferred from: code review of spec-4-2-cross-view-standing-invariant-validator (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-cross-view-standing-invariant-validator.md`
+  summary: Wire the cross-view invariant runner into a verification entry point and add the seed `portfolio-value` probe to the runner's probe config so FR-13 actually executes against real live corpora. Today `runCrossViewInvariants` is never called by `runValidatorsOffline`/`bin/run-smoke.ts` and the seed invariant reads a probe no runner records, so the mechanism is library-only until then.
+  evidence: Blind-hunter review of the 4.2 diff noted the validator is not wired into any validation entry point and the seed probe is not collected; the spec froze both as out-of-scope (no caller requested; probe wiring was Ask First, needing a human live run).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-cross-view-standing-invariant-validator.md`
+  summary: Add an automated integration test proving a cross-view failure renders through `emitFailureGherkin` (the reporter consumes the AD-14 `ValidationResult` unchanged, but nothing pins that a failing invariant lands in `failure.feature`).
+  evidence: Blind-hunter review noted tests never exercise the claimed failure-gherkin compatibility; conformance to `validationResultSchema` is asserted but not the reporter round-trip.
