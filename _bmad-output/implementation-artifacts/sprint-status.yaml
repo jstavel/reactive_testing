@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-02-2026 12:55
+last_updated: 09-02-2026 13:12
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   epic-4: in-progress
   4-1-standalone-repro-script-from-the-model: done
   4-2-cross-view-standing-invariant-validator: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-add-layout-menu-state-contract-to-model"
     epic: 1
@@ -132,7 +132,7 @@ action_items:
     action: "Commit feature subjects with the story id (3-N-slug) so git_evidence
       per-story attribution survives; extend Epic-2 F4 working rule. (retro F5)"
     owner: "Jan"
-    status: open
+    status: in-progress
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
   - id: "epic-3-retro-item-10-decide-whether-fr-7-fr-8-need-a-cli-path"
     epic: 3
@@ -142,3 +142,46 @@ action_items:
     owner: "Jan"
     status: open
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+  - id: "epic-4-retro-item-1-repro-path-continuity"
+    epic: 4
+    action: "Decide that \"reproduces the failure\" (FR-12) includes whole-path runnability,
+      then add path-continuity validation to repro-generator.ts validatePath AND the
+      emitted runtime guard (first step starts at initialStateId; each next step stateId
+      equals the previous transition target), with gap tests."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+  - id: "epic-4-retro-item-2-repro-timeout-discipline"
+    epic: 4
+    action: "Add timeout discipline to the emitted repro: page.goto timeout and a
+      STEP_TIMEOUT_MS race wrapper around each action({ page }), mirroring the orchestrator
+      withTimeout."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+  - id: "epic-4-retro-item-3-cross-view-normalize-boundary"
+    epic: 4
+    action: "Harden validators/cross-view.ts: wrap invariant.normalize in an exception
+      boundary returning a failed result naming invariant+surface; treat normalized-empty
+      as missing evidence; extend assertRegistryEntryGaps to reject empty invariantId/probeName;
+      add equal-capturedAt tie test."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+  - id: "epic-4-retro-item-4-emitted-repro-verification-gate"
+    epic: 4
+    action: "Promote emitted-repro verification from manual typecheck-at-review to
+      a test that generates a repro and compiles/executes it with mocked modules (extends
+      the 4.1 deferred typecheck-gate item)."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+  - id: "epic-4-retro-item-5-fr12-fr13-entry-point-wiring"
+    epic: 4
+    action: "Decide FR-12/FR-13 entry-point wiring (extends epic-3 item-10): wire
+      runCrossViewInvariants + the portfolio-value probe into a verification entry
+      point / runner config, add the orchestrator-to-cross-view round-trip test, and
+      resolve the cross-view comparison-scope question."
+    owner: "Jan"
+    status: open
+    ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
