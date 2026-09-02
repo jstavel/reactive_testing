@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Run Report Design — Brainstorm Keepsake</title>
+<style>
+  :root {
+    --gherkin-green: #2d6a4f;
+    --gherkin-green-light: #40916c;
+    --gherkin-green-pale: #d8f3dc;
+    --gherkin-cream: #fefae0;
+    --gherkin-white: #fdfcfa;
+    --step-keyword: #6a040f;
+    --step-text: #3d0814;
+    --fail-red: #d00000;
+    --fail-red-pale: #fde2e4;
+    --warn-amber: #e09f3e;
+    --must: #2d6a4f;
+    --should: #457b9d;
+    --could: #e09f3e;
+    --wont: #888;
+    --hat-black: #1a1a2e;
+    --hat-green: #2d6a4f;
+    --hat-yellow: #e09f3e;
+    --hat-white: #f0f0f0;
+    --hat-red: #ae2012;
+    --hat-blue: #1d3557;
+    --ink: #2b2d42;
+    --ink-light: #555;
+    --paper: #fdfcfa;
+    --paper-dim: #f5f3ee;
+    --border: #ddd;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --serif: 'Georgia', 'Cambria', 'Times New Roman', serif;
+    --sans: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  .masthead {
+    background: linear-gradient(135deg, var(--gherkin-green) 0%, #1b4332 100%);
+    color: white;
+    padding: 3rem 2rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .masthead::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,0.03) 60px,
+      rgba(255,255,255,0.03) 61px
+    );
+  }
+  .masthead::after {
+    content: 'GIVEN · WHEN · THEN';
+    position: absolute;
+    bottom: 0.5rem; right: 2rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    opacity: 0.25;
+  }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    position: relative;
+  }
+  .masthead .subtitle {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    opacity: 0.8;
+    letter-spacing: 0.05em;
+  }
+  .masthead .meta {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    opacity: 0.6;
+    font-family: var(--mono);
+  }
+
+  /* ── Layout ─────────────────────────────────────────── */
+  .content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Section chrome ─────────────────────────────────── */
+  section {
+    margin-bottom: 3rem;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gherkin-green-light);
+    margin-bottom: 0.4rem;
+  }
+  section h2 {
+    font-family: var(--serif);
+    font-size: 1.45rem;
+    margin-bottom: 0.3rem;
+    color: var(--ink);
+  }
+  section h2 .technique-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+    padding: 0.15em 0.6em;
+    border-radius: 3px;
+    position: relative;
+    top: -0.15em;
+  }
+  section .lead {
+    color: var(--ink-light);
+    font-size: 0.92rem;
+    margin-bottom: 1.5rem;
+    max-width: 640px;
+  }
+
+  /* ── Divider ────────────────────────────────────────── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+  .divider--gherkin {
+    border-top: 2px solid var(--gherkin-green);
+    max-width: 120px;
+    margin: 3rem 0;
+  }
+
+  /* ── First Principles ───────────────────────────────── */
+  .first-principles .technique-badge {
+    background: var(--gherkin-green-pale);
+    color: var(--gherkin-green);
+    border: 1px solid var(--gherkin-green-light);
+  }
+  .decompose-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (min-width: 600px) {
+    .decompose-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .principle-card {
+    background: var(--paper-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.2rem;
+    position: relative;
+    transition: box-shadow 0.2s;
+  }
+  .principle-card:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .principle-card .num {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gherkin-green-light);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .principle-card h3 {
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+  }
+  .principle-card p {
+    font-size: 0.82rem;
+    color: var(--ink-light);
+    line-height: 1.5;
+  }
+
+  .insight-callout {
+    background: var(--gherkin-cream);
+    border-left: 3px solid var(--gherkin-green);
+    padding: 1rem 1.2rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1.5rem 0;
+  }
+  .insight-callout .source {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gherkin-green-light);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.3rem;
+  }
+  .insight-callout p {
+    font-size: 0.88rem;
+    font-style: italic;
+  }
+
+  /* ── Robot Framework comparison ─────────────────────── */
+  .rf-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  @media (max-width: 560px) {
+    .rf-comparison { grid-template-columns: 1fr; }
+  }
+  .rf-panel {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .rf-panel-header {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .rf-panel-header.existing { background: #e8e8e8; color: #555; }
+  .rf-panel-header.proposed { background: var(--gherkin-green-pale); color: var(--gherkin-green); }
+  .rf-panel-body {
+    padding: 0.8rem;
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+  .rf-panel-body .step {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+  }
+  .rf-panel-body .step .kw {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--step-keyword);
+    white-space: nowrap;
+  }
+  .rf-panel-body .step .arg {
+    color: var(--step-text);
+  }
+  .rf-panel-body .expand-hint {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--ink-light);
+    margin-top: 0.4rem;
+    padding-left: 1.4rem;
+  }
+
+  /* ── Six Thinking Hats ──────────────────────────────── */
+  .six-hats .technique-badge {
+    background: var(--hat-blue);
+    color: white;
+  }
+  .hats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin: 1rem 0 1.5rem;
+  }
+  @media (min-width: 600px) {
+    .hats-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .hat-card {
+    border-radius: 8px;
+    padding: 1.2rem 1.3rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px;
+    height: 100%;
+  }
+  .hat-card h3 {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .hat-card h3 .hat-icon {
+    font-size: 1.1rem;
+  }
+  .hat-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .hat-card li {
+    font-size: 0.8rem;
+    padding: 0.3rem 0;
+    padding-left: 1rem;
+    position: relative;
+    line-height: 1.45;
+  }
+  .hat-card li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6rem;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .hat-black {
+    background: #1a1a2e;
+    color: #e0e0e0;
+  }
+  .hat-black::before { background: #e0e0e0; }
+  .hat-black h3 { color: #fff; }
+  .hat-black li::before { background: #ff6b6b; }
+
+  .hat-green {
+    background: var(--gherkin-green-pale);
+    color: var(--ink);
+  }
+  .hat-green::before { background: var(--gherkin-green); }
+  .hat-green h3 { color: var(--gherkin-green); }
+  .hat-green li::before { background: var(--gherkin-green); }
+
+  .hat-yellow {
+    background: #fff8e1;
+    color: var(--ink);
+  }
+  .hat-yellow::before { background: var(--hat-yellow); }
+  .hat-yellow h3 { color: #b5840a; }
+  .hat-yellow li::before { background: var(--hat-yellow); }
+
+  .hat-white {
+    background: var(--paper-dim);
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .hat-white::before { background: #aaa; }
+  .hat-white h3 { color: #555; }
+  .hat-white li::before { background: #999; }
+
+  .hat-red {
+    background: #fff0f0;
+    color: var(--ink);
+  }
+  .hat-red::before { background: var(--hat-red); }
+  .hat-red h3 { color: var(--hat-red); }
+  .hat-red li::before { background: var(--hat-red); }
+
+  .hat-blue {
+    background: #e8eef6;
+    color: var(--ink);
+  }
+  .hat-blue::before { background: var(--hat-blue); }
+  .hat-blue h3 { color: var(--hat-blue); }
+  .hat-blue li::before { background: var(--hat-blue); }
+
+  /* ── Core Insight ───────────────────────────────────── */
+  .core-insight {
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    margin: 2rem 0;
+    position: relative;
+  }
+  .core-insight .flow-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .flow-box {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .flow-box.spec {
+    background: var(--gherkin-green-pale);
+    color: var(--gherkin-green);
+    border: 2px solid var(--gherkin-green);
+  }
+  .flow-box.run {
+    background: var(--paper-dim);
+    color: var(--ink-light);
+    border: 1px dashed var(--border);
+  }
+  .flow-box.report {
+    background: var(--gherkin-green);
+    color: white;
+    border: 2px solid var(--gherkin-green);
+  }
+  .flow-arrow {
+    font-size: 1.5rem;
+    color: var(--gherkin-green-light);
+    margin: 0 0.4rem;
+  }
+  .core-insight blockquote {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-style: italic;
+    color: var(--gherkin-green);
+    max-width: 560px;
+    margin: 0 auto 0.5rem;
+    line-height: 1.5;
+  }
+  .core-insight .attrib {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--ink-light);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── FSM visualization ──────────────────────────────── */
+  .fsm-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+  }
+  .fsm-state {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.4rem 0.9rem;
+    border: 2px solid var(--gherkin-green);
+    border-radius: 20px;
+    background: white;
+    color: var(--gherkin-green);
+    white-space: nowrap;
+  }
+  .fsm-state.current {
+    background: var(--gherkin-green);
+    color: white;
+  }
+  .fsm-arrow {
+    font-size: 1.2rem;
+    color: var(--gherkin-green-light);
+    margin: 0 0.2rem;
+  }
+
+  /* ── MoSCoW Table (climax) ──────────────────────────── */
+  .moscow .technique-badge {
+    background: var(--step-keyword);
+    color: white;
+  }
+  .moscow-intro {
+    color: var(--ink-light);
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+  }
+  .moscow-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .moscow-table thead th {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 0.7rem 1rem;
+    border-bottom: 2px solid var(--border);
+    background: var(--paper-dim);
+  }
+  .moscow-table tbody td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+  }
+  .moscow-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .moscow-table .priority-cell {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    width: 80px;
+  }
+  .priority-must { color: var(--must); }
+  .priority-should { color: var(--should); }
+  .priority-could { color: var(--could); }
+  .priority-wont { color: var(--wont); }
+  .moscow-table .features-list {
+    list-style: none;
+    padding: 0;
+  }
+  .moscow-table .features-list li {
+    padding: 0.15rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .moscow-table .features-list li::before {
+    content: '';
+    flex-shrink: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    margin-top: 0.35em;
+  }
+  .moscow-table .row-must .features-list li::before { background: var(--must); }
+  .moscow-table .row-should .features-list li::before { background: var(--should); }
+  .moscow-table .row-could .features-list li::before { background: var(--could); }
+  .moscow-table .row-wont .features-list li::before { background: var(--wont); }
+
+  /* ── Final Design ───────────────────────────────────── */
+  .final-design {
+    background: linear-gradient(135deg, #f8fffe 0%, var(--gherkin-green-pale) 100%);
+    border: 2px solid var(--gherkin-green);
+    border-radius: 10px;
+    padding: 2rem;
+    position: relative;
+  }
+  .final-design::after {
+    content: 'v1';
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    background: var(--gherkin-green);
+    color: white;
+    padding: 0.2em 0.6em;
+    border-radius: 3px;
+    letter-spacing: 0.1em;
+  }
+  .final-design h3 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    margin-bottom: 1rem;
+    color: var(--gherkin-green);
+  }
+  .design-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .design-layer {
+    padding: 0.8rem 0;
+    border-bottom: 1px solid rgba(45,106,79,0.15);
+  }
+  .design-layer:last-child { border-bottom: none; }
+  .design-layer-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gherkin-green-light);
+    margin-bottom: 0.25rem;
+  }
+  .design-layer-content {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  /* ── Mock Report Preview ────────────────────────────── */
+  .mock-report {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: white;
+  }
+  .mock-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 2px solid var(--gherkin-green);
+    background: var(--gherkin-green-pale);
+  }
+  .mock-summary-bar .pill {
+    display: inline-block;
+    padding: 0.15em 0.6em;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+  .mock-summary-bar .pill.pass { background: var(--gherkin-green); color: white; }
+  .mock-summary-bar .pill.fail { background: var(--fail-red); color: white; }
+  .mock-summary-bar .pill.total { background: #ddd; color: var(--ink); }
+  .mock-gherkin-tree {
+    padding: 0.8rem 1rem;
+  }
+  .mock-gherkin-tree .feature {
+    font-weight: 700;
+    color: var(--gherkin-green);
+    margin-bottom: 0.3rem;
+  }
+  .mock-gherkin-tree .scenario {
+    padding-left: 1.2rem;
+    margin-bottom: 0.2rem;
+  }
+  .mock-gherkin-tree .scenario-name {
+    color: var(--ink);
+    cursor: default;
+  }
+  .mock-gherkin-tree .status-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+  .mock-gherkin-tree .status-dot.pass { background: var(--gherkin-green); }
+  .mock-gherkin-tree .status-dot.fail { background: var(--fail-red); }
+  .mock-gherkin-tree .step-line {
+    padding-left: 2.8rem;
+    color: var(--ink-light);
+    font-size: 0.72rem;
+    line-height: 1.7;
+  }
+  .mock-gherkin-tree .step-line .kw { color: var(--step-keyword); font-weight: 700; }
+  .mock-gherkin-tree .expandable {
+    padding-left: 2.8rem;
+    margin-top: 0.15rem;
+    padding-bottom: 0.4rem;
+  }
+  .mock-gherkin-tree .expand-btn {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gherkin-green-light);
+    background: var(--gherkin-green-pale);
+    border: 1px solid var(--gherkin-green-light);
+    border-radius: 3px;
+    padding: 0.15em 0.5em;
+    cursor: pointer;
+  }
+  .mock-detail-panel {
+    display: none;
+    margin-top: 0.4rem;
+    padding: 0.6rem 0.8rem;
+    background: var(--paper-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    color: var(--ink-light);
+  }
+  .mock-detail-panel.visible { display: block; }
+  .mock-detail-panel .detail-label {
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 0.15rem;
+  }
+  .mock-detail-panel .detail-label::before {
+    content: '▸ ';
+    color: var(--gherkin-green);
+  }
+
+  /* ── Synthesis summary ──────────────────────────────── */
+  .synthesis-list {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+  }
+  .synthesis-list li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    font-size: 0.88rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .synthesis-list li:last-child { border-bottom: none; }
+  .synthesis-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--gherkin-green);
+    font-weight: 700;
+  }
+
+  /* ── Footer ─────────────────────────────────────────── */
+  .keepsake-footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--ink-light);
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+    letter-spacing: 0.1em;
+  }
+  .keepsake-footer .gherkin-seed {
+    font-size: 0.75rem;
+    color: var(--gherkin-green);
+    margin-bottom: 0.5rem;
+    font-style: italic;
+    font-family: var(--serif);
+  }
+
+  /* ── Responsive ─────────────────────────────────────── */
+  @media (max-width: 480px) {
+    .masthead h1 { font-size: 1.5rem; }
+    .content { padding: 1.5rem 1rem 3rem; }
+    .core-insight blockquote { font-size: 1.1rem; }
+    .flow-diagram { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+    .fsm-strip { flex-direction: column; gap: 0.3rem; }
+    .fsm-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     MASTHEAD
+     ═══════════════════════════════════════════════════════ -->
+<header class="masthead">
+  <h1>Test Run Report Design</h1>
+  <div class="subtitle">A brainstorming keepsake &mdash; thinking recorded</div>
+  <div class="meta">reactive-testing &middot; 2026-09-02 &middot; partner mode &middot; complete</div>
+</header>
+
+<main class="content">
+
+<!-- ═══════════════════════════════════════════════════════
+     1. PROBLEM FRAMING
+     ═══════════════════════════════════════════════════════ -->
+<section>
+  <div class="section-label">00 &mdash; The Question</div>
+  <h2>What information should a test report contain?</h2>
+  <p class="lead">
+    Not "what widgets do we add?" but the deeper question: what does a person
+    <em>need</em> when they open a report &mdash; to know if things pass, to
+    fix what breaks, and to trust the system that told them.
+  </p>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     2. FIRST PRINCIPLES THINKING
+     ═══════════════════════════════════════════════════════ -->
+<section class="first-principles">
+  <div class="section-label">01 &mdash; Technique</div>
+  <h2>
+    First Principles Thinking
+    <span class="technique-badge">Decomposition</span>
+  </h2>
+  <p class="lead">
+    Strip every assumption about what a "test report" looks like.
+    Rebuild from the three irreducible user needs.
+  </p>
+
+  <div class="decompose-grid">
+    <div class="principle-card">
+      <div class="num">Need 01</div>
+      <h3>Proof</h3>
+      <p>Visual evidence that a step happened. Screenshots are the minimum
+        &mdash; a sequence of screenshots per step is the atomic unit of proof.</p>
+    </div>
+    <div class="principle-card">
+      <div class="num">Need 02</div>
+      <h3>Debugging</h3>
+      <p>When something fails, show exactly where and why. DOM snapshots, FSM
+        state, contract assertions with actual-vs-expected &mdash; on demand, not
+        by default.</p>
+    </div>
+    <div class="principle-card">
+      <div class="num">Need 03</div>
+      <h3>Trust</h3>
+      <p>The report must not lie. A green bar with hidden failures is worse
+        than no report at all. The structure must resist false confidence.</p>
+    </div>
+  </div>
+
+  <div class="insight-callout">
+    <div class="source">Insight &mdash; Robot Framework lineage</div>
+    <p>
+      Robot Framework already solved this UX: green/red color coding, sequential
+      steps, click to expand a screenshot at that moment. We inherit that proven
+      pattern &mdash; but replace its keyword DSL with Gherkin.
+    </p>
+  </div>
+
+  <div class="rf-comparison">
+    <div class="rf-panel">
+      <div class="rf-panel-header existing">Robot Framework &mdash; existing</div>
+      <div class="rf-panel-body">
+        <div class="step"><span class="kw">Click Element</span> <span class="arg">id=submit</span></div>
+        <div class="step"><span class="kw">Wait Until Element Is Visible</span> <span class="arg">css=.success</span></div>
+        <div class="step"><span class="kw">Page Should Contain</span> <span class="arg">Welcome</span></div>
+        <div class="expand-hint">+ screenshot at each step</div>
+      </div>
+    </div>
+    <div class="rf-panel">
+      <div class="rf-panel-header proposed">reactive-testing &mdash; proposed</div>
+      <div class="rf-panel-body">
+        <div class="step"><span class="kw">Given</span> <span class="arg">the user is on the login page</span></div>
+        <div class="step"><span class="kw">When</span> <span class="arg">they submit valid credentials</span></div>
+        <div class="step"><span class="kw">Then</span> <span class="arg">they should see the welcome message</span></div>
+        <div class="expand-hint">+ screenshot · DOM · FSM state per step</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-callout">
+    <div class="source">Insight &mdash; FSM as differentiator</div>
+    <p>
+      FSM state in the report resonates because the target audience thinks in
+      architecture and framework terms. It's the differentiator from Robot
+      Framework.
+    </p>
+  </div>
+
+  <div class="insight-callout">
+    <div class="source">Decision &mdash; KISS</div>
+    <p>
+      Single self-contained HTML file. Expandable details for QE expert depth.
+      Error messages: start simple, iterate.
+    </p>
+  </div>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     3. SIX THINKING HATS
+     ═══════════════════════════════════════════════════════ -->
+<section class="six-hats">
+  <div class="section-label">02 &mdash; Technique</div>
+  <h2>
+    Six Thinking Hats
+    <span class="technique-badge">Parallel Lateral Thinking</span>
+  </h2>
+  <p class="lead">
+    Each hat forces a single perspective. The richness comes from the collision
+    between them &mdash; especially the tension between black-hat fear and
+    green-hat invention.
+  </p>
+
+  <div class="hats-grid">
+    <div class="hat-card hat-black">
+      <h3><span class="hat-icon">&#9790;</span> Black Hat &mdash; Risks</h3>
+      <ul>
+        <li>Screenshot bloat inflates file size unboundedly</li>
+        <li>DOM snapshots make reports unreadable for non-QE</li>
+        <li>FSM state noise distracts from the actual failure</li>
+        <li>False green &mdash; all steps pass but user goal fails</li>
+        <li>Flakiness &mdash; acknowledged but out of scope</li>
+        <li>Stale Gherkin &mdash; spec drifts from implementation</li>
+      </ul>
+    </div>
+
+    <div class="hat-card hat-green">
+      <h3><span class="hat-icon">&#9670;</span> Green Hat &mdash; Ideas</h3>
+      <ul>
+        <li><strong>Tags as filters</strong> &mdash; show only <code>@critical</code> failures</li>
+        <li><strong>Copy-Gherkin button</strong> &mdash; report becomes seed for new tests</li>
+        <li>Severity gradient &mdash; not just pass/fail</li>
+        <li>Report as living spec &mdash; it proves itself on every run</li>
+      </ul>
+    </div>
+
+    <div class="hat-card hat-yellow">
+      <h3><span class="hat-icon">&#9788;</span> Yellow Hat &mdash; Value</h3>
+      <ul>
+        <li>Report as living specification &mdash; always current</li>
+        <li>Teaching tool for new team members</li>
+        <li>Gherkin text makes the report self-documenting</li>
+        <li>Progressive disclosure serves both quick-scan and deep-dive</li>
+      </ul>
+    </div>
+
+    <div class="hat-card hat-white">
+      <h3><span class="hat-icon">&#9675;</span> White Hat &mdash; Facts</h3>
+      <ul>
+        <li>Robot Framework proved the UX: sequential, expandable, color-coded</li>
+        <li>Gherkin is already the source of truth for scenarios</li>
+        <li>FSM state is available from the framework at runtime</li>
+        <li>Contract assertions already produce actual vs expected</li>
+      </ul>
+    </div>
+
+    <div class="hat-card hat-red">
+      <h3><span class="hat-icon">&#9650;</span> Red Hat &mdash; Instinct</h3>
+      <ul>
+        <li>Excitement about the Gherkin request/answer framing</li>
+        <li>FSM state feels right &mdash; it's how we think</li>
+        <li>The single-HTML instinct is strong: keep it simple</li>
+        <li>Unease about screenshot bloat &mdash; needs mitigation</li>
+      </ul>
+    </div>
+
+    <div class="hat-card hat-blue">
+      <h3><span class="hat-icon">&#9632;</span> Blue Hat &mdash; Process</h3>
+      <ul>
+        <li>First Principles grounded the problem in user needs</li>
+        <li>Six Hats stress-tested the emerging design</li>
+        <li>MoSCoW now needed to scope v1</li>
+        <li>KISS instinct consistently pulled toward progressive disclosure</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     4. CORE INSIGHT
+     ═══════════════════════════════════════════════════════ -->
+<section>
+  <div class="section-label">03 &mdash; Synthesis</div>
+  <h2>The Core Insight</h2>
+
+  <div class="core-insight">
+    <div class="flow-diagram">
+      <div class="flow-box spec">Gherkin Spec</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box run">Test Run</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box report">Enriched Report</div>
+    </div>
+    <blockquote>
+      &ldquo;The Gherkin scenario is the request at the start and the answer at
+      the end &mdash; enriched by run data.&rdquo;
+    </blockquote>
+    <div class="attrib">&mdash; user, during session</div>
+  </div>
+
+  <p style="font-size:0.9rem; max-width:600px; margin:0 auto; text-align:center; color:var(--ink-light);">
+    The report doesn't replace the spec. It <em>completes</em> it. Every
+    <code>Given / When / Then</code> line is both documentation and assertion
+    &mdash; the report just fills in the answers.
+  </p>
+
+  <!-- FSM visual -->
+  <div class="fsm-strip">
+    <div class="fsm-state">idle</div>
+    <div class="fsm-arrow">&rarr;</div>
+    <div class="fsm-state">running</div>
+    <div class="fsm-arrow">&rarr;</div>
+    <div class="fsm-state current">passed</div>
+  </div>
+  <p style="text-align:center; font-family:var(--mono); font-size:0.7rem; color:var(--ink-light); margin-top:-0.5rem;">
+    FSM state captured per step &mdash; the differentiator
+  </p>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     5. MoSCoW PRIORITISATION
+     ═══════════════════════════════════════════════════════ -->
+<section class="moscow">
+  <div class="section-label">04 &mdash; Prioritisation</div>
+  <h2>
+    MoSCoW &mdash; v1 Scope
+    <span class="technique-badge">Decision</span>
+  </h2>
+  <p class="moscow-intro">
+    What ships in v1, what follows immediately, what can wait, and what we
+    explicitly choose not to build.
+  </p>
+
+  <table class="moscow-table">
+    <thead>
+      <tr>
+        <th>Priority</th>
+        <th>Features</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="row-must">
+        <td class="priority-cell priority-must">Must</td>
+        <td>
+          <ul class="features-list">
+            <li>Single self-contained HTML file</li>
+            <li>Green/red summary bar at top</li>
+            <li>Gherkin feature tree with collapsible scenarios</li>
+            <li>Screenshots per step</li>
+            <li>Embedded Gherkin source</li>
+            <li>Simple error messages</li>
+          </ul>
+        </td>
+      </tr>
+      <tr class="row-should">
+        <td class="priority-cell priority-should">Should</td>
+        <td>
+          <ul class="features-list">
+            <li>FSM state per step</li>
+            <li>Contract assertions with actual vs expected</li>
+            <li>Timing data per step</li>
+            <li>Run metadata (env, duration, timestamp)</li>
+            <li>DOM snapshot on failure only</li>
+          </ul>
+        </td>
+      </tr>
+      <tr class="row-could">
+        <td class="priority-cell priority-could">Could</td>
+        <td>
+          <ul class="features-list">
+            <li>Tag-based filtering</li>
+            <li>Copy-Gherkin button</li>
+            <li>Severity gradient beyond pass/fail</li>
+          </ul>
+        </td>
+      </tr>
+      <tr class="row-wont">
+        <td class="priority-cell priority-wont">Won't</td>
+        <td>
+          <ul class="features-list">
+            <li>Flakiness tracking (out of scope)</li>
+            <li>Clickable screenshot &rarr; DOM jump</li>
+            <li>Diff view for spec changes</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     6. FINAL DESIGN — THE MOCK
+     ═══════════════════════════════════════════════════════ -->
+<section>
+  <div class="section-label">05 &mdash; Final Design</div>
+  <h2>v1 Report Structure</h2>
+  <p class="lead">
+    What the actual report looks like: summary bar, Gherkin tree, progressive
+    disclosure. The mock below is interactive &mdash; click to expand.
+  </p>
+
+  <div class="mock-report">
+    <div class="mock-summary-bar">
+      <span class="pill pass">14 passed</span>
+      <span class="pill fail">2 failed</span>
+      <span class="pill total">16 total</span>
+      <span style="flex:1"></span>
+      <span style="font-size:0.65rem; color:var(--ink-light);">login.spec &middot; 2026-09-02T18:24Z &middot; 4.2s</span>
+    </div>
+    <div class="mock-gherkin-tree">
+      <div class="feature">Feature: User Authentication</div>
+      <div class="scenario">
+        <span class="status-dot pass"></span>
+        <span class="scenario-name">Scenario: Successful login with valid credentials</span>
+      </div>
+      <div class="step-line"><span class="kw">Given</span> the user is on the login page</div>
+      <div class="expandable">
+        <button class="expand-btn" onclick="this.nextElementSibling.classList.toggle('visible'); this.textContent=this.nextElementSibling.classList.contains('visible')?'▾ collapse':'+ expand'">+ expand</button>
+        <div class="mock-detail-panel">
+          <div class="detail-label">Screenshot</div>
+          [login-page.png &mdash; 1440&times;900]
+          <div class="detail-label">FSM State</div>
+          idle &rarr; authenticating
+          <div class="detail-label">Timing</div>
+          312ms
+        </div>
+      </div>
+      <div class="step-line"><span class="kw">When</span> they submit valid credentials</div>
+      <div class="expandable">
+        <button class="expand-btn" onclick="this.nextElementSibling.classList.toggle('visible'); this.textContent=this.nextElementSibling.classList.contains('visible')?'▾ collapse':'+ expand'">+ expand</button>
+        <div class="mock-detail-panel">
+          <div class="detail-label">Screenshot</div>
+          [after-submit.png &mdash; 1440&times;900]
+          <div class="detail-label">FSM State</div>
+          authenticating &rarr; authenticated
+          <div class="detail-label">Contract</div>
+          <code>response.status</code>: <strong>200</strong> (expected 200) ✓
+          <div class="detail-label">Timing</div>
+          847ms
+        </div>
+      </div>
+      <div class="step-line"><span class="kw">Then</span> they should see the welcome message</div>
+      <div class="expandable">
+        <button class="expand-btn" onclick="this.nextElementSibling.classList.toggle('visible'); this.textContent=this.nextElementSibling.classList.contains('visible')?'▾ collapse':'+ expand'">+ expand</button>
+        <div class="mock-detail-panel">
+          <div class="detail-label">Screenshot</div>
+          [welcome.png &mdash; 1440&times;900]
+          <div class="detail-label">Contract</div>
+          <code>page.title</code>: <strong>"Welcome back"</strong> (expected "Welcome back") ✓
+          <div class="detail-label">Timing</div>
+          156ms
+        </div>
+      </div>
+
+      <div class="scenario" style="margin-top:0.5rem">
+        <span class="status-dot fail"></span>
+        <span class="scenario-name">Scenario: Login fails with wrong password</span>
+      </div>
+      <div class="step-line"><span class="kw">Given</span> the user is on the login page</div>
+      <div class="step-line"><span class="kw">When</span> they submit an incorrect password</div>
+      <div class="step-line"><span class="kw">Then</span> they should see an error message</div>
+      <div class="expandable">
+        <button class="expand-btn" onclick="this.nextElementSibling.classList.toggle('visible'); this.textContent=this.nextElementSibling.classList.contains('visible')?'▾ collapse':'+ expand'">+ expand</button>
+        <div class="mock-detail-panel">
+          <div class="detail-label">Screenshot</div>
+          [error-state.png &mdash; 1440&times;900]
+          <div class="detail-label">FSM State</div>
+          authenticating &rarr; <strong style="color:var(--fail-red)">error</strong>
+          <div class="detail-label">Contract (FAILED)</div>
+          <code>page.errorText</code>: <strong style="color:var(--fail-red)">""</strong> (expected "Invalid credentials")
+          <div class="detail-label">DOM Snapshot</div>
+          [captured on failure &mdash; 2.4KB]
+          <div class="detail-label">Error</div>
+          <span style="color:var(--fail-red)">AssertionError: page.errorText was empty, expected "Invalid credentials"</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="final-design">
+    <h3>The Design in Layers</h3>
+    <div class="design-layers">
+      <div class="design-layer">
+        <div class="design-layer-label">Layer 1 &mdash; Summary</div>
+        <div class="design-layer-content">
+          Green/red bar at the very top. Pass count, fail count, total. Run
+          metadata (environment, timestamp, duration).一眼で分かる &mdash;
+          understood at a glance.
+        </div>
+      </div>
+      <div class="design-layer">
+        <div class="design-layer-label">Layer 2 &mdash; Gherkin Tree</div>
+        <div class="design-layer-content">
+          Feature &rarr; Scenario &rarr; Step. The same Gherkin text the team
+          wrote, with a green/red dot per scenario. Collapsible. The spec is the
+          report is the spec.
+        </div>
+      </div>
+      <div class="design-layer">
+        <div class="design-layer-label">Layer 3 &mdash; Progressive Disclosure</div>
+        <div class="design-layer-content">
+          Click to expand any step: screenshot, DOM snapshot (on failure),
+          FSM state, contract assertions with actual-vs-expected, timing.
+          Depth on demand, silence by default.
+        </div>
+      </div>
+      <div class="design-layer">
+        <div class="design-layer-label">Layer 4 &mdash; Embedded Source</div>
+        <div class="design-layer-content">
+          The Gherkin feature file embedded in the report itself. The report
+          carries its own spec &mdash; no stale reference, no broken link. What
+          ran is what you read.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider--gherkin">
+
+<!-- ═══════════════════════════════════════════════════════
+     7. SYNTHESIS
+     ═══════════════════════════════════════════════════════ -->
+<section>
+  <div class="section-label">06 &mdash; Synthesis</div>
+  <h2>What We Learned</h2>
+
+  <ul class="synthesis-list">
+    <li>
+      The report is a <strong>spec artifact that proves itself on every
+      run</strong>. It doesn't just describe behaviour &mdash; it demonstrates it.
+    </li>
+    <li>
+      The <strong>Gherkin-as-request-answer framing</strong> is the core insight
+      that unifies spec and report into one artifact.
+    </li>
+    <li>
+      <strong>KISS instinct</strong> consistently pulled design toward progressive
+      disclosure: simple surface, rich depths.
+    </li>
+    <li>
+      <strong>FSM state</strong> is the differentiator from Robot Framework.
+      It's the piece that makes the audience think "this is for us."
+    </li>
+    <li>
+      Tags and the copy-Gherkin button are <strong>small UX wins with outsized
+      feel</strong> &mdash; deferred to v2 but already designed in spirit.
+    </li>
+    <li>
+      Black-hat risks (bloat, false confidence, stale specs) were all
+      <strong>acknowledged and mitigated</strong> within the design &mdash;
+      screenshot on demand, DOM only on failure, embedded Gherkin.
+    </li>
+  </ul>
+
+  <div class="insight-callout" style="margin-top:2rem;">
+    <div class="source">Final reflection</div>
+    <p>
+      This session moved from "what goes in a report?" to "what is a report?"
+      The answer: it's the second half of a conversation the Gherkin spec
+      started. Everything else &mdash; screenshots, FSM, contracts &mdash; is
+      just evidence for the answer.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="keepsake-footer">
+  <div class="gherkin-seed">"Gherkin scenario is the request, the report is the answer."</div>
+  brainstorm keepsake &middot; reactive-testing &middot; 2026-09-02 &middot; partner mode
+</footer>
+
+</body>
+</html>

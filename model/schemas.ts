@@ -245,6 +245,14 @@ export interface RunResult {
   scenarios: ScenarioResult[];
 }
 
+/** Metadata about a test run, used for the HTML report. */
+export interface RunMetadata {
+  /** Unique run identifier (UUID). */
+  runId: string;
+  /** ISO-8601 timestamp of when the run started. */
+  timestamp: string;
+}
+
 /** Configuration for the orchestrator run. */
 export interface OrchestratorConfig {
   /** Base URL of the app under test. */
