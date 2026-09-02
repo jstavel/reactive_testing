@@ -1,0 +1,43 @@
+- id: "1"
+  title: HTML report scaffold with summary bar
+  description: >-
+    Generate a single self-contained HTML file from test run data. Green/red
+    summary bar with pass/fail/total counts. The minimum viable report that
+    opens in any browser with zero external dependencies.
+  spec_checkpoint: true
+  done_checkpoint: false
+  invoke_dev_with: ""
+- id: "2"
+  title: Gherkin feature tree with progressive disclosure
+  description: >-
+    Render the Gherkin feature file as a collapsible tree under the summary bar.
+    Scenarios color-coded by result. Embed the current Gherkin source text in
+    the report to prevent staleness.
+  spec_checkpoint: true
+  done_checkpoint: false
+  invoke_dev_with: ""
+- id: "3"
+  title: Per-step expandable evidence
+  description: >-
+    Click a step to reveal expandable details: screenshot captured at that step
+    and wall-clock timing. Progressive disclosure UX, details hidden by default.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: ""
+- id: "4"
+  title: FSM state, contract assertions, and DOM on failure
+  description: >-
+    Add architectural evidence to step details: FSM state at step entry/exit,
+    contract assertions with expected vs actual values, and DOM snapshot on
+    failure. The differentiator from Robot Framework.
+  spec_checkpoint: true
+  done_checkpoint: false
+  invoke_dev_with: ""
+- id: "5"
+  title: Simple error messages on failure
+  description: >-
+    A failed step displays a human-readable assertion message with expected vs
+    actual values, not a raw stack trace. Iterate based on real usage.
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: ""
