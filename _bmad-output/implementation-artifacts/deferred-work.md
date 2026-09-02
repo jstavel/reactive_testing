@@ -100,3 +100,21 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-decision-2a-dialog-surface-actions.md`
   summary: Scenario 7 (`clicking-earn-navigates-to-the-standalone-earn-page`, contract `clickPortfolioMenuEarn`) intermittently times out at its earn-nav step during the full 10-scenario live smoke run. Because the orchestrator runs all scenarios on one shared page with no reset, that late failure leaves the page off-home and the home-only dialog scenarios 8-10 then time out as a cascade (their `openPortfolioSummary` cannot find the home header value button). The earn action is untouched by decision 2a (verified: scenarios 8-10 pass 3/3 in isolation). To be tracked separately from the dialog work.
   evidence: Multiple live smoke runs (2026-09-01) — full run consistently logged `[FAIL] clicking-earn-navigates-to-the-standalone-earn-page … Step timed out after 10000ms`, followed by `[FAIL]` on all dialog scenarios; the same three dialog scenarios passed 3/3 when run in isolation against the same CDP session. The earn action itself and scenario-7 stability were not changed by decision 2a.
+
+## Deferred from: code review of spec-4-1-standalone-repro-script-from-the-model (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
+  summary: Generator validates each step against the Model (state exists, contract declared + in the action-map, (state, contract) is a declared transition) but does not require path continuity — the next step's `stateId` is never checked against the previous step's transition target, so a disjoint sequence of individually valid steps still emits a repro that cannot execute as written. Treat as a gap if the spec's "reproduces the failure" is read to include runnability of the whole traced path.
+  evidence: Blind-hunter and edge-case-hunter reviews of the 4.1 diff independently flagged the missing adjacency check; the frozen spec's validation rules enumerate per-step checks only, so this is a spec-level addition, not an implementation deviation.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
+  summary: The emitted script's run-time guard now re-checks states and transitions but not whether the contract is still in `allContracts` — a contract removed from the declaration list but left in the action-map would still run. A real runtime check needs the `allContracts` value, which the frozen spec scopes to "types only" imports, so the import boundary must be renegotiated in spec.
+  evidence: Blind-hunter and verification-gap reviews noted the runtime guard covers `homePageModel.states`/`transitions` and `actionMap` presence but not `allContracts` membership; the "model/contracts.ts (types only)" constraint in the story's Boundaries is what blocks the obvious fix.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
+  summary: No unit test covers the implemented "contract present in allContracts but missing from actionMap" gap rule (repro-generator.ts) because it requires module-stubbing the imported actionMap to fabricate the mismatch; add a `vi.mock`-based negative test if the rule is worth pinning down.
+  evidence: Blind-hunter review noted generator line for `(step.contractId in actionMap)` has no negative test; the rule is real but not exercisable with the live actionMap, which today keys every declared contract.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
+  summary: The acceptance criterion "the emitted script also typechecks" is verified manually at review time (regenerate `scripts/repro-<slug>.ts`, run `npm run typecheck`) but is not an automated test or CI gate; add a test that generates a script and shells out to `tsc --noEmit` on it if a permanent gate is wanted.
+  evidence: Verification-gap reviewer found no automated coverage for emitted-script typechecking; `npm run typecheck --noEmit` was run with a regenerated repro present and exited 0 at review time, but nothing enforces it later.
