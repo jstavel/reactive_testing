@@ -100,32 +100,45 @@ stateDiagram-v2
 
 ## The pipeline
 
+The dataflow spans authoring, execution, and verification. It is shown here as
+one small diagram per stage so each stays legible on GitHub; each diagram
+restates the node it hands off to the next.
+
+### Phase 1 — Authoring (offline, AI-assisted, human-reviewed)
+
 ```mermaid
 flowchart LR
-    subgraph Author["Authoring — offline, AI-assisted, human-reviewed"]
-        F["features/*.feature"] --> M["model/ · fsm + contracts + schemas (SSOT)"]
-        M --> P["model/smoke.test-plan.ts (derived)"]
-    end
+    F["features/*.feature"] --> M["model/ · fsm + contracts + schemas (SSOT)"]
+    M --> P["model/smoke.test-plan.ts (derived)"]
+```
 
-    subgraph Run["Execution — deterministic, no AI"]
-        P --> O["orchestrator/runTestPlan"]
-        M -. "modelVersion gate" .-> O
-        O --> A["orchestrator/action-map.ts"]
-        O --> C["collectors/ · snapshot · probe · network · screenshot"]
-        A --> C
-        C --> CO["corpus/{runId}/ · evidence"]
-    end
+### Phase 2 — Execution (deterministic, no AI)
 
-    subgraph Verify["Verification — pure, offline (no browser)"]
-        CO --> V["validators/offline-runner + validator-map"]
-        CO --> XV["validators/cross-view (standing invariants)"]
-        V --> R["reporter/ · failure-gherkin · adjudication"]
-        XV --> R
-    end
+```mermaid
+flowchart LR
+    P["smoke.test-plan.ts"] --> O["orchestrator/runTestPlan"]
+    M["model/ (SSOT)"] -. "modelVersion gate" .-> O
+    O --> A["orchestrator/action-map.ts"]
+    O --> C["collectors/ · snapshot · probe · network · screenshot"]
+    C --> CO["corpus/{kind}/{runId}/ · evidence"]
+```
 
+### Phase 3 — Verification (pure, offline — no browser)
+
+```mermaid
+flowchart LR
+    CO["corpus/{kind}/{runId}/"] --> V["validators/ · offline-runner + validator-map"]
+    CO --> XV["validators/cross-view (standing invariants)"]
+    V --> R["reporter/ · failure-gherkin · adjudication"]
+    XV --> R
     R --> H["Human — read failure.feature, adjudicate spec-drift vs app-bug"]
+```
 
-    M -.-> RG["repro/repro-generator (utility)"]
+### Utility — repro generation (reads the model, standalone output)
+
+```mermaid
+flowchart LR
+    M["model/ (SSOT)"] -.-> RG["repro/repro-generator"]
     RG --> S["scripts/repro-*.ts (standalone, runs over CDP)"]
 ```
 

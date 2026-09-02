@@ -124,13 +124,67 @@ truth — one `Scenario: contract "…" was violated` per failure.
 
 ## 4. Adjudicate a failure (spec drift vs app bug)
 
-A failing check is a fork: either the spec is wrong (**spec drift**) or the app
-is wrong (**app bug**). The repo records the human's decision; it never edits
-the model automatically. Extend `verify-run.ts`:
+Every failing check is a fork — one of two things is true. Deciding which one
+is the human's core responsibility.
+
+```mermaid
+flowchart LR
+    F["failure.feature"] --> Q{"Is the spec<br/>(model) wrong?"}
+    Q -->|Yes| S["SPEC DRIFT<br/>— model is stale"]
+    Q -->|No| B["APP BUG<br/>— product is broken"]
+    S --> A["1. Record spec-drift decision<br/>2. Human fixes model<br/>3. Re-validate against recorded corpus"]
+    B --> C["1. Record app-bug decision<br/>2. File bug report<br/>3. Re-run after fix"]
+```
+
+### Spec drift — the model is stale
+
+The application changed intentionally (new behaviour, renamed UI element, removed
+feature), and the model has not caught up. The model — not the app — is wrong.
+
+**What to do:**
+
+1. Record a `spec-drift` decision with the `proposal` field (the model change
+   the human approves).
+2. Update the model — edit `model/fsm.ts`, `model/contracts.ts`, or
+   `model/schemas.ts`.
+3. Re-validate against the **same recorded corpus** (no fresh browser session
+   needed — state reuse in action).
+4. Regenerate the smoke plan.
+
+### App bug — the product is broken
+
+The model correctly describes what the app should do, but the app does not
+match. The product — not the model — is wrong.
+
+**What to do:**
+
+1. Record an `app-bug` decision with a `bugReportRef` pointing to the issue.
+2. File a bug report with the developer team.
+3. The testware stays as-is — it correctly captures the expected behaviour.
+   After the bug is fixed, re-run against a fresh corpus.
+
+### Recording the decision
+
+Extend `verify-run.ts`:
 
 ```ts
 import { emitAdjudicationRecord } from "./reporter/adjudication.js";
 
+// Spec drift — the model needs updating:
+emitAdjudicationRecord({
+  corpusDir: scratch,
+  runId,
+  plan: smokeTestPlan,
+  results,
+  decision: {
+    decision: "spec-drift",
+    proposal: "clickNotificationsMenu: postcondition stateId should be "notificationsPage" (was renamed from "notifications")",
+  },
+  approvedBy: "Jan Stavel",
+  approvedAt: "2026-09-02T00:00:00.000Z",
+});
+
+// App bug — the application is wrong:
 emitAdjudicationRecord({
   corpusDir: scratch,
   runId,
@@ -138,12 +192,13 @@ emitAdjudicationRecord({
   results,
   decision: { decision: "app-bug", bugReportRef: "https://github.com/jstavel/reactive-testing/issues/1" },
   approvedBy: "Jan Stavel",
-  approvedAt: "2026-09-02T00:00:00.000Z", // your decision time, ISO-8601
+  approvedAt: "2026-09-02T00:00:00.000Z",
 });
 ```
 
-writes `adjudication.json` into the run folder. A `spec-drift` decision instead
-carries `proposal` (the human-approved model change, recorded verbatim).
+Either call writes `adjudication.json` into the run folder. The repo **never**
+edits the model automatically — the decision is recorded as evidence, and the
+human performs the model change separately.
 
 ## 5. Standing cross-view invariants
 
@@ -217,15 +272,52 @@ The suite includes two cross-layer guards worth knowing:
   orchestrator and re-reads it through the real offline loader, proving the
   write→read contract.
 
-## Where the model meets new app areas
+## 8. Authoring — growing the model
 
 The model is deliberately small (one read-only critical path). Growing it is an
-**authoring** activity — write/extend a Gherkin feature in `features/`, distill
-the new states/contracts into `model/fsm.ts` and `model/contracts.ts`, add any
-new shared shapes to `model/schemas.ts`. The derived smoke plan
-(`model/smoke.test-plan.ts`) is **not hand-edited**: its header says
-"regenerate when model files change", and in this repo that regeneration is an
-AI-assisted authoring step (an agent re-derives the plan from the `@plan:smoke`
-tags) — there is deliberately no hand-written test script and no plan-editing
-CLI. The model-version guard test (§7) is what tells you a plan has gone stale
-after a model edit.
+**authoring** activity driven by AI-assisted BMad agents, following the same
+pipeline that built the existing four epics.
+
+### The authoring loop
+
+```
+Gherkin feature (business intent)
+  → FSM state + contract (model/)
+    → Action locator (action-map.ts)
+      → Validator (if new predicate needed)
+        → Regenerated smoke plan
+```
+
+### Step by step
+
+1. **Write a Gherkin feature** in `features/` — captures the business intent,
+   not the implementation.
+2. **Add the FSM state** in `model/fsm.ts` — one entry in `states[]`, one
+   entry in `transitions[]`.
+3. **Declare the contract** in `model/contracts.ts` — typed pre/postconditions
+   using the closed predicate vocabulary.
+4. **Implement the action** in `orchestrator/action-map.ts` — the real
+   Playwright locator. This is the only place locators live; changing a locator
+   never bumps the model version.
+5. **Add validators** (optional) — if the existing predicate interpreters
+   (`state-is`, `url-is`, `view-selected`) do not cover what you need, write a
+   pure function in `validators/` and register it in `validator-map.ts`.
+6. **Regenerate the smoke plan** — `model/smoke.test-plan.ts` is derived from
+   the model. Never hand-edit it. Regeneration is an AI-assisted step.
+
+### Concrete example
+
+See [docs/authoring-example.md](authoring-example.md) for a complete walkthrough
+that adds a hypothetical Notifications screen — real code, every step.
+
+### Quality gates after authoring
+
+```bash
+npm run typecheck          # types are the contract — must pass
+npm test                   # all offline tests pass, including model-version guard
+npm run run:smoke          # record a fresh corpus
+# then verify offline (see §3)
+```
+
+The model-version guard test (`model/model-version.test.ts`) fails CI if you
+edit a model file and forget to regenerate the plan.
