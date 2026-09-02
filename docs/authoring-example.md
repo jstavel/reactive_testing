@@ -30,14 +30,11 @@ Create `features/home-page-notifications.feature`:
 @plan:smoke
 Feature: Notifications page
 
-  Background:
-    Given uživatel je na Home Page
-    And side navigation menu obsahuje "Notifications"
-
-  Scenario: Uživatel klikne na Notifications v menu
-    When uživatel klikne na "Notifications" v side navigaci
-    Then stránka zobrazuje Notifications page
-    And nejsou žádné console errors
+  Scenario: Clicking Notifications in the side navigation opens the Notifications page
+    Given I am on the Kraken Pro home page
+    When I click "Notifications" in the side navigation menu
+    Then the Notifications page opens showing my recent notifications
+    And no console errors are logged
 ```
 
 This captures the **business intent**. The Gherkin is the input interface; the

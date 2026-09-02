@@ -84,8 +84,9 @@ The full per-directory map, with real file names and corpus layout, lives in
 
 ## Roadmap
 
-All four epics (19 stories) are complete. The project works end-to-end on the
-Kraken Pro home-page critical path. What comes next is grouped by horizon.
+All 21 stories across the four epics are complete and each epic's retrospective
+is recorded. The project works end-to-end on the Kraken Pro home-page critical
+path. What comes next is grouped by horizon.
 
 ### Now — ready to pick up
 
