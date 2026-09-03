@@ -156,3 +156,17 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: relationsByScenarioId (and buildGherkinSnapshot's grouping) silently overwrite when a duplicate scenarioId appears in the relation array; no dedup/validation warns.
   evidence: Blind-hunter review of relationsByScenarioId: it builds a Map from an array, so a later duplicate wins with no signal.
+
+## Deferred from: review of spec-3-per-step-expandable-evidence (2026-09-03)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
+  summary: stepEvidence array/step-count mismatch is not guarded — a evidence array shorter than `plan.scenarios[id].steps` silently falls back to plain (non-expandable) rendering for the trailing steps, indistinguishable from a deliberately absent entry; consider a length/alignment guard when a caller that populates evidence exists.
+  evidence: Blind-hunter and edge-case-hunter reviews of the 3-per-step diff; the spec declares "aligned by index" but does not require enforcing the alignment.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
+  summary: The reporter trusts screenshot `filePath` as a corpus-relative path — an absolute URL or `../` path would be emitted verbatim into the `<img src>`; `escapeHtml` prevents attribute injection but not URL/path sanitization. Harden when external callers can supply paths.
+  evidence: Blind-hunter review of reporter/html-report.ts: `escapeHtml(ev.screenshot.filePath)` is applied with no relative-path assertion; same trust model family as the runId path-traversal items.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
+  summary: timingMs is unvalidated — NaN/Infinity/negative/null/undefined renders literal "NaN ms"/"Infinity ms"/"-1 ms"/"undefined ms"; add schema-level validation (timingMs ≥ 0 finite number) when StepEvidence is promoted to a Zod schema or a caller supplies it.
+  evidence: Blind-hunter and edge-case-hunter reviews of the 3-per-step diff; StepEvidence is currently a plain in-memory interface with no validation.
