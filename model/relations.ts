@@ -6,11 +6,12 @@
 // derived query surface declaring which scenarios exercise which states and
 // contracts. Relations are N:N (one scenario may touch many contracts; one
 // contract may appear in many scenarios) and updatable on the fly without a
-// re-run or a model edit. The Gherkin source of each scenario is embedded here
-// so the report reflects exactly what was run (CAP-4).
+// re-run or a model edit.
 //
-// The map is plain data so the reporter can group a run's scenarios under
-// their feature and show the Gherkin↔model linkage.
+// The Gherkin source of each scenario is deliberately NOT embedded here. The
+// .feature files are not part of the model and can drift during evolution, so
+// the report snapshots the Gherkin at run time (see reporter/gherkin-snapshot.ts)
+// rather than carrying an authored copy that could go stale (CAP-4).
 
 /** One Gherkin scenario and the model elements it links to. */
 export interface ScenarioRelation {
@@ -22,9 +23,6 @@ export interface ScenarioRelation {
   featureTitle: string;
   /** Human-readable scenario title, e.g. "Clicking Main opens the History page…". */
   scenarioTitle: string;
-  /** The Gherkin source text of this scenario (verbatim from the feature file).
-   * Embedded in the report so it reflects exactly what was run (CAP-4). */
-  gherkin: string;
   /** Model states the scenario traverses (FSM `stateId`s). */
   states: string[];
   /** Model contracts the scenario executes (`contractId`s). */
@@ -38,13 +36,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-history-menu",
     featureTitle: "Home page History menu",
     scenarioTitle: "Clicking Main opens the History page for the Main account",
-    gherkin: [
-      "Scenario: Clicking Main opens the History page for the Main account",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Main" in the History menu',
-      '  Then the History page is displayed at "/app/history/main/ledger"',
-      '  And the "Ledger" sub-view is selected within the "Main" history',
-    ].join("\n"),
     states: ["homePage", "historyMain"],
     contracts: ["clickHistoryMenuMain"],
   },
@@ -53,13 +44,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-history-menu",
     featureTitle: "Home page History menu",
     scenarioTitle: "Clicking Futures opens the History page for the Futures account",
-    gherkin: [
-      "Scenario: Clicking Futures opens the History page for the Futures account",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Futures" in the History menu',
-      '  Then the History page is displayed at "/app/history/derivatives/ledger"',
-      '  And the "Ledger" sub-view is selected within the "Futures" history',
-    ].join("\n"),
     states: ["homePage", "historyFutures"],
     contracts: ["clickHistoryMenuFutures"],
   },
@@ -68,13 +52,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-menu",
     featureTitle: "Home page Portfolio menu",
     scenarioTitle: "Clicking Overview opens the Portfolio page with the Overview view",
-    gherkin: [
-      "Scenario: Clicking Overview opens the Portfolio page with the Overview view",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Overview" in the Portfolio menu',
-      '  Then the Portfolio page is displayed at "/app/portfolio/overview"',
-      '  And the "Overview" view is selected',
-    ].join("\n"),
     states: ["homePage", "portfolioOverview"],
     contracts: ["clickPortfolioMenuOverview"],
   },
@@ -83,13 +60,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-menu",
     featureTitle: "Home page Portfolio menu",
     scenarioTitle: "Clicking Main opens the Portfolio page with the Main view",
-    gherkin: [
-      "Scenario: Clicking Main opens the Portfolio page with the Main view",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Main" in the Portfolio menu',
-      '  Then the Portfolio page is displayed at "/app/portfolio/main"',
-      '  And the "Main" view is selected',
-    ].join("\n"),
     states: ["homePage", "portfolioMain"],
     contracts: ["clickPortfolioMenuMain"],
   },
@@ -98,13 +68,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-menu",
     featureTitle: "Home page Portfolio menu",
     scenarioTitle: "Clicking Futures opens the Portfolio page with the Futures view",
-    gherkin: [
-      "Scenario: Clicking Futures opens the Portfolio page with the Futures view",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Futures" in the Portfolio menu',
-      '  Then the Portfolio page is displayed at "/app/portfolio/derivatives"',
-      '  And the "Futures" view is selected',
-    ].join("\n"),
     states: ["homePage", "portfolioFutures"],
     contracts: ["clickPortfolioMenuFutures"],
   },
@@ -113,13 +76,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-menu",
     featureTitle: "Home page Portfolio menu",
     scenarioTitle: "Clicking Loans opens the Portfolio page with the Loans view",
-    gherkin: [
-      "Scenario: Clicking Loans opens the Portfolio page with the Loans view",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Loans" in the Portfolio menu',
-      '  Then the Portfolio page is displayed at "/app/portfolio/loans"',
-      '  And the "Loans" view is selected',
-    ].join("\n"),
     states: ["homePage", "portfolioLoans"],
     contracts: ["clickPortfolioMenuLoans"],
   },
@@ -128,12 +84,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-menu",
     featureTitle: "Home page Portfolio menu",
     scenarioTitle: "Clicking Earn navigates to the standalone Earn page",
-    gherkin: [
-      "Scenario: Clicking Earn navigates to the standalone Earn page",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click "Earn" in the Portfolio menu',
-      '  Then the application navigates to "/app/earn"',
-    ].join("\n"),
     states: ["homePage", "earn"],
     contracts: ["clickPortfolioMenuEarn"],
   },
@@ -142,12 +92,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-summary-dialog",
     featureTitle: "Home page Portfolio Summary dialog",
     scenarioTitle: "Clicking the portfolio value opens the Portfolio Summary dialog",
-    gherkin: [
-      "Scenario: Clicking the portfolio value opens the Portfolio Summary dialog",
-      '  Given I am on the Kraken Pro home page',
-      '  When I click the portfolio value shown in the header',
-      '  Then the Portfolio Summary dialog opens showing the total portfolio value in USD',
-    ].join("\n"),
     states: ["homePage", "portfolioSummaryDialog"],
     contracts: ["openPortfolioSummary", "closePortfolioSummary"],
   },
@@ -156,13 +100,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-summary-dialog",
     featureTitle: "Home page Portfolio Summary dialog",
     scenarioTitle: "Pressing Escape closes the Portfolio Summary dialog",
-    gherkin: [
-      "Scenario: Pressing Escape closes the Portfolio Summary dialog",
-      '  Given I am on the Kraken Pro home page',
-      '  And the Portfolio Summary dialog is open',
-      '  When I press "Escape"',
-      '  Then the Portfolio Summary dialog is closed',
-    ].join("\n"),
     states: ["homePage", "portfolioSummaryDialog"],
     contracts: ["openPortfolioSummary", "closePortfolioSummary"],
   },
@@ -171,14 +108,6 @@ export const relations: ScenarioRelation[] = [
     feature: "home-page-portfolio-summary-dialog",
     featureTitle: "Home page Portfolio Summary dialog",
     scenarioTitle: "The eye icon toggles value visibility immediately",
-    gherkin: [
-      "Scenario: The eye icon toggles value visibility immediately",
-      '  Given I am on the Kraken Pro home page',
-      '  And the Portfolio Summary dialog is open',
-      '  When I click the eye icon in the dialog header',
-      '  Then the values become hidden if the icon was showing "EyeOff"',
-      '  And the values become visible again if the icon was showing "Eye"',
-    ].join("\n"),
     states: ["homePage", "portfolioSummaryDialog"],
     contracts: ["openPortfolioSummary", "toggleEyeIcon", "closePortfolioSummary"],
   },

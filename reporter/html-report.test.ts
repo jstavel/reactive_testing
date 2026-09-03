@@ -245,7 +245,6 @@ describe("renderHtmlReport with relations (Story 2)", () => {
       feature: "home-page-history-menu",
       featureTitle: "Home page History menu",
       scenarioTitle: "Scenario A",
-      gherkin: "Scenario: Scenario A\n  Given some precondition",
       states: ["homePage"],
       contracts: ["clickHistoryMenuMain"],
       ...overrides,
@@ -322,24 +321,38 @@ describe("renderHtmlReport with relations (Story 2)", () => {
     expect(html.match(/openPortfolioSummary/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
-  it("EMBEDS_GHERKIN — relation gherkin source is rendered in the report", () => {
-    const rels = [
-      relation({
-        scenarioId: "a",
-        scenarioTitle: "Scenario A",
-        gherkin: "Scenario: Scenario A\n  Given some precondition\n  Then something holds",
-      }),
-    ];
+  it("EMBEDS_GHERKIN_SNAPSHOT — relation-agnostic gherkinSource is rendered", () => {
+    const rels = [relation({ scenarioId: "a", scenarioTitle: "Scenario A" })];
     const plan = makePlan([
       { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
     ]);
     const results = [result("a", true)];
 
-    const html = renderHtmlReport({ run, plan, results, relations: rels });
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results,
+      relations: rels,
+      gherkinSource: { a: "Scenario: Scenario A\n  Given some precondition\n  Then something holds" },
+    });
 
     expect(html).toContain("Scenario: Scenario A");
     expect(html).toContain("Given some precondition");
     expect(html).toContain("Then something holds");
+  });
+
+  it("GHERKIN_TIMEOUT_FALLBACK — scenario with no snapshot shows title only", () => {
+    const rels = [relation({ scenarioId: "a", scenarioTitle: "Scenario A" })];
+    const plan = makePlan([
+      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+    ]);
+    const results = [result("a", true)];
+
+    const html = renderHtmlReport({ run, plan, results, relations: rels, gherkinSource: {} });
+
+    // Title still shown; no <pre class="gherkin"> because no snapshot text.
+    expect(html).toContain("Scenario A");
+    expect(html).not.toContain("<pre class=\"gherkin\">");
   });
 
   it("FALLBACK_FLAT — without relations, no feature headings and raw scenario ids", () => {
