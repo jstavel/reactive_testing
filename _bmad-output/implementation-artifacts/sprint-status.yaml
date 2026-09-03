@@ -174,7 +174,7 @@ action_items:
       a test that generates a repro and compiles/executes it with mocked modules (extends
       the 4.1 deferred typecheck-gate item)."
     owner: "Jan"
-    status: open
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
   - id: "epic-4-retro-item-5-fr12-fr13-entry-point-wiring"
     epic: 4
