@@ -134,3 +134,25 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-user-documentation-set.md`
   summary: There is no executable way to regenerate the smoke test plan — model/smoke.test-plan.ts's header says "regenerate when model files change" and the docs now tell readers the model is grown via authoring, but no script or npm command re-derives the plan from the @plan:smoke tags (only model/model-version.test.ts detects staleness).
   evidence: Docs review of the new usage set: the plan file header (model/smoke.test-plan.ts:3-4) instructs regeneration that no repo tool performs; grep of package.json and bin/ shows only run-smoke.ts. Pre-existing (plan is AI-authored per AD-4/AD-19); the docs made the gap visible.
+
+## Deferred from: blind-hunter review of one-shot follow-up (Gherkin snapshot) (2026-09-03)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
+  summary: extractScenario only matches the "Scenario:" prefix, so "Scenario Outline:"/tagged outline scenarios are silently skipped from the snapshot even though the end-boundary regex already recognises them.
+  evidence: Blind-hunter review of reporter/gherkin-snapshot.ts: the block-start scan matches only "Scenario:", while the block-end regex lists Scenario Outline; nothing in the current relations/features uses outlines, so it is a latent gap, not a reached defect.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
+  summary: extractScenario drops any "@" tags on the line(s) preceding a scenario, so the snapshot is not fully verbatim for tagged scenarios.
+  evidence: Blind-hunter review of reporter/gherkin-snapshot.ts: the scan starts at the Scenario: line and returns only from there; no current feature carries a per-scenario tag, so the fidelity gap is latent.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
+  summary: No test covers Scenario Outline/Examples or "@"-tagged scenarios in buildGherkinSnapshot, so the two latent gaps above would go undetected.
+  evidence: Blind-hunter review noted the snapshot test suite exercises only plain Scenario: blocks.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
+  summary: relation scenarioIds are manually duplicated kebab-case forms of their scenarioTitles with no derivation helper, so editing a title without its id would silently break snapshot lookup (keyed by scenarioId).
+  evidence: Blind-hunter review of model/relations.ts: each scenarioId is the kebab-case of scenarioTitle by hand.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
+  summary: relationsByScenarioId (and buildGherkinSnapshot's grouping) silently overwrite when a duplicate scenarioId appears in the relation array; no dedup/validation warns.
+  evidence: Blind-hunter review of relationsByScenarioId: it builds a Map from an array, so a later duplicate wins with no signal.

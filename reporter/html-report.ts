@@ -33,6 +33,14 @@ export interface EmitHtmlReportInput {
    * omitted, the report falls back to a flat scenario list (Story 1).
    */
   relations?: ScenarioRelation[];
+  /**
+   * Run-time Gherkin snapshot: `scenarioId → scenario source text`, captured
+   * from the feature files at run time (see `gherkin-snapshot.ts`). The .feature
+   * files are not part of the model and can drift, so the report embeds this
+   * snapshot rather than an authored copy — it reflects exactly what was run
+   * (CAP-4). When omitted, the report shows scenario titles only.
+   */
+  gherkinSource?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -48,8 +56,9 @@ export function emitHtmlReport({
   plan,
   results,
   relations,
+  gherkinSource,
 }: EmitHtmlReportInput): string {
-  const html = renderHtmlReport({ run, plan, results, relations });
+  const html = renderHtmlReport({ run, plan, results, relations, gherkinSource });
   const relPath = `${run.runId}/report.html`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
   writeFileSync(join(corpusDir, relPath), html);
@@ -62,6 +71,7 @@ export function renderHtmlReport({
   plan,
   results,
   relations,
+  gherkinSource,
 }: Omit<EmitHtmlReportInput, "corpusDir">): string {
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
@@ -99,8 +109,12 @@ export function renderHtmlReport({
            · <span class="link-label">contracts:</span> ${rel.contracts.map((c) => `<span class="contract">${escapeHtml(c)}</span>`).join(", ")}
          </div>`
       : "";
-    const gherkinHtml = rel?.gherkin
-      ? `<pre class="gherkin">${escapeHtml(rel.gherkin)}</pre>`
+    // Run-time Gherkin snapshot (CAP-4): embed the feature-file text captured
+    // at run time so the report reflects exactly what was run, not an authored
+    // copy that could drift. Falls back to title-only when no snapshot exists.
+    const gherkin = gherkinSource?.[scenario.id];
+    const gherkinHtml = gherkin
+      ? `<pre class="gherkin">${escapeHtml(gherkin)}</pre>`
       : "";
 
     const title = rel?.scenarioTitle ?? scenario.id;
