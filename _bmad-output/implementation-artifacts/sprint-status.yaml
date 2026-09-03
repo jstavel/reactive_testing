@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-02-2026 13:12
+last_updated: 09-03-2026
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -149,7 +149,7 @@ action_items:
       emitted runtime guard (first step starts at initialStateId; each next step stateId
       equals the previous transition target), with gap tests."
     owner: "Jan"
-    status: open
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
   - id: "epic-4-retro-item-2-repro-timeout-discipline"
     epic: 4
@@ -157,7 +157,7 @@ action_items:
       STEP_TIMEOUT_MS race wrapper around each action({ page }), mirroring the orchestrator
       withTimeout."
     owner: "Jan"
-    status: open
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
   - id: "epic-4-retro-item-3-cross-view-normalize-boundary"
     epic: 4
@@ -166,7 +166,7 @@ action_items:
       as missing evidence; extend assertRegistryEntryGaps to reject empty invariantId/probeName;
       add equal-capturedAt tie test."
     owner: "Jan"
-    status: open
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
   - id: "epic-4-retro-item-4-emitted-repro-verification-gate"
     epic: 4

@@ -94,6 +94,16 @@ function assertRegistryEntryGaps(): void {
   const modeled = new Set(homePageModel.states.map((state) => state.stateId));
   const seenInvariantIds = new Set<string>();
   for (const invariant of crossViewInvariants) {
+    if (!invariant.invariantId || invariant.invariantId.trim() === "") {
+      throw new Error(
+        `cross-view invariant declares an empty invariantId — ids must be non-empty and unique`,
+      );
+    }
+    if (!invariant.probeName || invariant.probeName.trim() === "") {
+      throw new Error(
+        `cross-view invariant "${invariant.invariantId}" declares an empty probeName — nothing to read from the corpus`,
+      );
+    }
     if (invariant.surfaces.length === 0) {
       throw new Error(
         `cross-view invariant "${invariant.invariantId}" declares no surfaces — nothing to compare`,
@@ -176,13 +186,39 @@ function checkInvariant(
     };
   }
 
-  // Every declared surface observed — agree iff all normalized values match.
-  const bySurface = new Map(
-    [...observed.entries()].map(([surface, observation]) => [
-      surface,
-      { raw: observation.value, normalized: invariant.normalize(observation.value) },
-    ]),
-  );
+  // Every declared surface observed — normalize each value defensively. A
+  // throwing normalizer must not abort the whole run: it fails loudly for that
+  // invariant, naming the invariant and the offending surface (fix-now item-3
+  // boundary). A raw value that normalizes to empty cannot confirm agreement
+  // with any other surface, so it is missing evidence and fails loudly too.
+  const bySurface = new Map<string, { raw: string; normalized: string }>();
+  for (const [surface, observation] of observed.entries()) {
+    let normalized: string;
+    try {
+      normalized = invariant.normalize(observation.value);
+    } catch (err) {
+      return {
+        contractId: invariant.invariantId,
+        passed: false,
+        details:
+          `cross-view normalize threw for invariant "${invariant.invariantId}" ` +
+          `on surface "${surface}" (raw "${observation.value}"): ` +
+          (err instanceof Error ? err.message : String(err)),
+        corpusRefs,
+      };
+    }
+    if (normalized.trim() === "") {
+      return {
+        contractId: invariant.invariantId,
+        passed: false,
+        details:
+          `"${invariant.probeName}" probe on surface "${surface}" ` +
+          `normalized to an empty value — missing evidence for invariant "${invariant.invariantId}"`,
+        corpusRefs,
+      };
+    }
+    bySurface.set(surface, { raw: observation.value, normalized });
+  }
   const normalizedValues = [...bySurface.values()].map((entry) => entry.normalized);
   const allAgree = normalizedValues.every(
     (normalized) => normalized === normalizedValues[0],
