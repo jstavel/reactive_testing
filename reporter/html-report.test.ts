@@ -237,3 +237,152 @@ describe("emitHtmlReport", () => {
     expect(content).toContain("closePortfolioSummary");
   });
 });
+
+describe("renderHtmlReport with relations (Story 2)", () => {
+  function relation(overrides: Partial<import("../model/relations.js").ScenarioRelation>): import("../model/relations.js").ScenarioRelation {
+    return {
+      scenarioId: "scenario-a",
+      feature: "home-page-history-menu",
+      featureTitle: "Home page History menu",
+      scenarioTitle: "Scenario A",
+      gherkin: "Scenario: Scenario A\n  Given some precondition",
+      states: ["homePage"],
+      contracts: ["clickHistoryMenuMain"],
+      ...overrides,
+    };
+  }
+
+  it("GROUPS_BY_FEATURE — scenarios rendered under their feature headings", () => {
+    const rels = [
+      relation({
+        scenarioId: "a",
+        scenarioTitle: "Scenario A",
+        featureTitle: "Feature One",
+        feature: "feature-one",
+      }),
+      relation({
+        scenarioId: "b",
+        scenarioTitle: "Scenario B",
+        featureTitle: "Feature One",
+        feature: "feature-one",
+      }),
+      relation({
+        scenarioId: "c",
+        scenarioTitle: "Scenario C",
+        featureTitle: "Feature Two",
+        feature: "feature-two",
+      }),
+    ];
+    const plan = makePlan([
+      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "b", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }] },
+      { id: "c", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+    ]);
+    const results = [result("a", true), result("b", true), result("c", true)];
+
+    const html = renderHtmlReport({ run, plan, results, relations: rels });
+
+    // Feature headings present.
+    expect(html).toContain("Feature One");
+    expect(html).toContain("Feature Two");
+    // Scenario titles (not raw ids) shown.
+    expect(html).toContain("Scenario A");
+    expect(html).toContain("Scenario B");
+    expect(html).toContain("Scenario C");
+    // Model linkage rendered.
+    expect(html).toContain("states:");
+    expect(html).toContain("contracts:");
+    expect(html).toContain("clickHistoryMenuMain");
+  });
+
+  it("N_TO_N — a contract shared by multiple scenarios appears for each", () => {
+    const rels = [
+      relation({
+        scenarioId: "a",
+        featureTitle: "F",
+        contracts: ["openPortfolioSummary"],
+        states: ["homePage"],
+      }),
+      relation({
+        scenarioId: "b",
+        featureTitle: "F",
+        contracts: ["openPortfolioSummary"],
+        states: ["homePage"],
+      }),
+    ];
+    const plan = makePlan([
+      { id: "a", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      { id: "b", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+    ]);
+    const results = [result("a", true), result("b", true)];
+
+    const html = renderHtmlReport({ run, plan, results, relations: rels });
+
+    // Both scenarios show the shared contract (N:N — no dedup).
+    expect(html.match(/openPortfolioSummary/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
+  it("EMBEDS_GHERKIN — relation gherkin source is rendered in the report", () => {
+    const rels = [
+      relation({
+        scenarioId: "a",
+        scenarioTitle: "Scenario A",
+        gherkin: "Scenario: Scenario A\n  Given some precondition\n  Then something holds",
+      }),
+    ];
+    const plan = makePlan([
+      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+    ]);
+    const results = [result("a", true)];
+
+    const html = renderHtmlReport({ run, plan, results, relations: rels });
+
+    expect(html).toContain("Scenario: Scenario A");
+    expect(html).toContain("Given some precondition");
+    expect(html).toContain("Then something holds");
+  });
+
+  it("FALLBACK_FLAT — without relations, no feature headings and raw scenario ids", () => {
+    const plan = makePlan([
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+    ]);
+    const results = [result("scenario-a", true)];
+
+    const html = renderHtmlReport({ run, plan, results });
+
+    expect(html).toContain("scenario-a");
+    expect(html).not.toContain("<div class=\"feature-group\">");
+    expect(html).not.toContain("<div class=\"model-link\">");
+  });
+
+  it("UNCATEGORIZED — scenario with no matching relation grouped under 'Uncategorized'", () => {
+    const rels = [relation({ scenarioId: "known" })];
+    const plan = makePlan([
+      { id: "known", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "mystery", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+    ]);
+    const results = [result("known", true), result("mystery", true)];
+
+    const html = renderHtmlReport({ run, plan, results, relations: rels });
+
+    expect(html).toContain("Uncategorized");
+    expect(html).toContain("mystery");
+  });
+
+  it("DETERMINISTIC_GROUP — grouped report is byte-identical for identical inputs", () => {
+    const rels = [
+      relation({ scenarioId: "a", featureTitle: "F1" }),
+      relation({ scenarioId: "b", featureTitle: "F2" }),
+    ];
+    const plan = makePlan([
+      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "b", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+    ]);
+    const results = [result("a", true), result("b", true)];
+
+    const first = renderHtmlReport({ run, plan, results, relations: rels });
+    const second = renderHtmlReport({ run, plan, results, relations: rels });
+
+    expect(second).toBe(first);
+  });
+});
