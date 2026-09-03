@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type {
   RunMetadata,
   ScenarioResult,
+  StepEvidence,
   TestPlan,
 } from "../model/schemas.js";
 import type { ScenarioRelation } from "../model/relations.js";
@@ -41,6 +42,14 @@ export interface EmitHtmlReportInput {
    * (CAP-4). When omitted, the report shows scenario titles only.
    */
   gherkinSource?: Readonly<Record<string, string>>;
+  /**
+   * Per-step evidence: `scenarioId → StepEvidence[]`, aligned by index to
+   * `plan.scenarios[id].steps`. When provided, each step is rendered inside a
+   * closed `<details>` with timing text and, when a screenshot ref is present,
+   * an `<img>` referencing the corpus-relative path. When omitted (or a step
+   * has no entry), the step renders as it did in Story 2.
+   */
+  stepEvidence?: Readonly<Record<string, StepEvidence[]>>;
 }
 
 /**
@@ -57,8 +66,9 @@ export function emitHtmlReport({
   results,
   relations,
   gherkinSource,
+  stepEvidence,
 }: EmitHtmlReportInput): string {
-  const html = renderHtmlReport({ run, plan, results, relations, gherkinSource });
+  const html = renderHtmlReport({ run, plan, results, relations, gherkinSource, stepEvidence });
   const relPath = `${run.runId}/report.html`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
   writeFileSync(join(corpusDir, relPath), html);
@@ -72,6 +82,7 @@ export function renderHtmlReport({
   results,
   relations,
   gherkinSource,
+  stepEvidence,
 }: Omit<EmitHtmlReportInput, "corpusDir">): string {
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
@@ -93,10 +104,28 @@ export function renderHtmlReport({
         ? `<div class="error">${escapeHtml(result.error)}</div>`
         : "";
 
+    const evidence = stepEvidence?.[scenario.id];
     const stepsHtml = scenario.steps
       .map(
-        (step) =>
-          `<li><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></li>`,
+        (step, idx) => {
+          const ev = evidence?.[idx];
+          if (!ev) {
+            return `<li><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></li>`;
+          }
+          const hasScreenshot = ev.screenshot !== undefined && ev.screenshot.filePath.trim().length > 0;
+          const imgHtml = hasScreenshot
+            ? `<div class="step-screenshot"><img src="${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
+            : "";
+          return `<li>
+            <details>
+              <summary><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></summary>
+              <div class="step-evidence">
+                <span class="step-timing">${escapeHtml(String(ev.timingMs))} ms</span>
+                ${imgHtml}
+              </div>
+            </details>
+          </li>`;
+        },
       )
       .join("\n        ");
 
@@ -193,6 +222,10 @@ export function renderHtmlReport({
     .model-link { font-size: 0.8em; color: #6c757d; margin-top: 6px; padding: 6px 8px; background: #f8f9fa; border-radius: 4px; }
     .link-label { font-weight: 600; }
     .gherkin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8em; background: #f4f6f8; border-left: 3px solid #ced4da; padding: 8px 12px; border-radius: 0 4px 4px 0; margin-top: 6px; white-space: pre-wrap; color: #495057; }
+    .step-evidence { margin-top: 6px; padding: 8px 12px; background: #f4f6f8; border-radius: 4px; }
+    .step-timing { font-size: 0.85em; color: #495057; font-weight: 500; }
+    .step-screenshot { margin-top: 6px; }
+    .step-screenshot img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; }
   </style>
 </head>
 <body>

@@ -101,6 +101,16 @@ export const snapshotCollectorOptionsSchema = z.object({
 });
 export type SnapshotCollectorOptions = z.infer<typeof snapshotCollectorOptionsSchema>;
 
+/** Per-step evidence consumed by the HTML reporter (Story 3).
+ * Keyed by scenario id → array of per-step evidence aligned by index to
+ * `plan.scenarios[id].steps`. */
+export interface StepEvidence {
+  /** Wall-clock duration of the step in milliseconds. */
+  timingMs: number;
+  /** Optional screenshot reference — corpus-relative path, never bytes. */
+  screenshot?: ScreenshotRef;
+}
+
 // ---- Shared in-memory shapes (AD-13: single home for every shared shape) ----
 
 /** In-memory screenshot capture: raw PNG bytes plus capture timestamp. Never persisted directly — the corpus module writes the bytes and a corpus-relative ref (Story 2.3). */

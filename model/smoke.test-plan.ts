@@ -2,12 +2,13 @@
 // Model version: SHA-256 of fsm.ts + contracts.ts + schemas.ts.
 // Do not edit by hand; regenerate when model files or feature tags change.
 // Regenerated for the test-run report (Story 1) after schemas.ts gained RunMetadata.
+// Regenerated (Story 3) after schemas.ts gained StepEvidence.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "2391eb7d9470cf3a0c9d6dedd8357037606e3c5113341777fa1e242f6b90eb19",
+  modelVersion: "f435b0b93dd799050476c43f232bc27397cc5bf431007933ea8c7d33731f4787",
   scenarios: [
     // home-page-history-menu.feature
     {

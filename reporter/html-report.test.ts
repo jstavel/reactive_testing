@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RunMetadata, ScenarioResult, TestPlan } from "../model/schemas.js";
+import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
 import { emitHtmlReport, renderHtmlReport } from "./html-report.js";
 
 let tempDirs: string[] = [];
@@ -397,5 +397,155 @@ describe("renderHtmlReport with relations (Story 2)", () => {
     const second = renderHtmlReport({ run, plan, results, relations: rels });
 
     expect(second).toBe(first);
+  });
+});
+
+describe("renderHtmlReport with stepEvidence (Story 3)", () => {
+  it("TIMING_ONLY — step with timing but no screenshot shows timing text", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 42 }],
+    };
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    // Step is inside a <details> element.
+    expect(html).toContain("<details>");
+    // Timing text is present.
+    expect(html).toContain("42 ms");
+    // No <img> — no screenshot.
+    expect(html).not.toContain("<img");
+  });
+
+  it("WITH_SCREENSHOT — step with timing and screenshot shows both", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 120, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } }],
+    };
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    expect(html).toContain("<details>");
+    expect(html).toContain("120 ms");
+    expect(html).toContain('<img src="screenshots/run1/0.png"');
+  });
+
+  it("MISSING_EVIDENCE — step absent from stepEvidence renders as plain line", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    // stepEvidence is present but empty — no entry for "sc".
+    const stepEvidence: Record<string, StepEvidence[]> = {};
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    // Should still render the flat Given → When line.
+    expect(html).toContain("Given");
+    expect(html).toContain("home");
+    expect(html).toContain("openLogin");
+    // No expandable evidence — no <details> wrapping the step.
+    expect(html).not.toContain("<details>");
+  });
+
+  it("STEP_EVIDENCE_OMITTED — omitting stepEvidence entirely matches Story 2 output", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+
+    const without = renderHtmlReport({ run, plan, results });
+    const withEmpty = renderHtmlReport({ run, plan, results, stepEvidence: {} });
+
+    expect(without).toBe(withEmpty);
+  });
+
+  it("EMPTY_FILEPATH — screenshot ref with empty filePath omits <img> but shows timing", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 55, screenshot: { filePath: "", capturedAt: "2026-09-03T10:00:00Z" } }],
+    };
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    expect(html).toContain("<details>");
+    expect(html).toContain("55 ms");
+    expect(html).not.toContain("<img");
+  });
+
+  it("MIXED_EVIDENCE — scenario with some steps having evidence and some not", () => {
+    const plan = makePlan([
+      {
+        id: "sc",
+        steps: [
+          { stateId: "home", contractId: "openLogin" },
+          { stateId: "loginDialog", contractId: "submitCredentials" },
+        ],
+      },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [
+        { timingMs: 30, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } },
+        { timingMs: 80 },
+      ],
+    };
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    // Both steps get expandable evidence.
+    const detailsMatches = html.match(/<details>/g);
+    expect(detailsMatches?.length ?? 0).toBe(2);
+    // Timing for both steps.
+    expect(html).toContain("30 ms");
+    expect(html).toContain("80 ms");
+    // Screenshot only for the first step.
+    expect(html).toContain('<img src="screenshots/run1/0.png"');
+    // Second step has no screenshot — no second <img>.
+    expect(html.match(/<img/g)?.length ?? 0).toBe(1);
+  });
+
+  it("CLOSED_BY_DEFAULT — step-level <details> has no open attribute", () => {
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 10 }],
+    };
+
+    const html = renderHtmlReport({ run, plan, results, stepEvidence });
+
+    // The step-level details must be closed by default: the step's <details>
+    // tag carries no `open` attribute (unlike the scenario wrapper's
+    // <details open>).
+    expect(html).toContain("<details>\n              <summary>");
+    expect(html).not.toContain("<details open>\n              <summary>");
+  });
+
+  it("EMIT_FORWARDS — emitHtmlReport writes stepEvidence into the report file", () => {
+    const corpusDir = makeCorpusDir();
+    const plan = makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+    const results = [result("sc", true)];
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 77, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } }],
+    };
+
+    emitHtmlReport({ corpusDir, run, plan, results, stepEvidence });
+
+    const written = readReport(corpusDir, run.runId);
+    expect(written).toContain("77 ms");
+    expect(written).toContain('<img src="screenshots/run1/0.png"');
   });
 });
