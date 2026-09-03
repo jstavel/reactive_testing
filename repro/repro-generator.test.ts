@@ -98,6 +98,25 @@ describe("generateReproScript", () => {
     expect(source).toContain('const BASE_URL = "https://pro.kraken.com/app/home";');
     expect(source).toContain('const SETTLE_SELECTOR = "[aria-label=\\"Side navigation\\"]";');
   });
+
+  it("enforces timeout discipline in the emitted script: goto timeout and an action race (item-2)", () => {
+    const source = generateReproScript(validPath());
+    // Initial navigation is bounded by the step timeout.
+    expect(source).toContain("page.goto(BASE_URL, { timeout: STEP_TIMEOUT_MS })");
+    // Each action is raced against the step timeout via a self-contained withTimeout.
+    expect(source).toMatch(/function withTimeout<T>/);
+    expect(source).toContain("await withTimeout(action({ page }), STEP_TIMEOUT_MS);");
+  });
+
+  it("emits a runtime whole-path continuity guard naming the offending step (item-1)", () => {
+    const source = generateReproScript(validPath());
+    // The emitted script checks the first step starts at the initial state...
+    expect(source).toContain("STEPS[0].stateId !== homePageModel.initialStateId");
+    // ...and that each step's transition target equals the next step's start.
+    expect(source).toContain("transitionTo");
+    expect(source).toContain("leads to ");
+    expect(source).toContain("but next step starts from ");
+  });
 });
 
 describe("generateReproScript gaps (FR-12c)", () => {
@@ -124,6 +143,28 @@ describe("generateReproScript gaps (FR-12c)", () => {
     expect(() =>
       generateReproScript(validPath({ steps: [{ stateId: "earn", contractId: "clickHistoryMenuMain" }] })),
     ).toThrow(/gap.*no transition from state "earn"/);
+  });
+
+  it("throws a gap when the path is disjoint (DISJOINT_PATH): a step leads where the next step does not start", () => {
+    // Each step is individually valid (homePage→portfolioSummaryDialog; then a
+    // homePage step), but together the path cannot run — step 1 leads to
+    // portfolioSummaryDialog while step 2 starts at homePage.
+    expect(() =>
+      generateReproScript(validPath({
+        steps: [
+          { stateId: "homePage", contractId: "openPortfolioSummary" },
+          { stateId: "homePage", contractId: "clickHistoryMenuMain" },
+        ],
+      })),
+    ).toThrow(/gap.*leads to "portfolioSummaryDialog" but next step starts from "homePage"/);
+  });
+
+  it("throws a gap when the path does not start at the initial state (NOT_STARTING_AT_INITIAL)", () => {
+    expect(() =>
+      generateReproScript(validPath({
+        steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+      })),
+    ).toThrow(/gap.*must start at the initial state "homePage" but step 1 starts at "portfolioSummaryDialog"/);
   });
 
   it("throws a gap for a non-kebab-case slug", () => {

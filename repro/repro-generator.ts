@@ -83,6 +83,21 @@ export function generateReproScript(path: ReproPath): string {
     `const STEP_TIMEOUT_MS = ${STEP_TIMEOUT_MS};`,
     `const STEPS: Array<{ stateId: string; contractId: string }> = ${stepsJson};`,
     "",
+    "// Race a step action against the step timeout so a hung action never blocks",
+    "// the repro forever (mirrors the Orchestrator's withTimeout).",
+    "function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {",
+    "  return new Promise<T>((resolve, reject) => {",
+    "    const timer = setTimeout(",
+    "      () => reject(new Error(`step timed out after ${ms}ms`)),",
+    "      ms,",
+    "    );",
+    "    promise.then(",
+    "      (val) => { clearTimeout(timer); resolve(val); },",
+    "      (err) => { clearTimeout(timer); reject(err); },",
+    "    );",
+    "  });",
+    "}",
+    "",
     "async function main(): Promise<void> {",
     "  // Self-contained CDP attach (no runtime browser module): connect to an",
     "  // already-authenticated Chromium, require exactly one authenticated context,",
@@ -98,7 +113,7 @@ export function generateReproScript(path: ReproPath): string {
     "    }",
     "    const page = await contexts[0].newPage();",
     "    try {",
-    "      await page.goto(BASE_URL);",
+    "      await page.goto(BASE_URL, { timeout: STEP_TIMEOUT_MS });",
     "      await page.waitForSelector(READY_SELECTOR, { timeout: STEP_TIMEOUT_MS });",
     "",
     "      // Read the CURRENT model at run time: a state or transition that a later",
@@ -108,6 +123,28 @@ export function generateReproScript(path: ReproPath): string {
     "      const transitionKeys = new Set(",
     "        homePageModel.transitions.map((t) => `${t.from}\\u0000${t.contractId}`),",
     "      );",
+    "",
+    "      // Whole-path runnability at run time: the repro must start at the",
+    "      // initial state and each step's transition must land where the next",
+    "      // step starts. A path a later spec edit made disjoint is caught here,",
+    "      // not silently executed (FR-12c).",
+    "      if (STEPS[0].stateId !== homePageModel.initialStateId) {",
+    "        throw new Error(",
+    "          `repro must start at the initial state \"${homePageModel.initialStateId}\" but step 1 starts at \"${STEPS[0].stateId}\"`,",
+    "        );",
+    "      }",
+    "      const transitionTo = new Map(",
+    "        homePageModel.transitions.map((t) => [`${t.from}\\u0000${t.contractId}`, t.to]),",
+    "      );",
+    "      for (let i = 0; i < STEPS.length - 1; i++) {",
+    "        const to = transitionTo.get(`${STEPS[i].stateId}\\u0000${STEPS[i].contractId}`);",
+    "        const target = to ?? \"<no transition>\";",
+    "        if (to !== STEPS[i + 1].stateId) {",
+    "          throw new Error(",
+    "            `step ${i + 1} (${STEPS[i].stateId} -> ${STEPS[i].contractId}) leads to \"${target}\" but next step starts from \"${STEPS[i + 1].stateId}\"`,",
+    "          );",
+    "        }",
+    "      }",
     "      for (const [i, step] of STEPS.entries()) {",
     "        const where = `step ${i + 1} (${step.stateId} -> ${step.contractId})`;",
     "        if (!stateIds.has(step.stateId)) {",
@@ -127,7 +164,7 @@ export function generateReproScript(path: ReproPath): string {
     "          );",
     "        }",
     "        try {",
-    "          await action({ page });",
+    "          await withTimeout(action({ page }), STEP_TIMEOUT_MS);",
     "          await page.waitForSelector(SETTLE_SELECTOR, { timeout: STEP_TIMEOUT_MS });",
     "        } catch (err) {",
     "          throw new Error(",
@@ -218,6 +255,33 @@ function validatePath(steps: ScenarioStep[]): void {
     if (!transitionKeys.has(key)) {
       throw new Error(
         `gap: ${where} - no transition from state "${step.stateId}" driven by contract "${step.contractId}"`,
+      );
+    }
+  }
+
+  // Whole-path runnability (FR-12): a repro plays against a fresh page that the
+  // runner loads at the app home, so it must start at the initial state and
+  // step forward through a connected path — a disjoint-but-valid set of steps
+  // would emit a script that can never execute.
+  const first = steps[0];
+  if (first.stateId !== homePageModel.initialStateId) {
+    throw new Error(
+      `gap: repro must start at the initial state "${homePageModel.initialStateId}" ` +
+        `but step 1 starts at "${first.stateId}"`,
+    );
+  }
+  const transitionTargets = new Map(
+    homePageModel.transitions.map((t) => [`${t.from}\u0000${t.contractId}`, t.to]),
+  );
+  for (let i = 0; i < steps.length - 1; i++) {
+    const to = transitionTargets.get(
+      `${steps[i].stateId}\u0000${steps[i].contractId}`,
+    );
+    const target = to ?? "<no transition>";
+    if (to !== steps[i + 1].stateId) {
+      throw new Error(
+        `gap: step ${i + 1} (${steps[i].stateId} -> ${steps[i].contractId}) ` +
+          `leads to "${target}" but next step starts from "${steps[i + 1].stateId}"`,
       );
     }
   }

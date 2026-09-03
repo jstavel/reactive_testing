@@ -344,6 +344,146 @@ describe("runCrossViewInvariants", () => {
     }
   });
 
+  it("EMPTY INVARIANT ID: an invariant declaring an empty invariantId throws at entry (item-3)", () => {
+    crossViewInvariants.push({
+      invariantId: "",
+      fact: "Empty id",
+      probeName: "portfolio-value",
+      surfaces: ["homePage"],
+      normalize: (v) => v,
+    });
+    try {
+      expect(() =>
+        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
+      ).toThrow(/empty invariantId/);
+    } finally {
+      crossViewInvariants.pop();
+    }
+  });
+
+  it("EMPTY PROBE NAME: an invariant declaring an empty probeName throws at entry naming the invariant (item-3)", () => {
+    crossViewInvariants.push({
+      invariantId: "__emptyProbe",
+      fact: "Empty probe",
+      probeName: "",
+      surfaces: ["homePage", "portfolioSummaryDialog"],
+      normalize: (v) => v,
+    });
+    try {
+      expect(() =>
+        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
+      ).toThrow(/__emptyProbe.*empty probeName/);
+    } finally {
+      crossViewInvariants.pop();
+    }
+  });
+
+  it("NORMALIZE_THROWS: a throwing normalizer yields a failed result naming invariant + surface, never a throw (item-3)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    writePostSnapshot(corpusDir, run, 0, "homePage");
+    writeProbes(corpusDir, run, 0, [{ name: "portfolio-value", value: "5,034.89 USD" }]);
+    finish(corpusDir, run);
+
+    const INVARIANT_ID = "__throwNormalize";
+    crossViewInvariants.push({
+      invariantId: INVARIANT_ID,
+      fact: "Throwing fact",
+      probeName: "portfolio-value",
+      surfaces: ["homePage"],
+      normalize: () => {
+        throw new Error("boom");
+      },
+    });
+    try {
+      const result = runCrossViewInvariants(corpusDir, run.runId, twoSurfacePlan()).find(
+        (r) => r.contractId === INVARIANT_ID,
+      );
+      // The boundary is a result, not a throw — the run completes and other
+      // invariants still get their results.
+      expect(result).toBeDefined();
+      expect(result!.passed).toBe(false);
+      expect(result!.details).toContain(INVARIANT_ID);
+      expect(result!.details).toContain('surface "homePage"');
+      expect(result!.details).toContain("boom");
+    } finally {
+      crossViewInvariants.pop();
+    }
+  });
+
+  it("NORMALIZE_EMPTY: a raw value that normalizes to empty is missing evidence and fails loudly (item-3)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    writePostSnapshot(corpusDir, run, 0, "homePage");
+    writeProbes(corpusDir, run, 0, [{ name: "portfolio-value", value: "5,034.89 USD" }]);
+    writePostSnapshot(corpusDir, run, 1, "portfolioSummaryDialog");
+    writeProbes(corpusDir, run, 1, [{ name: "portfolio-value", value: "5,034.89 USD" }]);
+    finish(corpusDir, run);
+
+    const INVARIANT_ID = "__emptyNormalize";
+    crossViewInvariants.push({
+      invariantId: INVARIANT_ID,
+      fact: "Empty-normalizing fact",
+      probeName: "portfolio-value",
+      surfaces: ["homePage", "portfolioSummaryDialog"],
+      // A non-empty raw value collapses to empty — cannot confirm agreement.
+      normalize: () => "",
+    });
+    try {
+      const result = runCrossViewInvariants(corpusDir, run.runId, twoSurfacePlan()).find(
+        (r) => r.contractId === INVARIANT_ID,
+      );
+      expect(result).toBeDefined();
+      expect(result!.passed).toBe(false);
+      expect(result!.details).toContain('surface "homePage"');
+      expect(result!.details).toContain("normalized to an empty value — missing evidence");
+    } finally {
+      crossViewInvariants.pop();
+    }
+  });
+
+  it("EQUAL_CAPTURED_AT: simultaneous observations on one surface tie-break by first-in-plan-order", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+
+    // Two homePage landings recorded at the SAME capturedAt: the tie must keep
+    // the first step encountered (plan order = step 0), never the later one.
+    writePostSnapshot(corpusDir, run, 0, "homePage");
+    writeProbes(corpusDir, run, 0, [{
+      name: "portfolio-value",
+      value: "5,034.89 USD",
+      capturedAt: "2026-09-01T10:00:00.000Z",
+    }]);
+    writePostSnapshot(corpusDir, run, 1, "homePage");
+    writeProbes(corpusDir, run, 1, [{
+      name: "portfolio-value",
+      value: "4,000.00 USD",
+      capturedAt: "2026-09-01T10:00:00.000Z",
+    }]);
+    writePostSnapshot(corpusDir, run, 2, "portfolioSummaryDialog");
+    writeProbes(corpusDir, run, 2, [{ name: "portfolio-value", value: "4,000.00 USD" }]);
+    finish(corpusDir, run);
+
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "s1", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+        { id: "s2", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+        { id: "s3", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
+      ],
+    };
+
+    const result = runSeed(corpusDir, run, plan);
+    // homePage resolves to the first-in-plan-order step (0 → 5,034.89 USD),
+    // which diverges from the dialog's 4,000.00 USD — proving the tie kept step 0.
+    expect(result!.passed).toBe(false);
+    expect(result!.corpusRefs).toContain("probe:portfolio-value@0");
+    expect(result!.corpusRefs).not.toContain("probe:portfolio-value@1");
+  });
+
   it("empty-value LATEST: a surface whose latest observation is empty fails as missing evidence, never reusing an older value", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
