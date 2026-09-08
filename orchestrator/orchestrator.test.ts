@@ -12,6 +12,7 @@ const mockWaitForURL = vi.fn();
 const mockKeyboardPress = vi.fn();
 const fluentLocator = (): unknown => ({
   click: vi.fn(async () => {}),
+  check: vi.fn(async () => {}),
   press: vi.fn(async () => {}),
   locator: vi.fn(() => fluentLocator()),
   first: vi.fn(() => fluentLocator()),
@@ -265,6 +266,49 @@ describe("runTestPlan", () => {
     expect(mockBrowserClose).toHaveBeenCalled();
   });
 
+  it("re-grounds at home via navigateHome when a previous scenario failed", async () => {
+    const savedImpl = mockGetByRole.getMockImplementation();
+    let calls = 0;
+    mockGetByRole.mockImplementation(() => ({
+      // Only the very first click fails; the home recovery and later steps run.
+      click: vi.fn(() => (++calls === 1 ? Promise.reject(new Error("boom")) : Promise.resolve())),
+      check: vi.fn(async () => {}),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const plan = makePlan([
+      { id: "broken", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "after-failure", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+    ]);
+
+    try {
+      const result = await runTestPlan(plan, baseConfig);
+
+      expect(result.scenarios[0]!.passed).toBe(false);
+      // The second scenario still ran: bootstrap re-grounded at home.
+      expect(result.scenarios).toHaveLength(2);
+      expect(result.scenarios[1]!.error ?? "").not.toContain("Bootstrap state is unknown");
+      expect(mockWaitForURL).toHaveBeenCalledWith("**/app/home");
+    } finally {
+      if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+    }
+  });
+
+  it("bootstraps an isolated History scenario from the initial state", async () => {
+    const plan = makePlan([
+      {
+        id: "open-assets-filter",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios).toEqual([{ id: "open-assets-filter", passed: true }]);
+    expect(result.setup).toEqual([{ id: "open-assets-filter", passed: true }]);
+    expect(mockWaitForURL).toHaveBeenCalledWith("**/app/history/main/ledger");
+  });
+
   it("throws on invalid stateId", async () => {
     const plan = makePlan([
       {
@@ -499,6 +543,7 @@ describe("corpus wiring", () => {
       },
       {
         id: "second-scenario",
+        route: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
         steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
@@ -510,8 +555,8 @@ describe("corpus wiring", () => {
     );
     const stepIndexes = snapshotCalls.map((c) => c[3]);
     // pre + post snapshots per step; the step index stays global across scenarios.
-    expect(stepIndexes).toEqual([0, 0, 1, 1, 2, 2]);
-    expect(new Set(stepIndexes).size).toBe(3);
+    expect(stepIndexes).toEqual([0, 0, 1, 1, 3, 3, 2, 2]);
+    expect(new Set(stepIndexes).size).toBe(4);
   });
 
   it("collects only the planned collectors — no validator/assertion logic", async () => {
@@ -575,6 +620,7 @@ describe("corpus wiring", () => {
       [{ collector: "probe", stepIndex: 0, error: "collector boom" }],
       [],
       ["probe", "snapshot"],
+      [],
     );
   });
 
@@ -598,6 +644,7 @@ describe("corpus wiring", () => {
       },
       {
         id: "second-scenario",
+        route: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
         steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
@@ -614,10 +661,11 @@ describe("corpus wiring", () => {
       expect.any(String),
       [
         { collector: "probe", stepIndex: 1, error: "step-1 boom" },
-        { collector: "probe", stepIndex: 2, error: "scenario-2 boom" },
+        { collector: "probe", stepIndex: 3, error: "scenario-2 boom" },
       ],
       [],
       ["probe", "snapshot"],
+      expect.any(Array),
     );
   });
 
@@ -665,6 +713,7 @@ describe("corpus wiring", () => {
       ],
       [],
       ["probe", "snapshot"],
+      [],
     );
   });
 
@@ -696,6 +745,7 @@ describe("corpus wiring", () => {
       [],
       [],
       ["probe", "snapshot"],
+      [],
     );
   });
 
@@ -728,6 +778,7 @@ describe("corpus wiring", () => {
       [],
       [],
       ["probe", "snapshot"],
+      [],
     );
   });
 
@@ -802,6 +853,7 @@ describe("corpus wiring", () => {
         },
       ],
       ["probe", "snapshot"],
+      [],
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -838,6 +890,7 @@ describe("corpus wiring", () => {
         },
       ],
       ["probe", "snapshot"],
+      [],
     );
   });
 
@@ -879,6 +932,7 @@ describe("corpus wiring", () => {
         },
       ],
       ["probe", "snapshot"],
+      [],
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -908,6 +962,7 @@ describe("corpus wiring", () => {
       [],
       [],
       ["probe", "snapshot"],
+      [],
     );
   });
 

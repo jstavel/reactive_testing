@@ -13,7 +13,8 @@ import { join } from "node:path";
 import { homePageModel } from "../model/fsm.js";
 import { allContracts } from "../model/contracts.js";
 import { actionMap } from "../orchestrator/action-map.js";
-import type { ScenarioStep } from "../model/schemas.js";
+import { resolveBootstrapPath } from "../orchestrator/bootstrap.js";
+import type { RouteStep, ScenarioStep } from "../model/schemas.js";
 
 /** Input to repro generation: the reported bug path plus run-time config. */
 export interface ReproPath {
@@ -29,6 +30,10 @@ export interface ReproPath {
   cdpUrl?: string;
   /** Ordered FSM steps the repro executes, in sequence. */
   steps: ScenarioStep[];
+  /** State required before the first repro step. */
+  givenStateId?: string;
+  /** Explicit bootstrap route override. */
+  route?: RouteStep[];
 }
 
 /** Default CDP endpoint for attaching to an already-authenticated browser. */
@@ -51,7 +56,7 @@ export function generateReproScript(path: ReproPath): string {
     throw new Error("gap: repro path is empty (no steps)");
   }
   validateSlug(path.slug);
-  validatePath(path.steps);
+  validatePath(path);
 
   if (!path.baseUrl || !path.readySelector) {
     throw new Error(
@@ -62,6 +67,8 @@ export function generateReproScript(path: ReproPath): string {
   const cdpUrl = path.cdpUrl || DEFAULT_CDP_URL;
   const settleSelector = path.settleSelector || path.readySelector;
   const stepsJson = JSON.stringify(path.steps);
+  const givenStateId = path.givenStateId ?? path.steps[0]!.stateId;
+  const routeJson = JSON.stringify(path.route ?? null);
 
   return [
     "// Standalone repro for a reported bug path (Story 4.1).",
@@ -82,6 +89,54 @@ export function generateReproScript(path: ReproPath): string {
     `const SETTLE_SELECTOR = ${JSON.stringify(settleSelector)};`,
     `const STEP_TIMEOUT_MS = ${STEP_TIMEOUT_MS};`,
     `const STEPS: Array<{ stateId: string; contractId: string }> = ${stepsJson};`,
+    `const GIVEN_STATE_ID = ${JSON.stringify(givenStateId)};`,
+    `const ROUTE: Array<{ stateId: string; contractId: string }> | null = ${routeJson};`,
+    "",
+     "function resolveBootstrapPath(currentStateId: string): Array<{ stateId: string; contractId: string }> {",
+     "  if (currentStateId === GIVEN_STATE_ID) return [];",
+     "  if (ROUTE) {",
+     "    // An explicit route is replayed against the CURRENT model: a route a",
+     "    // later spec edit invalidated is caught here, not silently executed.",
+     "    let stateId = currentStateId;",
+     "    for (const [i, step] of ROUTE.entries()) {",
+     "      if (step.stateId !== stateId) {",
+     "        throw new Error(`bootstrap route step ${i + 1} starts at \"${step.stateId}\" but current state is \"${stateId}\"`);",
+     "      }",
+     "      const transition = homePageModel.transitions.find((item) => item.from === stateId && item.contractId === step.contractId);",
+     "      if (!transition) {",
+     "        throw new Error(`bootstrap route step ${i + 1} is no longer a transition from \"${stateId}\" via \"${step.contractId}\"`);",
+     "      }",
+     "      if (!actionMap[step.contractId]) {",
+     "        throw new Error(`bootstrap route step ${i + 1} contract \"${step.contractId}\" has no action-map entry`);",
+     "      }",
+     "      stateId = transition.to;",
+     "    }",
+     "    if (stateId !== GIVEN_STATE_ID) {",
+     "      throw new Error(`bootstrap route ends at \"${stateId}\" but required state is \"${GIVEN_STATE_ID}\"`);",
+     "    }",
+     "    return ROUTE;",
+     "  }",
+    "  const queue: Array<{ stateId: string; path: Array<{ stateId: string; contractId: string }> }> = [{ stateId: currentStateId, path: [] }];",
+    "  const visited = new Map<string, number>([[currentStateId, 0]]);",
+    "  let shortest: Array<{ stateId: string; contractId: string }> | undefined;",
+    "  while (queue.length) {",
+    "    const current = queue.shift()!;",
+    "    if (shortest && current.path.length > shortest.length) break;",
+    "    if (current.stateId === GIVEN_STATE_ID) {",
+    "      if (shortest) throw new Error(`multiple bootstrap paths to ${GIVEN_STATE_ID}`);",
+    "      shortest = current.path; continue;",
+    "    }",
+    "    for (const transition of homePageModel.transitions.filter((item) => item.from === current.stateId).sort((a, b) => a.contractId.localeCompare(b.contractId))) {",
+    "      const depth = current.path.length + 1;",
+    "      const prior = visited.get(transition.to);",
+    "      if (prior !== undefined && prior < depth) continue;",
+    "      visited.set(transition.to, depth);",
+    "      queue.push({ stateId: transition.to, path: [...current.path, { stateId: transition.from, contractId: transition.contractId }] });",
+    "    }",
+    "  }",
+    "  if (!shortest) throw new Error(`no bootstrap path to ${GIVEN_STATE_ID}`);",
+    "  return shortest;",
+    "}",
     "",
     "// Race a step action against the step timeout so a hung action never blocks",
     "// the repro forever (mirrors the Orchestrator's withTimeout).",
@@ -124,16 +179,16 @@ export function generateReproScript(path: ReproPath): string {
     "        homePageModel.transitions.map((t) => `${t.from}\\u0000${t.contractId}`),",
     "      );",
     "",
-    "      // Whole-path runnability at run time: the repro must start at the",
-    "      // initial state and each step's transition must land where the next",
-    "      // step starts. A path a later spec edit made disjoint is caught here,",
-    "      // not silently executed (FR-12c).",
-    "      if (STEPS[0].stateId !== homePageModel.initialStateId) {",
-    "        throw new Error(",
-    "          `repro must start at the initial state \"${homePageModel.initialStateId}\" but step 1 starts at \"${STEPS[0].stateId}\"`,",
-    "        );",
-    "      }",
-    "      const transitionTo = new Map(",
+     "      // Whole-path runnability at run time: the Given state must be the",
+     "      // first step's state and each step's transition must land where the",
+     "      // next step starts. A path a later spec edit made stale is caught",
+     "      // here, before any action runs (FR-12c).",
+     "      if (STEPS[0].stateId !== GIVEN_STATE_ID) {",
+     "        throw new Error(",
+     "          `step 1 starts at \"${STEPS[0].stateId}\" but the repro's Given state is \"${GIVEN_STATE_ID}\"`,",
+     "        );",
+     "      }",
+     "      const transitionTo = new Map(",
     "        homePageModel.transitions.map((t) => [`${t.from}\\u0000${t.contractId}`, t.to]),",
     "      );",
     "      for (let i = 0; i < STEPS.length - 1; i++) {",
@@ -145,9 +200,25 @@ export function generateReproScript(path: ReproPath): string {
     "          );",
     "        }",
     "      }",
-    "      for (const [i, step] of STEPS.entries()) {",
-    "        const where = `step ${i + 1} (${step.stateId} -> ${step.contractId})`;",
-    "        if (!stateIds.has(step.stateId)) {",
+     "      // Bootstrap last: the repro path is validated against the current",
+     "      // model before any action runs, so a stale repro never mutates the",
+     "      // attached browser before reporting its gap (FR-12c).",
+     "      const bootstrap = resolveBootstrapPath(homePageModel.initialStateId);",
+     "      for (const [i, step] of bootstrap.entries()) {",
+     "        const action = actionMap[step.contractId];",
+     "        if (!action) throw new Error(`bootstrap step ${i + 1} has no action for ${step.contractId}`);",
+     "        try {",
+     "          await withTimeout(action({ page }), STEP_TIMEOUT_MS);",
+     "          await page.waitForSelector(SETTLE_SELECTOR, { timeout: STEP_TIMEOUT_MS });",
+     "        } catch (err) {",
+     "          throw new Error(",
+     "            `bootstrap step ${i + 1} (${step.stateId} -> ${step.contractId}) failed: ${err instanceof Error ? err.message : String(err)}`,",
+     "          );",
+     "        }",
+     "      }",
+     "      for (const [i, step] of STEPS.entries()) {",
+     "        const where = `step ${i + 1} (${step.stateId} -> ${step.contractId})`;",
+     "        if (!stateIds.has(step.stateId)) {",
     "          throw new Error(",
     "            `state \"${step.stateId}\" no longer exists in the current model (${where})`,",
     "          );",
@@ -222,7 +293,8 @@ function validateSlug(slug: string): void {
  * Resolve every step against the Model (states + contracts + transitions) and the
  * action-map, mirroring the ssot-guard rules so a gap never yields a partial repro.
  */
-function validatePath(steps: ScenarioStep[]): void {
+function validatePath(path: ReproPath): void {
+  const steps = path.steps;
   const stateIds = new Set(homePageModel.states.map((s) => s.stateId));
   const contractIds = new Set(allContracts.map((c) => c.contractId));
   const transitionKeys = new Set(
@@ -259,17 +331,23 @@ function validatePath(steps: ScenarioStep[]): void {
     }
   }
 
-  // Whole-path runnability (FR-12): a repro plays against a fresh page that the
-  // runner loads at the app home, so it must start at the initial state and
-  // step forward through a connected path — a disjoint-but-valid set of steps
-  // would emit a script that can never execute.
-  const first = steps[0];
-  if (first.stateId !== homePageModel.initialStateId) {
+  const first = steps[0]!;
+  const givenStateId = path.givenStateId ?? first.stateId;
+  if (first.stateId !== givenStateId) {
     throw new Error(
-      `gap: repro must start at the initial state "${homePageModel.initialStateId}" ` +
-        `but step 1 starts at "${first.stateId}"`,
+      `gap: repro givenStateId "${givenStateId}" does not match step 1 state "${first.stateId}"`,
     );
   }
+  if (!path.givenStateId && !path.route && first.stateId !== homePageModel.initialStateId) {
+    throw new Error(
+      `gap: repro must start at the initial state "${homePageModel.initialStateId}" but step 1 starts at "${first.stateId}"; provide givenStateId or route`,
+    );
+  }
+  resolveBootstrapPath(homePageModel, {
+    currentStateId: homePageModel.initialStateId,
+    givenStateId,
+    route: path.route,
+  });
   const transitionTargets = new Map(
     homePageModel.transitions.map((t) => [`${t.from}\u0000${t.contractId}`, t.to]),
   );

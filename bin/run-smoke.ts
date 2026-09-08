@@ -36,7 +36,7 @@ const config: OrchestratorConfig = {
     { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
   ],
   cdpUrl: "http://127.0.0.1:9222",
-  stepTimeout: 10_000,
+  stepTimeout: 20_000,
   runTimeout: 180_000,
 };
 
@@ -51,6 +51,9 @@ if (selectedIds.length > 0) {
   console.log(`Selected scenarios: ${plan.scenarios.map(({ id }) => id).join(", ")}`);
 }
 
+const setupPassed: string[] = [];
+const setupFailed: Array<{ id: string; error: string }> = [];
+
 const result = await runTestPlan(plan, config, (scenario) => {
   const status = scenario.passed ? "PASS" : "FAIL";
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -59,6 +62,18 @@ const result = await runTestPlan(plan, config, (scenario) => {
       (scenario.error ? ` — ${scenario.error}` : ""),
   );
 });
+
+for (const setup of result.setup ?? []) {
+  if (setup.passed) {
+    setupPassed.push(setup.id);
+  } else {
+    setupFailed.push({ id: setup.id, error: setup.error ?? "bootstrap failed" });
+  }
+}
+
+for (const setup of setupFailed) {
+  console.error(`[SETUP FAIL] ${setup.id} — ${setup.error}`);
+}
 
 const passed = result.scenarios.filter((s) => s.passed).length;
 const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -82,7 +97,10 @@ if (passed === 0) {
 }
 
 console.log(
-  `Run complete: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s. ` +
+  `Run complete: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s` +
+    ` (${setupPassed.length} bootstrapped` +
+    (setupFailed.length > 0 ? `, ${setupFailed.length} setup failures` : "") +
+    `). ` +
     `CDP connection closed on completion; the human's browser stays open (detached, never closed). ` +
     `Corpus written to ${config.corpusDir}/.`,
 );

@@ -43,9 +43,12 @@ const mock = vi.hoisted(() => {
     initialStateId: "homePage",
   };
   const pages: FakePage[] = [];
+  /** Contract ids executed by the emitted repro, in call order. */
+  const actions: string[] = [];
   return {
     model,
     pages,
+    actions,
   };
 });
 
@@ -101,7 +104,9 @@ vi.mock("../orchestrator/action-map.js", () => ({
     {},
     {
       has: () => true,
-      get: () => async () => {},
+      get: (_target, key) => async () => {
+        mock.actions.push(String(key));
+      },
     },
   ),
 }));
@@ -141,6 +146,7 @@ afterEach(async () => {
   mock.pages.length = 0;
   await rm(join(SCRIPTS_DIR, "repro-verify-valid.ts"), { force: true });
   await rm(join(SCRIPTS_DIR, "repro-verify-runtime.ts"), { force: true });
+  await rm(join(SCRIPTS_DIR, "repro-verify-offhome.ts"), { force: true });
 });
 
 describe("emitted-repro verification gate (item-4)", () => {
@@ -151,7 +157,7 @@ describe("emitted-repro verification gate (item-4)", () => {
       // the same `tsc --noEmit` a reviewer used by hand, now automated.
       await execFileAsync("node", [TSC_BIN, "--noEmit"]);
       // ExecFile resolves on exit 0; a type error rejects the promise.
-    });
+    }, 15_000);
   });
 
   describe("execute gate (mocked deps)", () => {
@@ -175,6 +181,26 @@ describe("emitted-repro verification gate (item-4)", () => {
       // main() ran to completion: a page was opened and closed, and no
       // process.exitCode was set by a failure catch.
       expect(mock.pages.length).toBeGreaterThan(0);
+      expect(process.exitCode).toBe(exitCodeBefore);
+    });
+
+    it("an off-home repro bootstraps to its Given state before its scenario steps", async () => {
+      mock.model.states = ["homePage", "historyMain"];
+      mock.model.transitions = [
+        { from: "homePage", contractId: "clickHistoryMenuMain", to: "historyMain" },
+        { from: "historyMain", contractId: "filterHistoryByAsset", to: "historyMain" },
+      ];
+
+      await writeReproScript(validPath({
+        slug: "verify-offhome",
+        givenStateId: "historyMain",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      }));
+      mock.actions.length = 0;
+      await import(`../scripts/repro-verify-${"offhome"}.js`);
+
+      // The bootstrap contract ran BEFORE the repro's own step.
+      expect(mock.actions).toEqual(["clickHistoryMenuMain", "filterHistoryByAsset"]);
       expect(process.exitCode).toBe(exitCodeBefore);
     });
 

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-07-2026
+last_updated: 09-08-2026
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -69,7 +69,7 @@ development_status:
   epic-4-retrospective: done
 
   epic-5: in-progress
-  5-1-history-filter-pagination: review
+  5-1-history-filter-pagination: done
   5-2-order-book-selected-view: backlog
   5-3-portfolio-summary-eye-toggle: backlog
 action_items:

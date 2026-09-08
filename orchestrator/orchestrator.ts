@@ -3,9 +3,11 @@ import type { Page } from "playwright";
 import { ProbePartialError } from "../collectors/collect-probe.js";
 import { collectors } from "../collectors/collect.js";
 import { homePageModel } from "../model/fsm.js";
+import type { FsmTransition } from "../model/fsm.js";
 import { computeModelVersion } from "../model/model-version.js";
 import type {
   CollectorError,
+  BootstrapRecord,
   CollectorName,
   CorpusRun,
   OrchestratorConfig,
@@ -26,6 +28,7 @@ import {
   finishRun,
 } from "./corpus.js";
 import { corpusDependenciesFor, requiredProbeNames } from "../validators/dependencies.js";
+import { resolveBootstrapPath } from "./bootstrap.js";
 
 const DEFAULT_STEP_TIMEOUT = 30_000;
 const DEFAULT_RUN_TIMEOUT = 300_000;
@@ -84,11 +87,16 @@ export async function runTestPlan(
 
   const { page } = session;
   const scenarioResults: ScenarioResult[] = [];
+  const setupResults: ScenarioResult[] = [];
+  const bootstrapRecords: BootstrapRecord[] = [];
   const collectorErrors: CollectorError[] = [];
   const stepFailures: StepFailure[] = [];
   const runStart = Date.now();
   const runTimestamp = new Date().toISOString();
   const corpus = startCorpusRun();
+  const scenarioStepCount = parsed.scenarios.reduce((count, scenario) => count + scenario.steps.length, 0);
+  let bootstrapStepIndex = scenarioStepCount;
+  let currentStateId: string | null = homePageModel.initialStateId;
 
   try {
     let stepIndex = 0;
@@ -105,6 +113,107 @@ export async function runTestPlan(
         continue;
       }
 
+      if (currentStateId === null) {
+        // A previous step failed after it may have changed the UI, so the page
+        // state is unknown. `navigateHome` is the one contract that may run from
+        // an unknown state — home is the single ground state — so re-ground
+        // there instead of bootstrapping from a state we can no longer trust.
+        const recovery = await recoverToHome(
+          scenario.id,
+          page,
+          stepTimeout,
+          config,
+          corpus,
+          bootstrapStepIndex,
+          stepFailures,
+          bootstrapRecords,
+        );
+        if (!recovery.passed) {
+          setupResults.push(recovery);
+          const failed: ScenarioResult = {
+            id: scenario.id,
+            passed: false,
+            error: `Setup failed: ${recovery.error ?? "home recovery failed"}`,
+          };
+          scenarioResults.push(failed);
+          notify(onScenario, failed);
+          currentStateId = null;
+          continue;
+        }
+        bootstrapStepIndex += 1;
+        currentStateId = homePageModel.initialStateId;
+      }
+
+      const givenStateId = scenario.givenStateId ?? scenario.steps[0]!.stateId;
+      let bootstrapPath: FsmTransition[];
+      try {
+        bootstrapPath = resolveBootstrapPath(homePageModel, {
+          currentStateId,
+          givenStateId,
+          route: scenario.route,
+        });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        setupResults.push({ id: scenario.id, passed: false, error });
+        const failed: ScenarioResult = {
+          id: scenario.id,
+          passed: false,
+          error: `Setup failed: ${error}`,
+        };
+        scenarioResults.push(failed);
+        notify(onScenario, failed);
+        currentStateId = null;
+        continue;
+      }
+
+      let bootstrapFailed = false;
+      for (const transition of bootstrapPath) {
+        const filesBefore = corpus.files.length;
+        const stepResult = await executeScenario(
+          {
+            id: scenario.id,
+            steps: [{ stateId: transition.from, contractId: transition.contractId }],
+          },
+          page,
+          stepTimeout,
+          config,
+          corpus,
+          bootstrapStepIndex,
+          collectorErrors,
+          stepFailures,
+          plannedCollectors,
+          "bootstrap",
+        );
+        bootstrapRecords.push({
+          scenarioId: scenario.id,
+          stepIndex: bootstrapStepIndex,
+          stateId: transition.from,
+          contractId: transition.contractId,
+          files: corpus.files.slice(filesBefore),
+        });
+        if (!stepResult.passed) {
+          bootstrapFailed = true;
+          setupResults.push(stepResult);
+          const failed: ScenarioResult = {
+            id: scenario.id,
+            passed: false,
+            error: `Setup failed: ${stepResult.error ?? "bootstrap failed"}`,
+          };
+          scenarioResults.push(failed);
+          notify(onScenario, failed);
+          currentStateId = null;
+          break;
+        }
+        bootstrapStepIndex += 1;
+      }
+      if (bootstrapFailed) {
+        continue;
+      }
+      currentStateId = givenStateId;
+      if (bootstrapPath.length > 0) {
+        setupResults.push({ id: scenario.id, passed: true });
+      }
+
       const result = await executeScenario(
         scenario,
         page,
@@ -117,11 +226,22 @@ export async function runTestPlan(
         plannedCollectors,
       );
       stepIndex += scenario.steps.length;
+      currentStateId = result.passed
+        ? resolveTargetState(scenario.steps.at(-1)!)
+        : null;
       scenarioResults.push(result);
       notify(onScenario, result);
     }
 
-    finishRun(config.corpusDir, corpus, runTimestamp, collectorErrors, stepFailures, plannedCollectors);
+    finishRun(
+      config.corpusDir,
+      corpus,
+      runTimestamp,
+      collectorErrors,
+      stepFailures,
+      plannedCollectors,
+      bootstrapRecords,
+    );
   } finally {
     await closeBrowser();
   }
@@ -130,6 +250,7 @@ export async function runTestPlan(
     planId: parsed.planId,
     modelVersion: parsed.modelVersion,
     scenarios: scenarioResults,
+    setup: setupResults,
   };
 }
 
@@ -161,25 +282,30 @@ function notify(
 /** The per-run union of collector dependencies over a plan's contracts (AD-6). */
 function planCollectors(plan: TestPlan): CollectorName[] {
   const set = new Set<CollectorName>();
-  for (const scenario of plan.scenarios) {
-    for (const step of scenario.steps) {
-      for (const dep of corpusDependenciesFor(step.contractId)) {
-        set.add(dep);
-      }
+  const contractIds = [
+    ...bootstrapContractsFor(plan),
+    ...plan.scenarios.flatMap((scenario) => scenario.steps.map((step) => step.contractId)),
+  ];
+  for (const contractId of contractIds) {
+    for (const dep of corpusDependenciesFor(contractId)) {
+      set.add(dep);
     }
   }
   return [...set].sort();
 }
 
 /** Pre-flight: fail fast if a contract declares a probe dependency the plan's
- * probe config does not cover (Story 3.2, A10). */
+ * probe config does not cover (Story 3.2, A10). Covers scenario steps and the
+ * bootstrap contracts the plan can actually traverse. */
 function validateProbeDependencies(plan: TestPlan, probes: Probe[]): void {
   const required = new Set<string>();
-  for (const scenario of plan.scenarios) {
-    for (const step of scenario.steps) {
-      for (const name of requiredProbeNames(step.contractId)) {
-        required.add(name);
-      }
+  const contractIds = [
+    ...bootstrapContractsFor(plan),
+    ...plan.scenarios.flatMap((scenario) => scenario.steps.map((step) => step.contractId)),
+  ];
+  for (const contractId of contractIds) {
+    for (const name of requiredProbeNames(contractId)) {
+      required.add(name);
     }
   }
   const configured = new Set(probes.map((p) => p.name));
@@ -191,14 +317,25 @@ function validateProbeDependencies(plan: TestPlan, probes: Probe[]): void {
   }
 }
 
-function validatePlan(plan: TestPlan): void {
+export function validatePlan(plan: TestPlan): void {
   const stateIds = new Set(homePageModel.states.map((s) => s.stateId));
-  const contractIds = new Set(
-    homePageModel.transitions.map((t) => t.contractId),
-  );
+  const contractIds = new Set(homePageModel.transitions.map((t) => t.contractId));
+  let currentStateId: string | null = homePageModel.initialStateId;
 
   for (const scenario of plan.scenarios) {
-    for (const step of scenario.steps) {
+    if (scenario.steps.length === 0) {
+      throw new Error(`Scenario "${scenario.id}" has no steps.`);
+    }
+
+    const firstStep = scenario.steps[0]!;
+    const givenStateId = scenario.givenStateId ?? firstStep.stateId;
+    if (givenStateId !== firstStep.stateId) {
+      throw new Error(
+        `Scenario "${scenario.id}" givenStateId "${givenStateId}" does not match first step stateId "${firstStep.stateId}".`,
+      );
+    }
+
+    for (const [index, step] of scenario.steps.entries()) {
       if (!stateIds.has(step.stateId)) {
         throw new Error(
           `Scenario "${scenario.id}" step references unknown stateId "${step.stateId}".`,
@@ -214,30 +351,123 @@ function validatePlan(plan: TestPlan): void {
           `Scenario "${scenario.id}" step contractId "${step.contractId}" has no action-map entry.`,
         );
       }
-    }
 
-    // Path validity: each step's stateId must match a transition's from,
-    // and the next step's stateId must match the transition's to.
-    for (let i = 0; i < scenario.steps.length; i++) {
-      const step = scenario.steps[i]!;
       const transition = homePageModel.transitions.find(
-        (t) => t.from === step.stateId && t.contractId === step.contractId,
+        (candidate) => candidate.from === step.stateId && candidate.contractId === step.contractId,
       );
       if (!transition) {
         throw new Error(
-          `Scenario "${scenario.id}" step ${i}: no transition from "${step.stateId}" via "${step.contractId}".`,
+          `Scenario "${scenario.id}" step ${index}: no transition from "${step.stateId}" via "${step.contractId}".`,
         );
       }
-      if (i < scenario.steps.length - 1) {
-        const nextStep = scenario.steps[i + 1]!;
-        if (transition.to !== nextStep.stateId) {
-          throw new Error(
-            `Scenario "${scenario.id}" step ${i} leads to "${transition.to}" but next step starts from "${nextStep.stateId}".`,
-          );
-        }
+      const nextStep = scenario.steps[index + 1];
+      if (nextStep && transition.to !== nextStep.stateId) {
+        throw new Error(
+          `Scenario "${scenario.id}" step ${index} leads to "${transition.to}" but next step starts from "${nextStep.stateId}".`,
+        );
       }
     }
+
+    // Bootstrap resolution last: a malformed scenario step is reported before
+    // the route error it would also cause.
+    const bootstrapPath = resolveBootstrapPath(homePageModel, {
+      currentStateId,
+      givenStateId,
+      route: scenario.route,
+    });
+
+    currentStateId = bootstrapPath.at(-1)?.to ?? givenStateId;
+    currentStateId = lastTransitionTarget(scenario.steps) ?? currentStateId;
   }
+}
+
+/** The FSM state a scenario's steps leave the page in, or `null` when the plan
+ * is malformed (no such transition — already reported by validatePlan). */
+function lastTransitionTarget(
+  steps: Array<{ stateId: string; contractId: string }>,
+): string | null {
+  const lastStep = steps.at(-1);
+  if (!lastStep) {
+    return null;
+  }
+  return (
+    homePageModel.transitions.find(
+      (candidate) =>
+        candidate.from === lastStep.stateId && candidate.contractId === lastStep.contractId,
+    )?.to ?? null
+  );
+}
+
+/** The bootstrap contracts a plan can traverse, resolved by replaying the same
+ * state walk `validatePlan` performs. Deterministic (NFR-1). */
+function bootstrapContractsFor(plan: TestPlan): string[] {
+  const contracts: string[] = [];
+  let currentStateId: string | null = homePageModel.initialStateId;
+
+  for (const scenario of plan.scenarios) {
+    const firstStep = scenario.steps[0];
+    if (!firstStep) {
+      continue;
+    }
+    try {
+      const path = resolveBootstrapPath(homePageModel, {
+        currentStateId,
+        givenStateId: scenario.givenStateId ?? firstStep.stateId,
+        route: scenario.route,
+      });
+      contracts.push(...path.map((transition) => transition.contractId));
+      currentStateId = path.at(-1)?.to ?? firstStep.stateId;
+    } catch {
+      // validatePlan owns the error; collector planning stays best-effort.
+      currentStateId = null;
+      continue;
+    }
+    currentStateId = lastTransitionTarget(scenario.steps) ?? currentStateId;
+  }
+
+  return contracts;
+}
+
+/**
+ * Re-ground the page at `homePage` after a failed step left the FSM state
+ * unknown. Runs only the `navigateHome` action (plus the settle wait) with no
+ * collectors: the pre-state is by definition unknown, so there is nothing
+ * meaningful to capture. Recorded as a bootstrap step with `stateId: "unknown"`.
+ */
+async function recoverToHome(
+  scenarioId: string,
+  page: Page,
+  stepTimeout: number,
+  config: OrchestratorConfig,
+  corpus: CorpusRun,
+  stepIndex: number,
+  failures: StepFailure[],
+  records: BootstrapRecord[],
+): Promise<ScenarioResult> {
+  const contractId = "navigateHome";
+  const action = actionMap[contractId];
+  if (!action) {
+    return { id: scenarioId, passed: false, error: `No action for contractId "${contractId}".` };
+  }
+  const filesBefore = corpus.files.length;
+  try {
+    await withTimeout(action({ page }), stepTimeout);
+    await page.waitForSelector(config.settleSelector ?? config.readySelector, {
+      timeout: stepTimeout,
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    failures.push({ stepIndex, contractId, stateId: "unknown", error });
+    return { id: scenarioId, passed: false, error };
+  }
+  records.push({
+    scenarioId,
+    stepIndex,
+    stateId: "unknown",
+    contractId,
+    files: corpus.files.slice(filesBefore),
+  });
+  return { id: scenarioId, passed: true };
 }
 
 async function executeScenario(
@@ -250,6 +480,7 @@ async function executeScenario(
   errors: CollectorError[],
   failures: StepFailure[],
   plannedCollectors: CollectorName[],
+  phase?: "bootstrap",
 ): Promise<ScenarioResult> {
   try {
     const planned = new Set(plannedCollectors);
@@ -278,7 +509,7 @@ async function executeScenario(
         // (`{stepIndex}.pre.json`, Story 3.3) can reconstruct it (retro F1).
         writeCorpusFile(
           config.corpusDir, corpus, "snapshots", stepIndex, "json",
-          JSON.stringify(pre.value), `${stepIndex}.pre`,
+          JSON.stringify(pre.value), corpusStem(phase, scenario.id, stepIndex, "pre"),
         );
       }
 
@@ -316,6 +547,7 @@ async function executeScenario(
           writeCorpusFile(
             config.corpusDir, corpus, "snapshots", stepIndex, "json",
             JSON.stringify(snapshot.value),
+            corpusStem(phase, scenario.id, stepIndex),
           );
         }
       }
@@ -332,6 +564,7 @@ async function executeScenario(
           writeCorpusFile(
             config.corpusDir, corpus, "network", stepIndex, "json",
             JSON.stringify(network.value),
+            corpusStem(phase, scenario.id, stepIndex),
           );
         }
       }
@@ -348,6 +581,7 @@ async function executeScenario(
           const pngPath = writeCorpusFile(
             config.corpusDir, corpus, "screenshots", stepIndex, "png",
             capture.value.buffer,
+            corpusStem(phase, scenario.id, stepIndex),
           );
           const screenshotRef: ScreenshotRef = {
             filePath: pngPath,
@@ -356,6 +590,7 @@ async function executeScenario(
           writeCorpusFile(
             config.corpusDir, corpus, "screenshots", stepIndex, "json",
             JSON.stringify(screenshotRef),
+            corpusStem(phase, scenario.id, stepIndex),
           );
         }
       }
@@ -372,6 +607,7 @@ async function executeScenario(
           writeCorpusFile(
             config.corpusDir, corpus, "probes", stepIndex, "json",
             JSON.stringify(probes.value),
+            corpusStem(phase, scenario.id, stepIndex),
           );
         } else if (probes.partialProbes !== undefined) {
           // A probe batch failed partway: persist the results already collected
@@ -379,6 +615,7 @@ async function executeScenario(
           writeCorpusFile(
             config.corpusDir, corpus, "probes", stepIndex, "json",
             JSON.stringify(probes.partialProbes),
+            corpusStem(phase, scenario.id, stepIndex),
           );
         }
       }
@@ -391,6 +628,19 @@ async function executeScenario(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+function corpusStem(
+  phase: "bootstrap" | undefined,
+  scenarioId: string,
+  stepIndex: number,
+  suffix?: string,
+): string | undefined {
+  return phase === "bootstrap"
+    ? `b.${scenarioId}.${stepIndex}${suffix ? `.${suffix}` : ""}`
+    : suffix === "pre"
+      ? `${stepIndex}.pre`
+      : undefined;
 }
 
 /** Resolve a step's target FSM state from the transition it drives. validatePlan
