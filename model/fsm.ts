@@ -77,6 +77,15 @@ const transitions: FsmTransition[] = [
   { from: "homePage", to: "portfolioSummaryDialog", contractId: "openPortfolioSummary" },
   { from: "portfolioSummaryDialog", to: "homePage", contractId: "closePortfolioSummary" },
 
+  { from: "portfolioSummaryDialog", to: "homePage", contractId: "navigateHome" },
+  { from: "historyMain", to: "homePage", contractId: "navigateHome" },
+  { from: "historyFutures", to: "homePage", contractId: "navigateHome" },
+  { from: "portfolioOverview", to: "homePage", contractId: "navigateHome" },
+  { from: "portfolioMain", to: "homePage", contractId: "navigateHome" },
+  { from: "portfolioFutures", to: "homePage", contractId: "navigateHome" },
+  { from: "portfolioLoans", to: "homePage", contractId: "navigateHome" },
+  { from: "earn", to: "homePage", contractId: "navigateHome" },
+
   // Eye toggle (dialog self-loop — UI change only, no URL transition)
   { from: "portfolioSummaryDialog", to: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
 ];

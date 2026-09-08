@@ -234,11 +234,20 @@ export interface ScenarioStep {
 }
 
 /** A scenario with its execution path. */
+export interface RouteStep {
+  stateId: string;
+  contractId: string;
+}
+
 export interface ScenarioPath {
   /** Stable scenario id (kebab-case slug). */
   id: string;
   /** Ordered steps through the FSM. */
   steps: ScenarioStep[];
+  /** State required before the first scenario step. Defaults to that step's stateId. */
+  givenStateId?: string;
+  /** Explicit bootstrap route override. */
+  route?: RouteStep[];
 }
 
 /** Result of a single scenario execution. */
@@ -253,6 +262,7 @@ export interface RunResult {
   planId: PlanId;
   modelVersion: string;
   scenarios: ScenarioResult[];
+  setup?: ScenarioResult[];
 }
 
 /** Metadata about a test run, used for the HTML report. */
@@ -297,6 +307,15 @@ export interface OrchestratorConfig {
 }
 
 /** Per-run manifest written to corpus/{runId}/run-manifest.json. */
+export const bootstrapRecordSchema = z.object({
+  scenarioId: z.string(),
+  stepIndex: z.number().int().nonnegative(),
+  stateId: z.string(),
+  contractId: z.string(),
+  files: z.array(z.string()),
+});
+export type BootstrapRecord = z.infer<typeof bootstrapRecordSchema>;
+
 export const runManifestSchema = z.object({
   /** Unique run identifier (UUID). */
   runId: z.string(),
@@ -315,6 +334,7 @@ export const runManifestSchema = z.object({
    * listed here, so a failure screenshot may appear in `files` even when
    * `screenshot` is absent from `collectors`. `[]` on a legacy manifest. */
   collectors: z.array(collectorNameSchema).default([]),
+  bootstrap: z.array(bootstrapRecordSchema).default([]),
 });
 export type RunManifest = z.infer<typeof runManifestSchema>;
 
@@ -334,6 +354,15 @@ export const testPlanSchema = z.object({
           contractId: z.string(),
         }),
       ),
+      givenStateId: z.string().optional(),
+      route: z
+        .array(
+          z.object({
+            stateId: z.string(),
+            contractId: z.string(),
+          }),
+        )
+        .optional(),
     }),
   ),
 });

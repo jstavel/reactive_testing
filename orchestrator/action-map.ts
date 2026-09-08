@@ -89,10 +89,14 @@ export const actionMap: Record<string, ContractAction> = {
   },
 
   toggleEyeIcon: async ({ page }) => {
-    // The eye control (svg[name="Eye"|"EyeOff"], no accessible text name).
     await page
       .getByRole("dialog")
       .locator('button:has(svg[name="Eye"]), button:has(svg[name="EyeOff"])')
       .click();
+  },
+
+  navigateHome: async ({ page }) => {
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await page.waitForURL("**/app/home");
   },
 };

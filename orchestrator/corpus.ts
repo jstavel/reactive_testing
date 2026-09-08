@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   CollectorError,
+  BootstrapRecord,
   CollectorName,
   CorpusRun,
   RunManifest,
@@ -59,6 +60,7 @@ export function finishRun(
   errors: CollectorError[],
   failures: StepFailure[],
   collectors: CollectorName[],
+  bootstrap: BootstrapRecord[] = [],
 ): void {
   const manifest: RunManifest = {
     runId: run.runId,
@@ -67,6 +69,7 @@ export function finishRun(
     errors: [...errors],
     failures: [...failures],
     collectors: [...collectors],
+    bootstrap: [...bootstrap],
   };
   const manifestDir = join(corpusDir, run.runId);
   mkdirSync(manifestDir, { recursive: true });
