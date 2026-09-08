@@ -52,7 +52,7 @@ describe("actionMap navigation entries", () => {
 
 describe("actionMap parity", () => {
   it("has exactly 12 entries: one per seeded contract, no extras", () => {
-    expect(Object.keys(actionMap)).toHaveLength(12);
+    expect(Object.keys(actionMap)).toHaveLength(13);
   });
 
   it("maps every seeded contractId to an entry", () => {

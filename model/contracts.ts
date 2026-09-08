@@ -130,6 +130,15 @@ const homePageContracts: DialogContract[] = [
     postconditions: [],
     invariants: ["dialog remains open"],
   },
+  {
+    contractId: "navigateHome",
+    preconditions: [],
+    postconditions: [
+      { assert: "state-is", stateId: "homePage" },
+      { assert: "url-is", url: "/app/home" },
+    ],
+    invariants: ["main navigation is visible"],
+  },
 ];
 
 /** All seeded contracts. The Orchestrator indexes these by contractId at runtime. */

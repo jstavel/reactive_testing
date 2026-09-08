@@ -110,8 +110,8 @@ describe("generateReproScript", () => {
 
   it("emits a runtime whole-path continuity guard naming the offending step (item-1)", () => {
     const source = generateReproScript(validPath());
-    // The emitted script checks the first step starts at the initial state...
-    expect(source).toContain("STEPS[0].stateId !== homePageModel.initialStateId");
+    // The emitted script checks the first step starts at the Given state...
+    expect(source).toContain("STEPS[0].stateId !== GIVEN_STATE_ID");
     // ...and that each step's transition target equals the next step's start.
     expect(source).toContain("transitionTo");
     expect(source).toContain("leads to ");
@@ -159,12 +159,13 @@ describe("generateReproScript gaps (FR-12c)", () => {
     ).toThrow(/gap.*leads to "portfolioSummaryDialog" but next step starts from "homePage"/);
   });
 
-  it("throws a gap when the path does not start at the initial state (NOT_STARTING_AT_INITIAL)", () => {
+  it("accepts an off-home path when Given identifies its required state", () => {
     expect(() =>
       generateReproScript(validPath({
+        givenStateId: "portfolioSummaryDialog",
         steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
       })),
-    ).toThrow(/gap.*must start at the initial state "homePage" but step 1 starts at "portfolioSummaryDialog"/);
+    ).not.toThrow();
   });
 
   it("throws a gap for a non-kebab-case slug", () => {
