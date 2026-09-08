@@ -1,0 +1,52 @@
+- id: "1"
+  title: Onboarding scenario 1 — History filter/pagination
+  description: >-
+    Run the pilot on a History-page use case (filter-by-type and paginate on
+    the seed model). Following the docs as a new user, author the scenario
+    under framework conventions (CAP-1), file every friction point to the
+    pilot backlog (CAP-2), and extend the docs where this scenario surfaced a
+    gap (CAP-3) — triaging this story's backlog before moving on.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Concrete use case to be pinned with Jan at kickoff (History filter and/or
+    pagination is the proposed default). Read the docs alone first as the new
+    user — do not explain anything the docs omit; record each gap rather than
+    working around it. New test must carry a valid @plan:<PlanId> tag, add the
+    FSM/contract entry, and stay read-only (NFR-3). Authoring is ADD-ONLY:
+    extend the files the new scenario needs but never fix or edit existing
+    model states, features, contracts, or behavior — anything wrong there is a
+    backlog/deferred item, not an in-scope edit. After the scenario, triage
+    this story's backlog: close doc-caused gaps in-story, escalate
+    framework-caused items to deferred-work.md.
+- id: "2"
+  title: Onboarding scenario 2 — order book / selected view
+  description: >-
+    Run the pilot on an order-book use case (selected-view ledger on a second
+    read-only surface), again working through all three caps: author the
+    scenario from the docs (CAP-1), file friction to the pilot backlog (CAP-2),
+    and extend the docs where gaps show (CAP-3), triaging this story's backlog.
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Concrete use case to be pinned with Jan at kickoff (order-book selected-view
+    is the proposed default). Follow the docs as a new user, author under
+    framework conventions with a valid @plan tag and read-only scope, and do so
+    add-only — record (never bypass) every friction point and never fix existing
+    model states, features, contracts, or behavior. Triage this story's backlog:
+    close doc-caused gaps in-story or escalate to deferred-work.md.
+- id: "3"
+  title: Onboarding scenario 3 — portfolio summary/eye toggle
+  description: >-
+    Run the pilot on a portfolio use case (open-summary / eye-toggle, value and
+    section display) rounding out the read-only critical path, through all three
+    caps: author the scenario from the docs (CAP-1), file friction to the pilot
+    backlog (CAP-2), and extend the docs where gaps show (CAP-3), triaging this
+    story's backlog.
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Concrete use case to be pinned with Jan at kickoff (portfolio open-summary /
+    eye-toggle is the proposed default). Follow the docs as a new user, author
+    under framework conventions with a valid @plan tag and read-only scope, and
+    do so add-only — record (never bypass) every friction point and never fix
+    existing model states, features, contracts, or behavior. Triage this story's
+    backlog: close doc-caused gaps in-story or escalate to deferred-work.md.

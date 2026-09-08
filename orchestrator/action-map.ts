@@ -61,6 +61,17 @@ export const actionMap: Record<string, ContractAction> = {
     await page.waitForURL("**/app/earn");
   },
 
+  filterHistoryByAsset: async ({ page }) => {
+    // Open the Assets filter dropdown, then check "Bitcoin (BTC)" to narrow the ledger.
+    await page.getByRole("button", { name: /asset/i }).click();
+    await page.getByRole("checkbox", { name: /bitcoin/i }).check();
+  },
+
+  paginateHistoryNext: async ({ page }) => {
+    // Click the next-page control in the History ledger pager.
+    await page.getByRole("button", { name: /next/i }).click();
+  },
+
   openPortfolioSummary: async ({ page }) => {
     // The header portfolio value button, scoped to the nav. Matches any magnitude
     // and the masked form (text always ends in "USD"); value-agnostic by design.

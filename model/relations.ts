@@ -87,6 +87,31 @@ export const relations: ScenarioRelation[] = [
     states: ["homePage", "earn"],
     contracts: ["clickPortfolioMenuEarn"],
   },
+  // history-filter-pagination.feature (Story 5-1, pilot)
+  {
+    scenarioId: "open-the-assets-filter",
+    feature: "history-filter-pagination",
+    featureTitle: "History ledger filter",
+    scenarioTitle: "Open the assets filter",
+    states: ["historyMain"],
+    contracts: ["filterHistoryByAsset"],
+  },
+  {
+    scenarioId: "checking-a-filter-asset-narrows-the-ledger",
+    feature: "history-filter-pagination",
+    featureTitle: "History ledger filter",
+    scenarioTitle: "Checking a filter asset narrows the ledger",
+    states: ["historyMain"],
+    contracts: ["filterHistoryByAsset"],
+  },
+  {
+    scenarioId: "paginating-to-the-next-ledger-page",
+    feature: "history-filter-pagination",
+    featureTitle: "History ledger filter",
+    scenarioTitle: "Paginating to the next ledger page",
+    states: ["historyMain"],
+    contracts: ["paginateHistoryNext"],
+  },
   {
     scenarioId: "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
     feature: "home-page-portfolio-summary-dialog",

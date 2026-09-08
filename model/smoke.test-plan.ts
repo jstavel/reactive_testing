@@ -8,7 +8,7 @@ import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "f435b0b93dd799050476c43f232bc27397cc5bf431007933ea8c7d33731f4787",
+  modelVersion: "3a81b6bfe82e7e52175500c73d70eef48ff76600f7a6d0b517ebb81f6940c610",
   scenarios: [
     // home-page-history-menu.feature
     {
@@ -62,6 +62,19 @@ export const smokeTestPlan: TestPlan = {
         { stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
         { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
       ],
+    },
+    // history-filter-pagination.feature
+    {
+      id: "open-the-assets-filter",
+      steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+    },
+    {
+      id: "checking-a-filter-asset-narrows-the-ledger",
+      steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+    },
+    {
+      id: "paginating-to-the-next-ledger-page",
+      steps: [{ stateId: "historyMain", contractId: "paginateHistoryNext" }],
     },
   ],
 };
