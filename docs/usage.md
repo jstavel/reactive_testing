@@ -23,6 +23,16 @@ This is how you actually use the testware, in the order you'll do it.
 npm run run:smoke
 ```
 
+To re-run only selected scenarios, pass their exact ids after npm's `--` forwarding separator:
+
+```bash
+npm run run:smoke -- clicking-earn-navigates-to-the-standalone-earn-page pressing-escape-closes-the-portfolio-summary-dialog
+```
+
+The runner executes selected scenarios in plan order, deduplicates repeated ids, and
+fails before connecting to CDP when an id is unknown (the error lists every valid id).
+Without ids, the full plan runs as before. Exit-code semantics are unchanged.
+
 What happens: the orchestrator attaches over CDP
 (`http://127.0.0.1:9222`), opens a fresh tab, navigates to
 `https://pro.kraken.com/app/home`, waits for the hero value, then walks the

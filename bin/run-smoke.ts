@@ -7,6 +7,16 @@
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { OrchestratorConfig } from "../model/schemas.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
+import { selectScenarios } from "./scenario-select.js";
+
+const selectedIds = process.argv.slice(2);
+let plan;
+try {
+  plan = selectScenarios(smokeTestPlan, selectedIds);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
 
 const config: OrchestratorConfig = {
   baseUrl: "https://pro.kraken.com/app/home",
@@ -33,12 +43,15 @@ const config: OrchestratorConfig = {
 const startedAt = Date.now();
 console.log(
   `Connecting to CDP ${config.cdpUrl} → ${config.baseUrl} ` +
-    `(plan "${smokeTestPlan.planId}", modelVersion ${smokeTestPlan.modelVersion.slice(0, 8)}…)`,
+    `(plan "${plan.planId}", modelVersion ${plan.modelVersion.slice(0, 8)}…)`,
 );
 console.log(`Ready selector: ${config.readySelector}`);
-console.log(`Listening for ${smokeTestPlan.scenarios.length} scenario(s)…`);
+console.log(`Listening for ${plan.scenarios.length} scenario(s)…`);
+if (selectedIds.length > 0) {
+  console.log(`Selected scenarios: ${plan.scenarios.map(({ id }) => id).join(", ")}`);
+}
 
-const result = await runTestPlan(smokeTestPlan, config, (scenario) => {
+const result = await runTestPlan(plan, config, (scenario) => {
   const status = scenario.passed ? "PASS" : "FAIL";
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(

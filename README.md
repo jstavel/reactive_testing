@@ -50,7 +50,7 @@ chromium --remote-debugging-port=9222 --user-data-dir=/tmp/kraken-profile
 npm ci          # install dependencies
 npm run typecheck   # tsc --noEmit — the type-safety gate
 npm test            # vitest run — 17 files / ~209 tests (all offline, no browser)
-npm run run:smoke   # record a fresh corpus from your live browser (see docs/usage.md)
+npm run run:smoke   # record a fresh corpus (optionally: -- <scenario-id>… to run a subset; see docs/usage.md)
 ```
 
 `npm run run:smoke` attaches to your browser over CDP, drives the smoke plan
