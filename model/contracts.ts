@@ -94,6 +94,20 @@ const homePageContracts: DialogContract[] = [
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
 
+  // --- History filter & pagination (Story 5-1, pilot) ---
+  {
+    contractId: "filterHistoryByAsset",
+    preconditions: [{ assert: "state-is", stateId: "historyMain" }],
+    postconditions: [{ assert: "state-is", stateId: "historyMain" }],
+    invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
+  },
+  {
+    contractId: "paginateHistoryNext",
+    preconditions: [{ assert: "state-is", stateId: "historyMain" }],
+    postconditions: [{ assert: "state-is", stateId: "historyMain" }],
+    invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
+  },
+
   // --- Portfolio Summary dialog ---
   // The un-mappable prose postconditions ("shows total value in USD", "shows
   // sections for…", "values hidden/visible") have no predicate yet — they stay

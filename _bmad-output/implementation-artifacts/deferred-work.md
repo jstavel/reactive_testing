@@ -170,3 +170,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
   summary: timingMs is unvalidated — NaN/Infinity/negative/null/undefined renders literal "NaN ms"/"Infinity ms"/"-1 ms"/"undefined ms"; add schema-level validation (timingMs ≥ 0 finite number) when StepEvidence is promoted to a Zod schema or a caller supplies it.
   evidence: Blind-hunter and edge-case-hunter reviews of the 3-per-step diff; StepEvidence is currently a plain in-memory interface with no validation.
+
+## Deferred from: pilot-run of spec-5-1-history-filter-pagination (2026-09-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-history-filter-pagination.md`
+  summary: No way to share a parameter value (e.g. the list of assets in the History Assets filter) across scenarios — a `TestPlan` scenario is only `{ id, steps }` with `{ stateId, contractId }` steps, so a value used by several scenarios (e.g. "check every asset in the list") must be duplicated inline; `Scenario Outline`/`Examples` would be silently skipped by the current reporter.
+  evidence: Story 5-1 pilot: the second scenario ("check every asset in the list") was meant to iterate the same asset list shown by the first scenario; `model/schemas.ts` `TestPlan` carries no parameter field, and `reporter/gherkin-snapshot.ts` `extractScenario` only matches the `"Scenario:"` prefix (already a latent gap in deferred-work.md).
+
+## Deferred from: general RFE (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-assertions.md`
+  summary: Show the runId (UUID) and a human-readable timestamp in the console output when a test plan starts, so the operator can correlate the corpus directory with the run. UUIDs lack temporal information, making it impossible to tell what corpus corresponds to which run without inspecting `run-manifest.json`.
+  evidence: User observation: `bin/run-smoke.ts` logs `plan "smoke", modelVersion <hash>` but omits the `runId`. The corpus directory is named by `runId` (UUID), so the operator has no immediate way to know when a run happened or which directory belongs to which execution.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-new-validation-rule-without-re-running-the-scenario.md`
+  summary: Add an `npm run validate:smoke` script as the validation counterpart to `npm run run:smoke`. The offline validator runner exists (`validators/offline-runner.ts` `runValidatorsOffline(corpusDir, runId, plan, contractIds?)`), but there is no CLI entry point: `package.json` scripts list only `typecheck`/`test`/`run:smoke`, and `bin/` holds only `run-smoke.ts`. The script needs proper arguments — corpus dir, the `runId` to validate, and which `plan` — and surfaces the resulting `ValidationResult`s.
+  evidence: User observation (2026-09-08): "there is no command the same way as 'npm run run:smoke' to run validators." Overlaps epic-4 retro item-5 (FR-12/FR-13 entry-point wiring of `runCrossViewInvariants` into a verification entry point) and the spec-user-documentation-set deferred item on a missing regeneration path.

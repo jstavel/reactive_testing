@@ -61,6 +61,11 @@ const transitions: FsmTransition[] = [
   { from: "homePage", to: "historyMain", contractId: "clickHistoryMenuMain" },
   { from: "homePage", to: "historyFutures", contractId: "clickHistoryMenuFutures" },
 
+  // History page UI actions (Story 5-1, pilot — self-loops: filter and
+  // pagination change the ledger content, not the URL or the FSM state)
+  { from: "historyMain", to: "historyMain", contractId: "filterHistoryByAsset" },
+  { from: "historyMain", to: "historyMain", contractId: "paginateHistoryNext" },
+
   // Portfolio menu → Portfolio page states
   { from: "homePage", to: "portfolioOverview", contractId: "clickPortfolioMenuOverview" },
   { from: "homePage", to: "portfolioMain", contractId: "clickPortfolioMenuMain" },
