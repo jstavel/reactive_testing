@@ -2,7 +2,8 @@
 title: 'Per-step failure evidence naming (gh-22)'
 type: 'bugfix'
 created: '2026-09-09'
-status: 'draft'
+baseline_commit: '6c764e74516d5f3e94c3be87bfe86ee081cb3b5a'
+status: 'done'
 review_loop_iteration: 0
 context:
   - _bmad-output/implementation-artifacts/deferred-work.md
@@ -52,9 +53,9 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `orchestrator/orchestrator.ts` -- extend `corpusStem` (or thread a stem through `recordStepFailure`) so failure evidence uses `<stepIndex>.failure` for scenario steps and `b.<scenarioId>.<stepIndex>.failure` for bootstrap steps; pass `phase`/`scenario.id` from the catch site -- close the overwrite loop
-- [ ] `orchestrator/orchestrator.test.ts` -- update the two `"failure"` stem assertions to the per-step stems; add a multi-failure test proving two failing steps produce two distinct screenshot files -- pin the no-overwrite guarantee
-- [ ] `orchestrator/corpus.test.ts` -- extend the `0.failure` naming test to cover the bootstrap form `b.<scenarioId>.<stepIndex>.failure` -- keep the writer contract aligned
+- [x] `orchestrator/orchestrator.ts` -- extend `corpusStem` (or thread a stem through `recordStepFailure`) so failure evidence uses `<stepIndex>.failure` for scenario steps and `b.<scenarioId>.<stepIndex>.failure` for bootstrap steps; pass `phase`/`scenario.id` from the catch site -- close the overwrite loop
+- [x] `orchestrator/orchestrator.test.ts` -- update the two `"failure"` stem assertions to the per-step stems; add multi-failure and bootstrap-failure tests proving distinct evidence paths -- pin the no-overwrite guarantee
+- [x] `orchestrator/corpus.test.ts` -- extend the `0.failure` naming test to cover the bootstrap form `b.<scenarioId>.<stepIndex>.failure` -- keep the writer contract aligned
 
 **Acceptance Criteria:**
 - Given a plan where two steps fail, when the run completes, then the manifest lists two distinct failure snapshot paths and two distinct screenshot paths (no shared `failure.*` name).
@@ -65,6 +66,8 @@ context:
 ## Spec Change Log
 
 <!-- Append-only. Populated by step-04 during review loops. Do not modify or delete existing entries. -->
+
+- **2026-09-09 (review round 1)** — Verification-gap review required direct coverage for actual bootstrap failure evidence, not only the writer contract. Added an orchestrator test that fails a `navigateHome` bootstrap action and asserts the `b.<scenarioId>.<stepIndex>.failure` stem; frozen intent unchanged.
 
 ## Design Notes
 
@@ -79,3 +82,29 @@ context:
 
 **Manual checks:**
 - Inspect `corpus/@last-fail` after a failing live run: per-step `*.failure.png` files exist for each failed step, and the manifest's screenshot references point to distinct paths.
+
+## Suggested Review Order
+
+**Failure stem generation**
+
+- Per-step failure stems mirror existing pre-snapshot naming and distinguish bootstrap phases.
+  [`orchestrator.ts:640`](../../orchestrator/orchestrator.ts#L640)
+
+- The failure capture writes snapshot, screenshot, and sidecar under the computed stem.
+  [`orchestrator.ts:671`](../../orchestrator/orchestrator.ts#L671)
+
+**Regression coverage**
+
+- Two failed scenario steps prove no shared `failure.*` path remains.
+  [`orchestrator.test.ts:965`](../../orchestrator/orchestrator.test.ts#L965)
+
+- A real bootstrap failure proves the phase-specific stem reaches orchestrator output.
+  [`orchestrator.test.ts:602`](../../orchestrator/orchestrator.test.ts#L602)
+
+- The corpus writer's generic stem contract includes the bootstrap form.
+  [`corpus.test.ts:100`](../../orchestrator/corpus.test.ts#L100)
+
+**Pipeline boundary**
+
+- Existing loaders/readers remain unchanged and continue ignoring failure stems.
+  [`corpus-loader.ts:115`](../../validators/corpus-loader.ts#L115)
