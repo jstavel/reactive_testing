@@ -87,56 +87,61 @@ Recording and verifying are separate. Once a run exists you can re-validate it
 again and again, add new validators, and render reports — **with the browser
 closed** (pure TypeScript over the corpus).
 
-Drop this at the repo root as `verify-run.ts` and run `npx tsx verify-run.ts`
-(it needs at least one recorded run — record one with §1 first):
+Validate the **latest recorded run** — resolved from the `@last-run` handoff
+fan (exactly what §1 last wrote), falling back to the newest
+`run-manifest.json` when the fan is absent:
 
-```ts
-import { mkdtempSync, readdirSync, cpSync, readFileSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { smokeTestPlan } from "./model/smoke.test-plan.js";
-import { runValidatorsOffline } from "./validators/offline-runner.js";
-import { emitFailureGherkin } from "./reporter/failure-gherkin.js";
-
-// Pick the newest recorded run. (The corpus root also holds the `@last-run` /
-// `@last-fail` handoff fans — symlink views, not runs. In practice you can
-// skip the mtime guess entirely: `npm run corpus:list` resolves the latest
-// run, and `corpus/@last-run/manifest` is the newest run dir directly.)
-const runId = readdirSync("corpus")
-  .filter((e) =>
-    !["snapshots", "network", "screenshots", "probes"].includes(e) &&
-    !e.startsWith("@"),
-  )
-  .sort((a, b) =>
-    statSync(join("corpus", b, "run-manifest.json")).mtimeMs -
-    statSync(join("corpus", a, "run-manifest.json")).mtimeMs,
-  )[0];
-
-// Work on a throwaway copy so reports never pollute the recorded run.
-const scratch = mkdtempSync(join(tmpdir(), "reactive-verify-"));
-cpSync(join("corpus", runId), join(scratch, runId), { recursive: true });
-
-const results = runValidatorsOffline(scratch, runId, smokeTestPlan);
-const failed = results.filter((r) => !r.passed);
-console.log(`run ${runId}: ${results.length - failed.length}/${results.length} checks passed`);
-
-const written = emitFailureGherkin({ corpusDir: scratch, runId, plan: smokeTestPlan, results });
-if (written.length) {
-  console.log(`failures rendered → ${written[0]}:`);
-  console.log(readFileSync(join(scratch, written[0]), "utf8").slice(0, 400));
-}
+```bash
+npm run validate:smoke
 ```
 
-`runValidatorsOffline` returns one `ValidationResult` per step+validator
-(`{ contractId, passed, details?, corpusRefs }`). `emitFailureGherkin` writes a
-human-reviewable `failure.feature` — a derived artifact, never the source of
-truth — one `Scenario: contract "…" was violated` per failure.
+Validate one **specific run** by passing its run id after npm's `--` forwarding
+separator:
+
+```bash
+npm run validate:smoke -- 353dbf5a-ee9c-47a9-a982-3e373a6f9516
+```
+
+Validate only **selected contracts** by appending contract ids after the run id
+(handy right after you added validators for one contract; repeated ids are
+deduplicated):
+
+```bash
+npm run validate:smoke -- 353dbf5a-ee9c-47a9-a982-3e373a6f9516 filterHistoryByAsset
+```
+
+You see, per check (sample abridged):
+
+```
+[PASS] clickHistoryMenuMain
+[FAIL] filterHistoryByAsset — [precondition] state-is "historyMain" but snapshot stateId is "homePage"
+1/2 checks passed in 353dbf5a-ee9c-47a9-a982-3e373a6f9516
+```
+
+- Exit code `0` — every check passed.
+- Exit code `1` — **any** check failed (each failure prints its details), a
+  selected run yielded **no checks at all** (unreadable manifest or a plan with
+  no steps — never a pass), the runId is unknown, no run is recorded yet, or
+  the usage was wrong. An unknown contract id is also an error (it would
+  silently validate nothing) — the message names every valid contract id.
+
+The CLI is print-only: it reads `corpus/` and `model/`, never mutates the
+corpus, and never touches a browser. Its scope is the smoke plan's **step
+contracts** — one validator per recorded step. The standing cross-view
+invariants are a separate runner (§5). `runValidatorsOffline` remains the
+library API when you need the `ValidationResult`s programmatically — one per
+step + validator: `{ contractId, passed, details?, corpusRefs }`.
 
 > What to expect today: contracts whose predicates are machine-checkable
 > (`state-is`, `url-is`, `view-selected`) pass on a freshly recorded run. The
 > dialog predicates (`dialog-open` / `dialog-closed`) are declared but **not yet
 > evaluatable**, so those contracts currently fail as "not yet evaluatable" —
-> a tracked open item.
+> a tracked open item. On a **legacy** corpus (see the §2 caveat) every
+> precondition reports `missing snapshot evidence` — record a fresh run with
+> §1 instead.
+
+Derived reports (the `failure.feature` gherkin, adjudication records) are a
+separate step over the same results — see §4.
 
 ## 4. Adjudicate a failure (spec drift vs app bug)
 
@@ -151,6 +156,37 @@ flowchart LR
     S --> A["1. Record spec-drift decision<br/>2. Human fixes model<br/>3. Re-validate against recorded corpus"]
     B --> C["1. Record app-bug decision<br/>2. File bug report<br/>3. Re-run after fix"]
 ```
+
+### Render failure.feature
+
+The failing checks render as a human-reviewable feature file — a derived
+artifact, never the source of truth. Copy the run to a throwaway dir first, so
+the report never pollutes the recorded corpus:
+
+```ts
+import { cpSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { emitFailureGherkin } from "./reporter/failure-gherkin.js";
+import { smokeTestPlan } from "./model/smoke.test-plan.js";
+import { runValidatorsOffline } from "./validators/offline-runner.js";
+
+const runId = "<the run you validated in §3>";
+const results = runValidatorsOffline("corpus", runId, smokeTestPlan);
+
+// Work on a throwaway copy so reports never pollute the recorded run.
+const scratch = mkdtempSync(join(tmpdir(), "reactive-verify-"));
+cpSync(join("corpus", runId), join(scratch, runId), { recursive: true });
+
+const written = emitFailureGherkin({ corpusDir: scratch, runId, plan: smokeTestPlan, results });
+if (written.length) {
+  console.log(`failures rendered → ${join(scratch, written[0])}`);
+}
+```
+
+`emitFailureGherkin` writes one `Scenario: contract "…" was violated` per
+failure — the input to the adjudication fork below.
 
 ### Spec drift — the model is stale
 
@@ -181,10 +217,24 @@ match. The product — not the model — is wrong.
 
 ### Recording the decision
 
-Extend `verify-run.ts`:
+Build on the §3 results — copy the run to a throwaway dir first, so the derived
+`adjudication.json` never pollutes the recorded corpus — and extend:
 
 ```ts
+import { cpSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { emitAdjudicationRecord } from "./reporter/adjudication.js";
+import { smokeTestPlan } from "./model/smoke.test-plan.js";
+import { runValidatorsOffline } from "./validators/offline-runner.js";
+
+const runId = "<the run you validated in §3>";
+const results = runValidatorsOffline("corpus", runId, smokeTestPlan);
+
+// Work on a throwaway copy so reports never pollute the recorded run.
+const scratch = mkdtempSync(join(tmpdir(), "reactive-verify-"));
+cpSync(join("corpus", runId), join(scratch, runId), { recursive: true });
 
 // Spec drift — the model needs updating:
 emitAdjudicationRecord({
@@ -229,7 +279,8 @@ view, when the surfaces disagree.
 import { runCrossViewInvariants } from "./validators/cross-view.js";
 import { smokeTestPlan } from "./model/smoke.test-plan.js";
 
-const results = runCrossViewInvariants(scratch, runId, smokeTestPlan);
+const runId = "<the run you validated in §3>";
+const results = runCrossViewInvariants("corpus", runId, smokeTestPlan); // read-only
 for (const r of results) {
   console.log(`[${r.passed ? "PASS" : "FAIL"}] ${r.contractId}`, r.details ?? "");
 }

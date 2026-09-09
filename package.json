@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "run:smoke": "tsx bin/run-smoke.ts",
+    "validate:smoke": "tsx bin/validate-smoke.ts",
     "corpus:last-run": "tsx bin/corpus-links.ts last-run",
     "corpus:last-fail": "tsx bin/corpus-links.ts last-fail",
     "corpus:list": "tsx bin/corpus-links.ts list"
