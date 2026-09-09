@@ -10,7 +10,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "run:smoke": "tsx bin/run-smoke.ts"
+    "run:smoke": "tsx bin/run-smoke.ts",
+    "corpus:last-run": "tsx bin/corpus-links.ts last-run",
+    "corpus:last-fail": "tsx bin/corpus-links.ts last-fail",
+    "corpus:list": "tsx bin/corpus-links.ts list"
   },
   "dependencies": {
     "zod": "^4.0.0"

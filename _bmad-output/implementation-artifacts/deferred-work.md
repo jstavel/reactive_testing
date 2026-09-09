@@ -197,6 +197,29 @@
   summary: Bootstrap steps run the full post-step collector pipeline (snapshot/probe/network/screenshot per bootstrap contract), so a long bootstrap route multiplies corpus volume and a bootstrap collector timeout fails the scenario's setup. Recording bootstrap evidence is deliberate (the contracts are real and worth validating), but trimming which collectors bootstrap runs — or bounding bootstrap evidence — is a separate tuning decision.
   evidence: Blind-hunter review of the given-fsm-navigation diff noted bootstrap reuses `executeScenario` unchanged; the spec's Q5 decision was "record + mark bootstrap, validate its postconditions, classify failures as setup", which the implementation follows, so the cost question was consciously out of scope for this story.
 
+## Deferred from: review of spec-corpus-handoff-links (2026-09-09)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
+  summary: `linkRun` pre-creates empty `corpus/<kind>/<runId>/` dirs for kinds a run never produced, so the lake gains run-shaped empty dirs (e.g. `corpus/network/<runId>/` for a run with no network evidence). Manifest-first consumers are unaffected, but any consumer that iterates kind dirs now sees evidence-less run dirs; the frozen I/O matrix chose "fan always includes every kind", so the shape is deliberate — revisit whether the fan should expose only actually-written kinds.
+  evidence: Blind-hunter review of the handoff diff flagged the never-dangling-fan trade as lake pollution; the frozen spec matrix (MISSING_KIND) explicitly requires the link to exist pointing at an empty dir.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
+  summary: Fan re-pointing is `rm + rebuild`, so `@last-run`/`@last-fail` briefly disappear or half-populate during a re-point; a concurrent reader can see a missing/partial fan. Building into a temp dir and renaming would shrink the window. Acceptable for a single-operator convenience view today; atomicize if scripts or CI ever read the fans concurrently.
+  evidence: Blind-hunter and edge-case reviews both flagged the non-atomic re-point (rmSync then mkdir) introduced in the change; handlinks.test asserts per-link shape, not mid-write visibility.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
+  summary: The fan exposes a fixed `HANDOFF_KINDS` set (manifest/snapshots/network/probes/screenshots); if the collector set (CollectorName in schemas.ts) gains a new kind, `@last-run`/`@last-fail` silently omit that kind's evidence until the constant is edited. Revisit whether the fan shape is derived from the collector set or the manifest `files[]` when a new kind lands.
+  evidence: Edge-case review noted the fixed constant vs the open `CollectorName` enum; no seed change adds a kind today.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
+  summary: The new `corpus:*` npm scripts, `CORPUS_DIR` override, and `@last-run`/`@last-fail` semantics are documented only in source comments and a `docs/usage.md` snippet hint; there is no canonical operator-facing documentation entry for the handoff surface (README/project-map/architecture). Add a docs story or fold into the user-docs set.
+  evidence: Blind-hunter review noted no spec-side or doc-side text records the new operator surface beyond code comments; the repo's docs/ establish the convention (usage.md walkthrough, project-map.md).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
+  summary: `finishRun`'s `handoff` object is an eighth positional argument, so every existing `finishRun` assertion had to be updated with a trailing `{ failed: … }` — a params-object/options shape (or defaulting on the callers) would reduce churn and misordering risk as the signature grows.
+  evidence: Verification-gap review noted the mechanical `{ failed: … }` insertions across orchestrator.test.ts and corpus.test.ts; positional overload was accepted for this change but should be revisited when finishRun gains its next parameter.
+
+
 ## RFC (parked 2026-09-08): compile every `Given` into deterministic FSM navigation, not documentation text only
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-history-filter-pagination.md`

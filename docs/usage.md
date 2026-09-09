@@ -98,9 +98,15 @@ import { smokeTestPlan } from "./model/smoke.test-plan.js";
 import { runValidatorsOffline } from "./validators/offline-runner.js";
 import { emitFailureGherkin } from "./reporter/failure-gherkin.js";
 
-// Pick the newest recorded run.
+// Pick the newest recorded run. (The corpus root also holds the `@last-run` /
+// `@last-fail` handoff fans — symlink views, not runs. In practice you can
+// skip the mtime guess entirely: `npm run corpus:list` resolves the latest
+// run, and `corpus/@last-run/manifest` is the newest run dir directly.)
 const runId = readdirSync("corpus")
-  .filter((e) => !["snapshots", "network", "screenshots", "probes"].includes(e))
+  .filter((e) =>
+    !["snapshots", "network", "screenshots", "probes"].includes(e) &&
+    !e.startsWith("@"),
+  )
   .sort((a, b) =>
     statSync(join("corpus", b, "run-manifest.json")).mtimeMs -
     statSync(join("corpus", a, "run-manifest.json")).mtimeMs,

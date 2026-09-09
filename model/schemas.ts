@@ -263,6 +263,11 @@ export interface RunResult {
   modelVersion: string;
   scenarios: ScenarioResult[];
   setup?: ScenarioResult[];
+  /** Corpus run id of the completed run — present only when a corpus run was
+   * actually started and finalized (absent on modelVersion mismatch or a
+   * browser-launch failure, which never start a run). Lets the runner print
+   * the exact corpus handoff path (Story: corpus handoff links). */
+  runId?: string;
 }
 
 /** Metadata about a test run, used for the HTML report. */

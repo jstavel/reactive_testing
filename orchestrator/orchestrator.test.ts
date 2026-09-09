@@ -178,6 +178,8 @@ describe("runTestPlan", () => {
 
     expect(result.scenarios).toHaveLength(0);
     expect(mockGoto).not.toHaveBeenCalled();
+    // A modelVersion mismatch never starts a corpus run — no runId to surface.
+    expect(result.runId).toBeUndefined();
   });
 
   it("records step timeout and continues to next scenario", async () => {
@@ -218,6 +220,7 @@ describe("runTestPlan", () => {
   });
 
   it("aborts remaining scenarios on run timeout", async () => {
+    const { finishRun } = await import("./corpus.js");
     const savedImpl = mockGetByRole.getMockImplementation();
     let slowCall = true;
     mockGetByRole.mockImplementation(() => ({
@@ -249,6 +252,9 @@ describe("runTestPlan", () => {
 
     expect(result.scenarios[1]!.passed).toBe(false);
     expect(result.scenarios[1]!.error).toContain("Run timeout");
+    // The aborted run is a failed run — the handoff re-points @last-fail.
+    const calls = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.at(-1)!.at(-1)).toEqual({ failed: true });
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
   });
@@ -478,6 +484,8 @@ describe("runTestPlan", () => {
     // No partial corpus: the launch failure path never starts/finishes a run.
     expect(startCorpusRun).not.toHaveBeenCalled();
     expect(finishRun).not.toHaveBeenCalled();
+    // So there is no corpus runId to surface either.
+    expect(result.runId).toBeUndefined();
   });
 
   it("shields a throwing onScenario callback and still finishes the run with a manifest", async () => {
@@ -502,6 +510,95 @@ describe("runTestPlan", () => {
 });
 
 describe("corpus wiring", () => {
+  it("surfaces the corpus runId on RunResult and marks the handoff clean on a passing run", async () => {
+    const { finishRun } = await import("./corpus.js");
+
+    const plan = makePlan([
+      {
+        id: "single",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    // The runner learns the authoritative runId so it can print the handoff path.
+    expect(result.runId).toBe(mockCorpusRun.runId);
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      mockCorpusRun,
+      expect.any(String),
+      expect.any(Array),
+      expect.any(Array),
+      expect.any(Array),
+      expect.any(Array),
+      { failed: false },
+    );
+  });
+
+  it("marks the handoff failed when any scenario fails", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => Promise.reject(new Error("locator boom"))),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const plan = makePlan([
+      { id: "broken", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+    ]);
+
+    try {
+      const result = await runTestPlan(plan, baseConfig);
+
+      expect(result.scenarios[0]!.passed).toBe(false);
+      expect(finishRun).toHaveBeenCalledWith(
+        baseConfig.corpusDir,
+        mockCorpusRun,
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+        { failed: true },
+      );
+    } finally {
+      if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+    }
+  });
+
+  it("marks the handoff failed when a setup/bootstrap failure aborts a scenario", async () => {
+    const { finishRun } = await import("./corpus.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    // The first click fails (scenario 1, state unknown); the home-recovery
+    // click succeeds but its settle wait fails, aborting scenario 2's bootstrap.
+    let clicks = 0;
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => (++clicks === 1 ? Promise.reject(new Error("locator boom")) : Promise.resolve())),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+    mockWaitForSelector
+      .mockResolvedValueOnce(undefined) // launch ready-wait
+      .mockRejectedValueOnce(new Error("recovery settle boom")); // home-recovery settle
+
+    const plan = makePlan([
+      { id: "broken", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "needs-recovery", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+    ]);
+
+    try {
+      const result = await runTestPlan(plan, baseConfig);
+
+      expect(result.scenarios[0]!.passed).toBe(false);
+      expect(result.scenarios[1]!.error).toContain("Setup failed");
+      // A setup/bootstrap failure is still a failed run for the handoff.
+      const calls = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls.at(-1)!.at(-1)).toEqual({ failed: true });
+    } finally {
+      if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+    }
+  });
+
   it("persists one file per kind per step and finishes with a manifest", async () => {
     const { collectors } = await import("../collectors/collect.js");
     const { writeCorpusFile, finishRun } = await import("./corpus.js");
@@ -621,6 +718,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       [],
+      { failed: false },
     );
   });
 
@@ -666,6 +764,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       expect.any(Array),
+      { failed: false },
     );
   });
 
@@ -714,6 +813,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       [],
+      { failed: false },
     );
   });
 
@@ -746,6 +846,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       [],
+      { failed: true },
     );
   });
 
@@ -779,6 +880,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       [],
+      { failed: true },
     );
   });
 
@@ -854,6 +956,7 @@ describe("corpus wiring", () => {
       ],
       ["probe", "snapshot"],
       [],
+      { failed: true },
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -891,6 +994,7 @@ describe("corpus wiring", () => {
       ],
       ["probe", "snapshot"],
       [],
+      { failed: true },
     );
   });
 
@@ -933,6 +1037,7 @@ describe("corpus wiring", () => {
       ],
       ["probe", "snapshot"],
       [],
+      { failed: true },
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -963,6 +1068,7 @@ describe("corpus wiring", () => {
       [],
       ["probe", "snapshot"],
       [],
+      { failed: false },
     );
   });
 
