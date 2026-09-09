@@ -2,7 +2,8 @@
 title: 'validate:smoke CLI — offline validation counterpart to run:smoke'
 type: 'feature'
 created: '2026-09-09'
-status: 'draft'
+baseline_commit: '47f08eb631ea79f33cd881e6ce765e9b4f6e7951'
+status: 'done'
 review_loop_iteration: 0
 context:
   - _bmad-output/implementation-artifacts/deferred-work.md
@@ -21,7 +22,7 @@ context:
 **Always:**
 - Arguments: `npm run validate:smoke -- [<runId>] [<contractId>…]` — runId optional (defaults to the latest run), contract ids optional (each filters which validators run, mirroring `runValidatorsOffline`'s `contractIds`).
 - Latest-run resolution: prefer the `@last-run` handoff fan (resolve to its canonical run dir); when absent, fall back to the newest `run-manifest.json` in `corpus/` by mtime, skipping `@`-prefixed fans and the kind dirs.
-- Exit codes: `0` when every result passed or the run has no results to validate; `1` when any result failed, when the run is unknown, or on usage error. An unknown contractId filter is an error (it would silently validate nothing).
+- Exit codes: `0` when every result passed; `1` when any result failed, when zero checks ran for a selected run (unreadable manifest / loader empty — never treat silent-validates-nothing as success), when the run is unknown, or on usage error. An unknown contractId filter is an error (it would silently validate nothing).
 - Output: one line per `ValidationResult` (`[PASS]/[FAIL] contractId — details?`), plus a summary line `X/Y checks passed in <runId>`; failures print their `details`.
 - Deterministic and offline: no browser, no CDP, no AI (NFR-1). Reads only `corpus/` and `model/`.
 
@@ -57,10 +58,10 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `bin/validate-smoke.ts` -- implement the CLI (arg parsing, latest-run resolution via `@last-run` + newest-manifest fallback, `runValidatorsOffline` call, per-result `[PASS]/[FAIL]` lines, summary, exit codes) -- the deliverable
-- [ ] `package.json` -- add the `validate:smoke` script -- operator surface
-- [ ] `bin/validate-smoke.test.ts` -- unit-test arg handling and summary formatting via a helper extracted for testability (resolve-run fallback, unknown run, unknown contract filter, failing check exit semantics) -- pin the CLI contract
-- [ ] `docs/usage.md` -- replace the §3 hand-written snippet with `npm run validate:smoke` usage and exit-code semantics -- close the doc gap that surfaced this RFE
+- [x] `bin/validate-smoke.ts` -- implement the CLI (arg parsing, latest-run resolution via `@last-run` + newest-manifest fallback, `runValidatorsOffline` call, per-result `[PASS]/[FAIL]` lines, summary, exit codes) -- the deliverable
+- [x] `package.json` -- add the `validate:smoke` script -- operator surface
+- [x] `bin/validate-smoke.test.ts` -- unit-test arg handling and summary formatting via a helper extracted for testability (resolve-run fallback, unknown run, unknown contract filter, failing check exit semantics) -- pin the CLI contract
+- [x] `docs/usage.md` -- replace the §3 hand-written snippet with `npm run validate:smoke` usage and exit-code semantics -- close the doc gap that surfaced this RFE
 
 **Acceptance Criteria:**
 - Given a recorded run, when `npm run validate:smoke` runs with no arguments, then it validates the latest run and prints one line per check plus a summary.
@@ -72,6 +73,8 @@ context:
 ## Spec Change Log
 
 <!-- Append-only. Populated by step-04 during review loops. Do not modify or delete existing entries. -->
+
+- **2026-09-09 (review round 1)** — Three review lenses (blind-hunter, edge-case, verification-gap) triaged. PATCHED: (1) zero-results on a known run now exits 1 (the silent-validates-nothing trap); (2) runId shape guard `^[A-Za-z0-9-]+$` before any fs access; (3) `main()` uses `process.exitCode` so piped stdout flushes; (4) USAGE appended to every error outcome; (5) targeted hint when the first positional is a contract id; (6) latest-run fallback resolves by the manifest's embedded `timestamp` (mtime fallback + lexicographic tie-break); (7) per-entry fs-error isolation in the manifest scan; (8) `details` whitespace collapsed to one line; (9) `CORPUS_DIR` override honored; (10) new tests — dangling-fan fallback, content-hash read-only check, zero-results exit 1, traversal runIds, filter-without-runId hint, process-level `npm run` spawn (win32 guard); (11) docs — restored `emitFailureGherkin` example in §4, stated CLI scope and filter dedup, abridged sample output. DEFERRED: per-step context in output lines (needs `ValidationResult` shape change), `--help` flag (frozen matrix treats `-`-prefixed args as usage errors), kind-dir constant consolidation, validator-throw visibility. **Frozen exit-code sentence amended (human-approved [A] 2026-09-09):** zero checks for a selected run exits 1. Live evidence: `npm run validate:smoke` → 17 checks, `0/17`, exit 1; filter + unknown-id + hint paths verified live.
 
 ## Design Notes
 
@@ -87,3 +90,32 @@ context:
 
 **Manual checks:**
 - `npm run validate:smoke` on a legacy pre-`{stepIndex}.pre.json` corpus prints the documented `missing snapshot evidence` failures and exits 1 — the legacy-corpus caveat now observable from the CLI.
+
+## Suggested Review Order
+
+**The CLI contract**
+
+- Pure `validateSmoke`: argv → outcome (exit code + stdout/stderr), no top-level side effects.
+  [`validate-smoke.ts:60`](../../bin/validate-smoke.ts#L60)
+
+- Latest-run resolution: `@last-run` fan first, newest-manifest fallback by embedded timestamp.
+  [`validate-smoke.ts:96`](../../bin/validate-smoke.ts#L96)
+
+- Guard rails: runId shape check, unknown-run/unknown-filter errors with USAGE, argument-order hint.
+  [`validate-smoke.ts:150`](../../bin/validate-smoke.ts#L150)
+
+**Pinned behavior**
+
+- 24 unit tests over fabricated corpora: fallbacks, guards, exit semantics, read-only (content-hash).
+  [`validate-smoke.test.ts:1`](../../bin/validate-smoke.test.ts#L1)
+
+- Process-level spawn pins the real `npm run validate:smoke` surface end to end.
+  [`validate-smoke.test.ts:760`](../../bin/validate-smoke.test.ts#L760)
+
+**Operator surface + docs**
+
+- The npm script, sibling of `run:smoke`.
+  [`package.json:15`](../../package.json#L15)
+
+- §3 now documents the real CLI (scope, exit codes, dedup); §4 regained the failure.feature example.
+  [`usage.md:90`](../../docs/usage.md#L90)
