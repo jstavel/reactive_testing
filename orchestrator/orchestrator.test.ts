@@ -599,6 +599,35 @@ describe("corpus wiring", () => {
     }
   });
 
+  it("names bootstrap failure evidence with its scenario and step", async () => {
+    const { writeCorpusFile } = await import("./corpus.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    let clicks = 0;
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => (++clicks === 3 ? Promise.reject(new Error("bootstrap locator boom")) : Promise.resolve())),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const plan = makePlan([
+      { id: "reach-history", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "bootstrap-to-dialog", steps: [{ stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" }] },
+    ]);
+
+    try {
+      const result = await runTestPlan(plan, baseConfig);
+      expect(result.scenarios[0]!.passed).toBe(true);
+      expect(result.scenarios[1]!.error).toContain("Setup failed");
+
+      const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      const failureStems = writeCalls
+        .map((call) => call[6])
+        .filter((stem): stem is string => typeof stem === "string" && stem.endsWith(".failure"));
+      expect(failureStems).toContain("b.bootstrap-to-dialog.2.failure");
+    } finally {
+      if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+    }
+  });
+
   it("persists one file per kind per step and finishes with a manifest", async () => {
     const { collectors } = await import("../collectors/collect.js");
     const { writeCorpusFile, finishRun } = await import("./corpus.js");
@@ -936,9 +965,9 @@ describe("corpus wiring", () => {
     // Pre-step snapshot written before the action; failure snapshot + screenshot after.
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "0.pre")).toBe(true);
-    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "failure")).toBe(true);
+    expect(writeCalls.some((c) => c[2] === "snapshots" && c[6] === "0.failure")).toBe(true);
     expect(
-      writeCalls.some((c) => c[2] === "screenshots" && c[6] === "failure" && c[4] === "png"),
+      writeCalls.some((c) => c[2] === "screenshots" && c[6] === "0.failure" && c[4] === "png"),
     ).toBe(true);
 
     expect(finishRun).toHaveBeenCalledWith(
@@ -960,6 +989,49 @@ describe("corpus wiring", () => {
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+  });
+
+  it("names failure evidence per step so two failing steps never overwrite each other", async () => {
+    const { writeCorpusFile } = await import("./corpus.js");
+    const savedImpl = mockGetByRole.getMockImplementation();
+    // Odd clicks fail (each scenario's History button click); the even-numbered
+    // home-recovery click (navigateHome) succeeds so scenario 2 still runs.
+    let clicks = 0;
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() =>
+        ++clicks % 2 === 1 ? Promise.reject(new Error("locator boom")) : Promise.resolve(),
+      ),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const plan = makePlan([
+      { id: "fails-first", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "fails-second", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }] },
+    ]);
+
+    try {
+      const result = await runTestPlan(plan, baseConfig);
+
+      expect(result.scenarios.map((s) => s.passed)).toEqual([false, false]);
+
+      const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      // Failure snapshots are written per failing step (global step indexes 0 and 1).
+      const failureSnapshotStems = writeCalls
+        .filter((c) => c[2] === "snapshots")
+        .map((c) => c[6])
+        .filter((s): s is string => typeof s === "string" && s.endsWith(".failure"));
+      expect(failureSnapshotStems.sort()).toEqual(["0.failure", "1.failure"]);
+      // Failure screenshots land on distinct per-step files — no shared `failure` name.
+      const failureScreenshotStems = writeCalls
+        .filter((c) => c[2] === "screenshots" && c[4] === "png")
+        .map((c) => c[6]);
+      expect(failureScreenshotStems.sort()).toEqual(["0.failure", "1.failure"]);
+      // The corpus file list contains no duplicate failure path (no overwrite).
+      const failurePaths = mockCorpusRun.files.filter((f) => f.includes(".failure."));
+      expect(new Set(failurePaths).size).toBe(failurePaths.length);
+    } finally {
+      if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
+    }
   });
 
   it("records a StepFailure when the settle wait throws", async () => {

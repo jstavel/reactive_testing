@@ -107,10 +107,14 @@ describe("writeCorpusFile", () => {
 
     const pre = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.pre");
     const failure = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.failure");
+    const bootstrapFailure = writeCorpusFile(
+      corpusDir, run, "snapshots", 5, "json", "{}", "b.history-nav.5.failure",
+    );
 
     expect(pre).toBe(`snapshots/${run.runId}/0.pre.json`);
     expect(failure).toBe(`snapshots/${run.runId}/0.failure.json`);
-    expect(run.files).toEqual([pre, failure]);
+    expect(bootstrapFailure).toBe(`snapshots/${run.runId}/b.history-nav.5.failure.json`);
+    expect(run.files).toEqual([pre, failure, bootstrapFailure]);
   });
 });
 

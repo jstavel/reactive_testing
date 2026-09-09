@@ -532,7 +532,7 @@ async function executeScenario(
         await page.waitForSelector(settleSelector, { timeout: stepTimeout });
       } catch (err) {
         await recordStepFailure(
-          config, corpus, page, stepIndex, step, stepTimeout, err, failures,
+          config, corpus, page, stepIndex, step, stepTimeout, err, failures, phase, scenario.id,
         );
         throw err;
       }
@@ -647,7 +647,9 @@ function corpusStem(
     ? `b.${scenarioId}.${stepIndex}${suffix ? `.${suffix}` : ""}`
     : suffix === "pre"
       ? `${stepIndex}.pre`
-      : undefined;
+      : suffix === "failure"
+        ? `${stepIndex}.failure`
+        : undefined;
 }
 
 /** Resolve a step's target FSM state from the transition it drives. validatePlan
@@ -666,8 +668,11 @@ function resolveTargetState(step: { stateId: string; contractId: string }): stri
 
 /** Best-effort failure evidence (Story 2.7): capture the page at the failure
  * moment (snapshot + screenshot, phase-tagged "failure") and record a StepFailure.
- * Failure-capture errors are swallowed — they must never abort the run, since the
- * scenario has already failed. */
+ * Failure evidence is named per step — `<stepIndex>.failure` for scenario steps,
+ * `b.<scenarioId>.<stepIndex>.failure` for bootstrap steps — so each failed step
+ * keeps its own snapshot + screenshot instead of overwriting a shared `failure`
+ * stem (gh-22). Failure-capture errors are swallowed — they must never abort the
+ * run, since the scenario has already failed. */
 async function recordStepFailure(
   config: OrchestratorConfig,
   corpus: CorpusRun,
@@ -677,7 +682,10 @@ async function recordStepFailure(
   stepTimeout: number,
   err: unknown,
   failures: StepFailure[],
+  phase: "bootstrap" | undefined,
+  scenarioId: string,
 ): Promise<void> {
+  const failureStem = corpusStem(phase, scenarioId, stepIndex, "failure");
   try {
     const snap = await withTimeout(
       collectors.snapshot(page, { stateId: step.stateId }),
@@ -685,7 +693,7 @@ async function recordStepFailure(
     );
     writeCorpusFile(
       config.corpusDir, corpus, "snapshots", stepIndex, "json",
-      JSON.stringify(snap), "failure",
+      JSON.stringify(snap), failureStem,
     );
   } catch {
     // swallowed — best-effort
@@ -695,7 +703,7 @@ async function recordStepFailure(
     const shot = await withTimeout(collectors.screenshot(page), stepTimeout);
     const pngPath = writeCorpusFile(
       config.corpusDir, corpus, "screenshots", stepIndex, "png",
-      shot.buffer, "failure",
+      shot.buffer, failureStem,
     );
     const ref: ScreenshotRef = {
       filePath: pngPath,
@@ -703,7 +711,7 @@ async function recordStepFailure(
     };
     writeCorpusFile(
       config.corpusDir, corpus, "screenshots", stepIndex, "json",
-      JSON.stringify(ref), "failure",
+      JSON.stringify(ref), failureStem,
     );
   } catch {
     // swallowed — best-effort
