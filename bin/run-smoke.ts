@@ -7,6 +7,7 @@
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { OrchestratorConfig } from "../model/schemas.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
+import { handoffLine } from "../orchestrator/handlinks.js";
 import { selectScenarios } from "./scenario-select.js";
 
 const selectedIds = process.argv.slice(2);
@@ -78,12 +79,28 @@ for (const setup of setupFailed) {
 const passed = result.scenarios.filter((s) => s.passed).length;
 const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
 
+/** The operator-facing handoff line, printed LAST on every completion path.
+ * Prints nothing when there is nothing honest to hand off: a modelVersion
+ * mismatch or browser-launch failure never started a corpus run (no runId),
+ * and a fan that is absent or points at another run resolves to null. */
+const printHandoff = (): void => {
+  const line = handoffLine(
+    result,
+    config.corpusDir,
+    result.scenarios.some((scenario) => !scenario.passed),
+  );
+  if (line !== null) {
+    console.log(line);
+  }
+};
+
 if (result.scenarios.length === 0) {
   console.error(
     `Run produced zero scenarios (plan "${result.planId}", modelVersion "${result.modelVersion}"). ` +
       `This is usually a modelVersion mismatch: the smoke plan's embedded modelVersion does not ` +
       `match the current model. Regenerate the test plan or check for stale model files.`,
   );
+  printHandoff();
   process.exit(1);
 }
 
@@ -93,6 +110,7 @@ if (passed === 0) {
       `All scenarios failed — inspect the per-scenario errors above and the corpus in ` +
       `${config.corpusDir}/ to diagnose. Exiting non-zero.`,
   );
+  printHandoff();
   process.exit(1);
 }
 
@@ -104,3 +122,4 @@ console.log(
     `CDP connection closed on completion; the human's browser stays open (detached, never closed). ` +
     `Corpus written to ${config.corpusDir}/.`,
 );
+printHandoff();

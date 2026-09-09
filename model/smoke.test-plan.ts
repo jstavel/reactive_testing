@@ -3,12 +3,13 @@
 // Do not edit by hand; regenerate when model files or feature tags change.
 // Regenerated for the test-run report (Story 1) after schemas.ts gained RunMetadata.
 // Regenerated (Story 3) after schemas.ts gained StepEvidence.
+// Regenerated (corpus handoff links) after schemas.ts gained RunResult.runId.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "6fa0e24070cc8e39b52fb94a93db9cb601f37bf0ea77457ed8d718fc95febc50",
+  modelVersion: "3b97cf8bac9b75c53891f62d5ae4f56ad3a5a8b075e15154ecd2a3abf11a901b",
   scenarios: [
     // home-page-history-menu.feature
     {

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -20,6 +20,14 @@ import {
   writeCorpusFile,
   finishRun,
 } from "./corpus.js";
+
+// Wrap (don't replace) the real handoff module so the try/catch failure path
+// in finishRun can be driven deterministically.
+vi.mock("./handlinks.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./handlinks.js")>();
+  return { ...actual, writeHandoff: vi.fn(actual.writeHandoff) };
+});
+import { LAST_FAIL, LAST_RUN, linkRun, resolveFanRunId } from "./handlinks.js";
 
 let tempDirs: string[] = [];
 
@@ -205,6 +213,65 @@ describe("finishRun", () => {
       collectorErrorSchema.safeParse({ collector: "probe", error: "x" })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("finishRun handoff links", () => {
+  it("re-points @last-run at the run and removes a stale @last-fail when the run passed", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
+    linkRun(corpusDir, "older-failed-run", LAST_FAIL);
+
+    finishRun(corpusDir, run, "t", [], [], [], [], { failed: false });
+
+    expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
+    expect(existsSync(join(corpusDir, LAST_FAIL))).toBe(false);
+  });
+
+  it("points both @last-run and @last-fail at the run when it failed", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
+
+    finishRun(corpusDir, run, "t", [], [], [], [], { failed: true });
+
+    expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
+    expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe(run.runId);
+  });
+
+  it("without a handoff argument no links are created or removed (offline harness callers untouched)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
+    linkRun(corpusDir, "keep-me", LAST_FAIL);
+
+    finishRun(corpusDir, run, "t", [], [], []);
+
+    expect(existsSync(join(corpusDir, LAST_RUN))).toBe(false);
+    expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe("keep-me");
+  });
+
+  it("warns instead of throwing when the handoff write fails — the completed run stands", async () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
+    const { writeHandoff } = await import("./handlinks.js");
+    (writeHandoff as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("symlink denied");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      expect(() =>
+        finishRun(corpusDir, run, "t", [], [], [], [], { failed: true }),
+      ).not.toThrow();
+      // The manifest is already written — the run is complete regardless.
+      expect(existsSync(join(corpusDir, run.runId, "run-manifest.json"))).toBe(true);
+      expect(warn).toHaveBeenCalledWith("[handoff] skipped: symlink denied");
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

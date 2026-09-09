@@ -12,7 +12,7 @@
 // resulting corpus through the real loader and asserts the pre-step evidence
 // survives the round trip.
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runTestPlan } from "./orchestrator.js";
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
+import { LAST_FAIL, LAST_RUN, resolveFanRunId } from "./handlinks.js";
 import { loadCorpusSteps } from "../validators/corpus-loader.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 
@@ -122,12 +123,20 @@ describe("orchestrator → corpus-loader round trip (retro F1)", () => {
     const result = await runTestPlan(homePageNavigationPlan, makeConfig(corpusDir));
     expect(result.scenarios[0]!.passed).toBe(true);
 
-    // The real corpus write produced exactly one run dir.
+    // The real corpus write produced exactly one run dir (the `@last-run` /
+    // `@last-fail` handoff fans are convenience links at the corpus root, not runs).
     const runIds = readdirSync(corpusDir).filter(
-      (entry) => entry !== "snapshots" && entry !== "network" && entry !== "screenshots" && entry !== "probes",
+      (entry) =>
+        entry !== "snapshots" && entry !== "network" && entry !== "screenshots" && entry !== "probes" &&
+        !entry.startsWith("@"),
     );
     expect(runIds).toHaveLength(1);
     const runId = runIds[0]!;
+
+    // The completed run re-pointed the @last-run handoff fan at itself; the
+    // run passed, so @last-fail is absent (no stale debugger state).
+    expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(runId);
+    expect(existsSync(join(corpusDir, LAST_FAIL))).toBe(false);
 
     // The real loader must see the per-step pre snapshot (`0.pre.json`).
     const steps = loadCorpusSteps(corpusDir, runId, homePageNavigationPlan);

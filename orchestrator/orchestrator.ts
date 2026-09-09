@@ -233,6 +233,11 @@ export async function runTestPlan(
       notify(onScenario, result);
     }
 
+    // The handoff links are operator convenience only — any scenario failure
+    // (step, setup, or run timeout) re-points `@last-fail`; a fully passing
+    // run removes it. Collector gaps never trigger it (they are gaps, not
+    // failures — AD-16).
+    const runFailed = scenarioResults.some((scenario) => !scenario.passed);
     finishRun(
       config.corpusDir,
       corpus,
@@ -241,6 +246,7 @@ export async function runTestPlan(
       stepFailures,
       plannedCollectors,
       bootstrapRecords,
+      { failed: runFailed },
     );
   } finally {
     await closeBrowser();
@@ -251,6 +257,7 @@ export async function runTestPlan(
     modelVersion: parsed.modelVersion,
     scenarios: scenarioResults,
     setup: setupResults,
+    runId: corpus.runId,
   };
 }
 

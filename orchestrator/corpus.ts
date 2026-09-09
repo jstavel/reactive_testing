@@ -10,6 +10,7 @@ import type {
   RunManifest,
   StepFailure,
 } from "../model/schemas.js";
+import { LAST_FAIL, LAST_RUN, writeHandoff } from "./handlinks.js";
 
 /**
  * Start a new corpus run — assigns a unique run-id and initializes the file list.
@@ -52,6 +53,11 @@ export function writeCorpusFile(
  * the run — a distinct axis from collector gaps. `collectors` is always present
  * (Story 3.2): the post-step collectors the plan declared, so a skipped
  * collector is distinguishable from a failed one.
+ *
+ * When `handoff` is provided (the orchestrator always passes it), the run also
+ * writes its handoff links on completion: `@last-run` always re-points at this
+ * run, and `@last-fail` re-points when the run failed / is removed when it
+ * passed. Callers that omit `handoff` (offline harnesses) touch no links.
  */
 export function finishRun(
   corpusDir: string,
@@ -61,6 +67,7 @@ export function finishRun(
   failures: StepFailure[],
   collectors: CollectorName[],
   bootstrap: BootstrapRecord[] = [],
+  handoff?: { failed: boolean },
 ): void {
   const manifest: RunManifest = {
     runId: run.runId,
@@ -77,4 +84,15 @@ export function finishRun(
     join(manifestDir, "run-manifest.json"),
     JSON.stringify(manifest, null, 2),
   );
+  if (!handoff) {
+    return;
+  }
+  // The handoff is convenience-only: a symlink failure (read-only corpus,
+  // Windows privileges, invalid runId) must not turn a completed run into an
+  // error — the manifest is already written.
+  try {
+    writeHandoff(corpusDir, run.runId, handoff.failed);
+  } catch (err) {
+    console.warn(`[handoff] skipped: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
