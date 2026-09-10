@@ -9,8 +9,8 @@ import { allContracts } from "../model/contracts.js";
 import type { CollectorName } from "../model/schemas.js";
 
 /** Which collectors a contract's validators read, derived from its predicates:
- * `state-is`/`url-is` → snapshot; `view-selected` → probe; `dialog-*` → none
- * (not yet evaluatable, Story 3.1). Returns `[]` for an unknown contractId. */
+ * `state-is`/`url-is`/`dialog-*` → snapshot; `view-selected` → probe.
+ * Returns `[]` for an unknown contractId. */
 export function corpusDependenciesFor(contractId: string): CollectorName[] {
   const contract = allContracts.find((c) => c.contractId === contractId);
   if (!contract) return [];
@@ -30,7 +30,8 @@ export function corpusDependenciesFor(contractId: string): CollectorName[] {
         break;
       case "dialog-open":
       case "dialog-closed":
-        break; // not yet evaluatable — no dependency
+        deps.add("snapshot");
+        break;
     }
   }
   return [...deps];

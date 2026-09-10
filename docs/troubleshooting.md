@@ -116,18 +116,19 @@ npm run run:smoke
 
 Then re-run verification against the new run.
 
-### "not yet evaluatable"
+### dialog-open / dialog-closed check fails
 
 ```
-contract "<id>" (dialog-open/dialog-closed): not yet evaluatable
+[postcondition] dialog-open expected role="dialog" but marker absent in snapshot
 ```
 
-**Cause:** the dialog predicates `dialog-open` and `dialog-closed` are declared
-in the model but no evaluator exists yet. This is **expected behaviour** — see
-the [Roadmap](../README.md#short-term).
+**Cause:** the snapshot recorded for the dialog step does not contain
+`role="dialog"` in the page markup — the dialog may not have opened, or the
+snapshot was captured from a legacy corpus recorded before the evaluators shipped.
 
-**Fix:** none needed. The check is honest: it fails with a clear message
-instead of silently passing.
+**Fix:** record a fresh corpus with `npm run run:smoke`. If the check still
+fails against a fresh run, the app's dialog may have changed — inspect the
+step's snapshot manually and open an issue.
 
 ### cross-view invariant reports "missing evidence"
 

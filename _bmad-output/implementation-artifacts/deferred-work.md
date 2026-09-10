@@ -59,6 +59,7 @@
   summary: Portfolio Summary dialog actions (`openPortfolioSummary`, `toggleEyeIcon`, `closePortfolioSummary`) as their own dialog-surface story (own spec, once the navigation story ships).
   evidence: Split during story 2.6 planning by the SCOPE STANDARD token gate ([S]). The nav and dialog surfaces are independently shippable and verifiable against the live app; the dialog contracts carry the later-acceptance risk the Ask-First rules flag (dialog must show value + six sections; the eye control may have no discoverable stable locator → defer with a note rather than guess). Smoke scenarios 8-10 (open-summary, escape-closes, eye-toggle) stay failing until that story.
   DECISION (2026-09-01): BUILD — decision 2a: write and ship the dialog-surface spec now; live-app verification available. Ask-First on the eye control locator stands.
+  RESOLVED (2026-09-10): evaluator half shipped via spec-5-3 — `dialog-open`/`dialog-closed` now evaluate a `role="dialog"` substring in the phase's snapshot (validator-map.ts + dependencies.ts). The locator half shipped earlier via decision 2a. Eye-toggle conditional (Eye⇄EyeOff) remains unassertable (deferred-work.md:89).
 
 ## Deferred from: post-review architecture discussion of spec-3-3 (2026-09-01)
 
@@ -249,3 +250,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-2-order-book-selected-view.md`
   summary: Non-idempotent / conditional view actions (e.g. "+"-add the Order Book tab) need a state-establishment or runtime-branching mechanism — the static `{stateId, contractId}` model cannot express "do X only when condition Y holds" or "establish state Z before running the scenario." This is the same class of gap as the eye-toggle (`toggleEyeIcon`), the portfolio-value comparison, and the parked state-loading concern (deferred-work.md:87-90); all three are state-dependent outcomes the framework cannot control or branch on today.
   evidence: Story 5-2 pilot (2026-09-10): the "+"-add action is non-idempotent (creates the tab only when absent) and cannot be a plan step; the scenario uses only the idempotent half (select the existing tab). The conditional-action gap joins the parked state-loading RFE rather than inventing a framework change mid-pilot. Framework capability needed: conditional steps, state-establishment preconditions, or runtime branching over the `{stateId, contractId}` model.
+
+## Deferred from: review of spec-5-3-portfolio-summary-eye-toggle (2026-09-10)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
+  summary: Add an automated guard that pins `validate:smoke` (currently only verified manually each story) — e.g. an expiry-pinned test that runs `bin/validate-smoke.ts` against the latest corpus run and asserts 18/18.
+  evidence: Verification-gap/AC review of the 5-3 diff; the 18/18 claim is demonstrated only by manual CLI runs in story verification (5-2 and 5-3 alike), never by the committed test suite, so a future regression in validator-map or corpus handling would escape CI.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
+  summary: Add a `default:` fallthrough guard to the `evaluate()` switch in validator-map.ts (and the predicate switch in dependencies.ts) returning a failed "unknown predicate" result instead of falling off the switch — unreachable today because the schema restricts `assert` to the 5-predicate union, but a binding against a hand-rolled predicate would otherwise return `undefined` and violate FR-5 (never throw) at the `r.passed` dereference.
+  evidence: Edge-case-hunter review of the 5-3 diff flagged the missing default; pre-existing pattern (no default ever existed), surfaced incidentally by adding the dialog cases.

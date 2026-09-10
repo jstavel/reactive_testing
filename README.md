@@ -118,8 +118,6 @@ and [deferred work](_bmad-output/implementation-artifacts/deferred-work.md).
 - **Extract a shared plan-step iteration helper** (retro item F3, Epic 3).
 - **Add a CLI path for verification and reporting.** Currently library-only;
   running validators means writing a small `tsx` script.
-- **Dialog predicate evaluators.** `dialog-open` and `dialog-closed` are
-  declared but not yet evaluatable.
 
 ### Future
 

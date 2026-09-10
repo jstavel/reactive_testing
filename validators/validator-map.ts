@@ -62,11 +62,21 @@ function evaluate(
       return { passed: true, detail: "" };
     }
     case "dialog-open":
-    case "dialog-closed":
+    case "dialog-closed": {
+      if (!snapshot) {
+        return { passed: false, detail: "missing snapshot evidence" };
+      }
+      const marker = 'role="dialog"';
+      const found = snapshot.snapshot.includes(marker);
+      const expected = predicate.assert === "dialog-open";
+      if (found === expected) {
+        return { passed: true, detail: "" };
+      }
       return {
         passed: false,
-        detail: `predicate "${predicate.assert}" not yet evaluatable (deferred to the dialog-surface story)`,
+        detail: `${predicate.assert} expected ${expected ? marker : "no " + marker} but ${found ? marker + " found" : "marker absent"} in snapshot`,
       };
+    }
   }
 }
 
