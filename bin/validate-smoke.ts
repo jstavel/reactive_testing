@@ -21,7 +21,7 @@ import { pathToFileURL } from "node:url";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
-import { LAST_RUN, resolveFan } from "../orchestrator/handlinks.js";
+import { LAST_RUN, RUN_ID_PATTERN, resolveFan } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 
 const CORPUS_DIR = "corpus";
@@ -31,9 +31,8 @@ const RUNID_FILTER_HINT =
   "(e.g. npm run validate:smoke -- <runId> <contractId>)";
 
 /** A runId is always a UUID/kebab token; anything else (path separators, `..`)
- * must never reach a corpus path (mirrors handlinks' RUN_ID_PATTERN). */
-const RUN_ID_PATTERN = /^[A-Za-z0-9-]+$/;
-
+ * must never reach a corpus path. Shared with handlinks (handoff symlink
+ * targets) — one source of truth for the runId shape guard. */
 /** Kind dirs at the corpus root holding per-run evidence — never a run dir. */
 const KIND_DIRS = new Set(["snapshots", "network", "probes", "screenshots"]);
 

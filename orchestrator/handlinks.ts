@@ -18,8 +18,9 @@ import {
 import { basename, join } from "node:path";
 
 /** A runId is always a UUID/kebab token; anything else (path separators, `..`)
- * must never reach a symlink target or it could escape the corpus dir. */
-const RUN_ID_PATTERN = /^[A-Za-z0-9-]+$/;
+ * must never reach a symlink target or it could escape the corpus dir. Shared
+ * with validate-smoke, which applies the same shape guard to runId filters. */
+export const RUN_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
 /**
  * The per-run dirs one fan wires up: the manifest dir is `corpus/<runId>`
