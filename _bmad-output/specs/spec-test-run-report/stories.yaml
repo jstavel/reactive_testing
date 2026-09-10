@@ -41,3 +41,17 @@
   spec_checkpoint: false
   done_checkpoint: true
   invoke_dev_with: ""
+- id: "6"
+  title: Operator CLI generates the report from a recorded run
+  description: >-
+    Wire emitHtmlReport behind a report:smoke CLI so an operator produces the
+    report from a recorded corpus run without re-running the scenario (SPEC
+    CAP-6): optional run id defaulting to the latest recorded run, per-scenario
+    results re-derived through the offline validator runner, report written to
+    {corpusDir}/{runId}/report.html.
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Mirror validate:smoke's argument/error surface (optional --run, corpus and
+    plan resolution, process exit codes); pin the CLI at process level like
+    bin/run-smoke.test.ts.

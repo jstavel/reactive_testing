@@ -11,7 +11,7 @@ sources:
 
 ## Why
 
-Test run results need to be immediately inspectable — pass or fail — and debuggable without guesswork. Current test reports (e.g. Robot Framework) provide screenshots and color coding but lack structured architectural evidence (FSM state, contract assertions). A spec-first testing system produces richer data at each step; the report should surface it. This is a **pain to solve**: QE experts waste time reproducing failures that the system already knows about.
+Test run results need to be immediately inspectable — pass or fail — and debuggable without guesswork. Current test reports (e.g. Robot Framework) provide screenshots and color coding but lack structured architectural evidence (FSM state, contract assertions). A spec-first testing system produces richer data at each step; the report should surface it. This is a **pain to solve**: QE experts waste time reproducing failures that the system already knows about. As of 2026-09-10 the report generator exists as tested library code but no operator path produces it — the wiring gap is what CAP-6 closes.
 
 ## Capabilities
 
@@ -35,12 +35,17 @@ Test run results need to be immediately inspectable — pass or fail — and deb
   - **intent:** Each step shows a simple error message on failure.
   - **success:** A failed step displays a human-readable assertion message with expected vs actual values (not a raw stack trace).
 
+- **CAP-6**
+  - **intent:** An operator generates the report for a recorded corpus run via a CLI, without re-running the scenario.
+  - **success:** Running the CLI (defaulting to the latest recorded run, or an explicit run id) reads the recorded corpus, re-derives per-scenario results through the offline validator runner, and writes the self-contained report to `{corpusDir}/{runId}/report.html`; no browser launches and no actions execute.
+
 ## Constraints
 
 - Single self-contained HTML file per run. No multi-file output, no server dependency, no external assets.
 - Progressive disclosure is the UX model: summary bar (always visible) → feature tree (always visible) → per-step details (expandable on click). No information overload in the default view.
 - Screenshots are captured on every step. DOM snapshots are captured only on failure in v1 (to control file size bloat).
 - Error presentation starts simple in v1 — plain assertion text — and iterates based on real usage.
+- Report generation for a recorded run is offline-only: it reads corpus evidence (plan, manifest, snapshots) and never launches a browser or executes actions — the same offline discipline as the validator CLI.
 
 ## Non-goals
 
@@ -60,6 +65,8 @@ Opening a failing report immediately shows the failed step with screenshot + FSM
 - Screenshots can be inlined (base64 or blob URLs) without exceeding reasonable file sizes for typical test suites (assumed < 50 scenarios per run).
 - FSM state is available at step granularity from the test runner.
 - Contract assertions produce structured expected/actual values, not just boolean pass/fail.
+- Per-scenario results for CAP-6 derive deterministically from offline validation results consumed in plan-step order per contractId (demo-verified against corpus `efcb749d`: 18/18 checks → 14/14 scenarios, matching `validate:smoke`).
+- The CAP-6 CLI argument surface mirrors `validate:smoke` (optional run id defaulting to the latest recorded run), and the report is written into the corpus run dir — `emitHtmlReport`'s designed location, keeping evidence refs corpus-relative.
 
 ## Open Questions
 
