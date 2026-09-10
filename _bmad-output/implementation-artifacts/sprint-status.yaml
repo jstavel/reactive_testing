@@ -70,7 +70,7 @@ development_status:
 
   epic-5: in-progress
   5-1-history-filter-pagination: done
-  5-2-order-book-selected-view: review
+  5-2-order-book-selected-view: done
   5-3-portfolio-summary-eye-toggle: backlog
 action_items:
   - id: "epic-1-retro-item-1-add-layout-menu-state-contract-to-model"
