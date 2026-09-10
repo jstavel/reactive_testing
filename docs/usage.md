@@ -139,11 +139,11 @@ invariants are a separate runner (§5). `runValidatorsOffline` remains the
 library API when you need the `ValidationResult`s programmatically — one per
 step + validator: `{ contractId, passed, details?, corpusRefs }`.
 
-> What to expect today: contracts whose predicates are machine-checkable
-> (`state-is`, `url-is`, `view-selected`) pass on a freshly recorded run. The
-> dialog predicates (`dialog-open` / `dialog-closed`) are declared but **not yet
-> evaluatable**, so those contracts currently fail as "not yet evaluatable" —
-> a tracked open item. On a **legacy** corpus (see the §2 caveat) every
+> What to expect today: all declared predicates (`state-is`, `url-is`,
+> `view-selected`, `dialog-open`, `dialog-closed`) are evaluatable, and the
+> checks that assert them pass on a freshly recorded corpus (`toggleEyeIcon`
+> asserts only its `dialog-open` precondition — its postconditions are
+> intentionally empty). On a **legacy** corpus (see the §2 caveat) every
 > precondition reports `missing snapshot evidence` — record a fresh run with
 > §1 instead.
 

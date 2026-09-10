@@ -14,9 +14,9 @@ describe("corpusDependenciesFor", () => {
     expect(corpusDependenciesFor("clickPortfolioMenuEarn")).toEqual(["snapshot"]);
   });
 
-  it("returns [] for dialog contracts whose predicates are not yet evaluatable", () => {
-    expect(corpusDependenciesFor("closePortfolioSummary")).toEqual([]);
-    expect(corpusDependenciesFor("toggleEyeIcon")).toEqual([]);
+  it("derives snapshot for dialog contracts (dialog-open/dialog-closed use snapshot)", () => {
+    expect(corpusDependenciesFor("closePortfolioSummary")).toEqual(["snapshot"]);
+    expect(corpusDependenciesFor("toggleEyeIcon")).toEqual(["snapshot"]);
   });
 
   it("returns [] for an unknown contractId", () => {

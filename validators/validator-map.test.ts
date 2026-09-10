@@ -167,6 +167,57 @@ describe("validatorMap", () => {
     expect(validatorsFor("nonexistent")).toEqual([]);
   });
 
+  it("dialog-open passes when snapshot contains role=\"dialog\"", () => {
+    const validator = validatorsFor("openPortfolioSummary")[0]!;
+    const result = validator({
+      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
+      post: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
+    });
+    expect(result.passed).toBe(true);
+    expect(result.corpusRefs).toEqual(expect.arrayContaining(["snapshot:post"]));
+  });
+
+  it("dialog-open fails when snapshot is missing the role=\"dialog\" marker", () => {
+    const validator = validatorsFor("openPortfolioSummary")[0]!;
+    const result = validator({
+      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
+      post: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "no dialog here", capturedAt: "t" },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toContain("dialog-open");
+    expect(result.details).toContain("marker absent");
+  });
+
+  it("dialog-open fails with missing snapshot evidence when post snapshot is absent", () => {
+    const validator = validatorsFor("openPortfolioSummary")[0]!;
+    const result = validator({
+      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toContain("missing snapshot evidence");
+  });
+
+  it("dialog-closed passes when snapshot has no role=\"dialog\" marker", () => {
+    const validator = validatorsFor("closePortfolioSummary")[0]!;
+    const result = validator({
+      pre: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
+      post: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "home page content", capturedAt: "t" },
+    });
+    expect(result.passed).toBe(true);
+    expect(result.corpusRefs).toEqual(expect.arrayContaining(["snapshot:pre", "snapshot:post"]));
+  });
+
+  it("dialog-closed fails when role=\"dialog\" marker is still present", () => {
+    const validator = validatorsFor("closePortfolioSummary")[0]!;
+    const result = validator({
+      pre: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
+      post: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">still open</div>', capturedAt: "t" },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toContain("dialog-closed");
+    expect(result.details).toContain('role="dialog" found');
+  });
+
   it("has a validator for every contract in allContracts and vice versa", async () => {
     const { allContracts } = await import("../model/contracts.js");
     for (const contract of allContracts) {
