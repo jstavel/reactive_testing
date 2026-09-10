@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-10-2026
+last_updated: 09-10-2026 21:47
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -68,10 +68,11 @@ development_status:
   4-2-cross-view-standing-invariant-validator: done
   epic-4-retrospective: done
 
-  epic-5: in-progress
+  epic-5: done
   5-1-history-filter-pagination: done
   5-2-order-book-selected-view: done
   5-3-portfolio-summary-eye-toggle: done
+  epic-5-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-add-layout-menu-state-contract-to-model"
     epic: 1
@@ -190,3 +191,31 @@ action_items:
     owner: "Jan"
     status: open
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+  - id: "epic-5-retro-item-16-flip-spec-5-1-history-filter-pagination"
+    epic: 5
+    action: "Flip spec-5-1-history-filter-pagination.md frontmatter status in-review
+      to done"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-10.md"
+  - id: "epic-5-retro-item-17-add-plan-admission-tests-pinning-validat"
+    epic: 5
+    action: "Add plan-admission tests pinning validatePlan stepless and givenStateId
+      mismatch rejections"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-10.md"
+  - id: "epic-5-retro-item-18-pin-operator-clis-at-process-level-run-s"
+    epic: 5
+    action: "Pin operator CLIs at process level: run-smoke exit paths and validate:smoke
+      18/18 regression pin"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-10.md"
+  - id: "epic-5-retro-item-19-hygiene-pass-remove-committed-review-dif"
+    epic: 5
+    action: "Hygiene pass: remove committed review-diff-5-2.txt and history-assets-filter-open.png;
+      decide shared RUN_ID_PATTERN; add trailing newline to bin/corpus-links.ts"
+    owner: "Jan"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-10.md"
