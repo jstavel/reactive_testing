@@ -69,7 +69,7 @@ vi.mock("../collectors/collect.js", () => ({
   },
 }));
 
-import { runTestPlan } from "./orchestrator.js";
+import { runTestPlan, validatePlan } from "./orchestrator.js";
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 
 const baseConfig: OrchestratorConfig = {
@@ -355,6 +355,45 @@ describe("runTestPlan", () => {
     await expect(runTestPlan(plan, baseConfig)).rejects.toThrow(
       "leads to",
     );
+  });
+
+  it("rejects a plan whose scenario has no steps (validatePlan admission)", () => {
+    const plan = makePlan([
+      {
+        id: "stepless",
+        steps: [],
+      },
+    ]);
+
+    expect(() => validatePlan(plan)).toThrow(
+      'Scenario "stepless" has no steps.',
+    );
+  });
+
+  it("rejects a scenario whose givenStateId does not match its first step stateId", () => {
+    const plan = makePlan([
+      {
+        id: "mismatched-given",
+        givenStateId: "homePage",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      },
+    ]);
+
+    expect(() => validatePlan(plan)).toThrow(
+      'Scenario "mismatched-given" givenStateId "homePage" does not match first step stateId "historyMain".',
+    );
+  });
+
+  it("accepts a scenario whose givenStateId matches its first step stateId", () => {
+    const plan = makePlan([
+      {
+        id: "matched-given",
+        givenStateId: "historyMain",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      },
+    ]);
+
+    expect(() => validatePlan(plan)).not.toThrow();
   });
 
   it("executes the corresponding action for each contractId", async () => {
