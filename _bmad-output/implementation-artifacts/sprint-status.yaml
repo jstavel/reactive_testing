@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-10-2026 21:47
+last_updated: 09-10-2026 21:49
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -196,7 +196,7 @@ action_items:
     action: "Flip spec-5-1-history-filter-pagination.md frontmatter status in-review
       to done"
     owner: "Jan"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-10.md"
   - id: "epic-5-retro-item-17-add-plan-admission-tests-pinning-validat"
     epic: 5
