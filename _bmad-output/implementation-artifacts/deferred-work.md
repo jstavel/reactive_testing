@@ -260,3 +260,14 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
   summary: Add a `default:` fallthrough guard to the `evaluate()` switch in validator-map.ts (and the predicate switch in dependencies.ts) returning a failed "unknown predicate" result instead of falling off the switch — unreachable today because the schema restricts `assert` to the 5-predicate union, but a binding against a hand-rolled predicate would otherwise return `undefined` and violate FR-5 (never throw) at the `r.passed` dereference.
   evidence: Edge-case-hunter review of the 5-3 diff flagged the missing default; pre-existing pattern (no default ever existed), surfaced incidentally by adding the dialog cases.
+## Deferred from: review of spec-test-run-report story 6 — report:smoke CLI (2026-09-10)
+
+- source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
+  summary: Offline validation/report CLIs trust `loadCorpusSteps`' silent per-step skipping — a partially corrupt corpus (manifest lists files that are missing) undercounts checks, and no reconciliation of result count against expected checks per step catches it, so scenarios can pass vacuously. Pre-existing in `validate:smoke`; inherited by `report:smoke`.
+  evidence: Verification-gap review of the story-6 diff: the zero-checks guard fires only on `results.length === 0`; no test covers missing snapshot/probe evidence for a subset of steps; both CLIs share `runValidatorsOffline`, so the exposure is repo-wide, not story-local.
+- source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
+  summary: Extract a shared CLI outcome/guard module from `bin/validate-smoke.ts` + `bin/report-smoke.ts` — `ReportOutcome`/`ValidateOutcome`, `errorOutcome`, `unknownRunOutcome`, and the flag/shape-guard sequence are hand-duplicated, so the two operator CLIs can drift.
+  evidence: Blind-hunter review of the story-6 diff: only `resolveLatestRun`/`isKnownRun` are imported; the error families and guards are textual copies that already needed a wording alignment during review.
+- source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
+  summary: Document `report:smoke` in the operator CLI doc set (`docs/usage.md`) alongside `validate:smoke`/`run:smoke` — the new script ships with no operator-facing documentation.
+  evidence: Blind-hunter review noted the diff adds the script and tests but no docs entry; the repo maintains a documented CLI walkthrough (docs/usage.md) as the canonical operator surface.
