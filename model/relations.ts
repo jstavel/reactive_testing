@@ -112,6 +112,15 @@ export const relations: ScenarioRelation[] = [
     states: ["historyMain"],
     contracts: ["paginateHistoryNext"],
   },
+  // trade-order-book.feature (Story 5-2, pilot)
+  {
+    scenarioId: "selecting-the-order-book-tab-shows-the-btc-usd-board",
+    feature: "trade-order-book",
+    featureTitle: "Trade order book — selected view",
+    scenarioTitle: "Selecting the Order Book tab shows the BTC/USD board",
+    states: ["orderBook"],
+    contracts: ["clickTradeMenu", "selectOrderBookTab"],
+  },
   {
     scenarioId: "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
     feature: "home-page-portfolio-summary-dialog",

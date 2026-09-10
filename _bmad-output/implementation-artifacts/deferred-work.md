@@ -243,3 +243,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-gh-22-action-locator-drift.md`
   summary: The new locators are unscoped — `button:has(svg[name="ChevronRightSmall"])` (pager) and `getByRole("button", { name: "Yield", exact: true })` (sidebar) match anywhere on the page; a future surface introducing another such control would break strict-mode resolution or click the wrong element. Consider scoping to the pager/sidebar regions when the app grows competing controls.
   evidence: Blind-hunter and edge-case reviews flagged the unscoped selectors; live probe confirmed exactly 1 match each today, so the risk is future drift, not current breakage.
+
+## Deferred from: pilot-run of spec-5-2-order-book-selected-view (2026-09-10)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-order-book-selected-view.md`
+  summary: Non-idempotent / conditional view actions (e.g. "+"-add the Order Book tab) need a state-establishment or runtime-branching mechanism — the static `{stateId, contractId}` model cannot express "do X only when condition Y holds" or "establish state Z before running the scenario." This is the same class of gap as the eye-toggle (`toggleEyeIcon`), the portfolio-value comparison, and the parked state-loading concern (deferred-work.md:87-90); all three are state-dependent outcomes the framework cannot control or branch on today.
+  evidence: Story 5-2 pilot (2026-09-10): the "+"-add action is non-idempotent (creates the tab only when absent) and cannot be a plan step; the scenario uses only the idempotent half (select the existing tab). The conditional-action gap joins the parked state-loading RFE rather than inventing a framework change mid-pilot. Framework capability needed: conditional steps, state-establishment preconditions, or runtime branching over the `{stateId, contractId}` model.

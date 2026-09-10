@@ -71,6 +71,98 @@ describe("validatorMap", () => {
     expect(result.details).toContain("missing snapshot evidence");
   });
 
+  it("view-selected honors a per-predicate probe binding (selected-board-tab)", () => {
+    const bound: ContractEvidence = {
+      pre: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      probes: [{ name: "selected-board-tab", value: "Order book", capturedAt: "t" }],
+    };
+    const validator = validatorsFor("selectOrderBookTab")[0]!;
+
+    expect(validator(bound).passed).toBe(true);
+  });
+
+  it("view-selected corpusRefs name the bound probe, not the default", () => {
+    const bound: ContractEvidence = {
+      pre: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      probes: [{ name: "selected-board-tab", value: "Order book", capturedAt: "t" }],
+    };
+    const result = validatorsFor("selectOrderBookTab")[0]!(bound);
+
+    expect(result.corpusRefs).toEqual(
+      expect.arrayContaining(["probe:selected-board-tab"]),
+    );
+    expect(result.corpusRefs).not.toEqual(
+      expect.arrayContaining(["probe:selected-view"]),
+    );
+  });
+
+  it("clickTradeMenu passes when evidence matches the Trade page", () => {
+    const validator = validatorsFor("clickTradeMenu")[0]!;
+    const result = validator({
+      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
+      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/btc-usd", snapshot: "", capturedAt: "t" },
+      probes: [],
+    });
+
+    expect(result.passed).toBe(true);
+  });
+
+  it("clickTradeMenu fails when the URL is not the BTC/USD trade page", () => {
+    const validator = validatorsFor("clickTradeMenu")[0]!;
+    const result = validator({
+      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
+      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/eth-usd", snapshot: "", capturedAt: "t" },
+      probes: [],
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.details).toContain("url-is");
+  });
+
+  it("view-selected probe binding reads only the bound probe", () => {
+    const unbound: ContractEvidence = {
+      pre: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      probes: [{ name: "selected-view", value: "Order book", capturedAt: "t" }],
+    };
+    const result = validatorsFor("selectOrderBookTab")[0]!(unbound);
+
+    expect(result.passed).toBe(false);
+    expect(result.details).toContain('probe "selected-board-tab"');
+  });
+
   it("reports an empty validator list (gap) for an unknown contractId", () => {
     expect(validatorsFor("nonexistent")).toEqual([]);
   });

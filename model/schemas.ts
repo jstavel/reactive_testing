@@ -148,7 +148,11 @@ export type ValidationResult = z.infer<typeof validationResultSchema>;
 export const contractPredicateSchema = z.discriminatedUnion("assert", [
   z.object({ assert: z.literal("state-is"), stateId: z.string() }),
   z.object({ assert: z.literal("url-is"), url: z.string() }),
-  z.object({ assert: z.literal("view-selected"), view: z.string() }),
+  z.object({
+    assert: z.literal("view-selected"),
+    view: z.string(),
+    probe: z.string().optional(),
+  }),
   z.object({ assert: z.literal("dialog-open") }),
   z.object({ assert: z.literal("dialog-closed") }),
 ]);

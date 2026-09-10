@@ -35,6 +35,14 @@ describe("requiredProbeNames", () => {
     expect(requiredProbeNames("clickHistoryMenuMain")).toEqual(["selected-view"]);
   });
 
+  it("returns the bound probe name when a view-selected predicate binds one (selectOrderBookTab)", () => {
+    expect(requiredProbeNames("selectOrderBookTab")).toEqual(["selected-board-tab"]);
+  });
+
+  it("derives snapshot + probe for the bound order-book contract", () => {
+    expect(corpusDependenciesFor("selectOrderBookTab")).toEqual(["snapshot", "probe"]);
+  });
+
   it("returns [] for a contract without view-selected", () => {
     expect(requiredProbeNames("clickPortfolioMenuEarn")).toEqual([]);
   });

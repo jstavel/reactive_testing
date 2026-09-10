@@ -108,6 +108,33 @@ const homePageContracts: DialogContract[] = [
     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
   },
 
+  // --- Trade menu navigation (Story 5-2, pilot) ---
+  // The Trade board tabs are flexlayout divs, not role=tab anchors — the
+  // selected board's label (e.g. "Order book") lives in the
+  // .flexlayout__tab_button--selected .flexlayout__tab_button_content element,
+  // so the view-selected postcondition binds to the dedicated
+  // "selected-board-tab" probe (live-discovered 2026-09-10), not the sidebar
+  // "selected-view" probe.
+  {
+    contractId: "clickTradeMenu",
+    preconditions: [{ assert: "state-is", stateId: "homePage" }],
+    postconditions: [
+      { assert: "url-is", url: "/app/trade/btc-usd" },
+      { assert: "state-is", stateId: "orderBook" },
+    ],
+    invariants: ["main navigation is visible", "board displays the selected market view"],
+  },
+  {
+    contractId: "selectOrderBookTab",
+    preconditions: [{ assert: "state-is", stateId: "orderBook" }],
+    postconditions: [
+      { assert: "url-is", url: "/app/trade/btc-usd" },
+      { assert: "state-is", stateId: "orderBook" },
+      { assert: "view-selected", view: "Order book", probe: "selected-board-tab" },
+    ],
+    invariants: ["main navigation is visible", "board displays the selected market view"],
+  },
+
   // --- Portfolio Summary dialog ---
   // The un-mappable prose postconditions ("shows total value in USD", "shows
   // sections for…", "values hidden/visible") have no predicate yet — they stay

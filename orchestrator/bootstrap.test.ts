@@ -13,6 +13,15 @@ describe("resolveBootstrapPath", () => {
     ).toEqual(["clickHistoryMenuMain"]);
   });
 
+  it("resolves the Trade order-book scenario from home through clickTradeMenu", () => {
+    expect(
+      resolveBootstrapPath(homePageModel, {
+        currentStateId: "homePage",
+        givenStateId: "orderBook",
+      }).map(({ contractId }) => contractId),
+    ).toEqual(["clickTradeMenu"]);
+  });
+
   it("returns no steps when the current state already satisfies Given", () => {
     expect(
       resolveBootstrapPath(homePageModel, {

@@ -1,0 +1,712 @@
+=== TRACKED CHANGES (git diff 7f9507d -- worktree) ===
+diff --git a/_bmad-output/implementation-artifacts/deferred-work.md b/_bmad-output/implementation-artifacts/deferred-work.md
+index 30cc4d6..0808f52 100644
+--- a/_bmad-output/implementation-artifacts/deferred-work.md
++++ b/_bmad-output/implementation-artifacts/deferred-work.md
+@@ -242,4 +242,10 @@
+ 
+ - source_spec: `_bmad-output/implementation-artifacts/spec-gh-22-action-locator-drift.md`
+   summary: The new locators are unscoped — `button:has(svg[name="ChevronRightSmall"])` (pager) and `getByRole("button", { name: "Yield", exact: true })` (sidebar) match anywhere on the page; a future surface introducing another such control would break strict-mode resolution or click the wrong element. Consider scoping to the pager/sidebar regions when the app grows competing controls.
+-  evidence: Blind-hunter and edge-case reviews flagged the unscoped selectors; live probe confirmed exactly 1 match each today, so the risk is future drift, not current breakage.
+\ No newline at end of file
++  evidence: Blind-hunter and edge-case reviews flagged the unscoped selectors; live probe confirmed exactly 1 match each today, so the risk is future drift, not current breakage.
++
++## Deferred from: pilot-run of spec-5-2-order-book-selected-view (2026-09-10)
++
++- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-order-book-selected-view.md`
++  summary: Non-idempotent / conditional view actions (e.g. "+"-add the Order Book tab) need a state-establishment or runtime-branching mechanism — the static `{stateId, contractId}` model cannot express "do X only when condition Y holds" or "establish state Z before running the scenario." This is the same class of gap as the eye-toggle (`toggleEyeIcon`), the portfolio-value comparison, and the parked state-loading concern (deferred-work.md:87-90); all three are state-dependent outcomes the framework cannot control or branch on today.
++  evidence: Story 5-2 pilot (2026-09-10): the "+"-add action is non-idempotent (creates the tab only when absent) and cannot be a plan step; the scenario uses only the idempotent half (select the existing tab). The conditional-action gap joins the parked state-loading RFE rather than inventing a framework change mid-pilot. Framework capability needed: conditional steps, state-establishment preconditions, or runtime branching over the `{stateId, contractId}` model.
+\ No newline at end of file
+diff --git a/_bmad-output/implementation-artifacts/pilot-backlog.md b/_bmad-output/implementation-artifacts/pilot-backlog.md
+index d5ed4c7..3ee9967 100644
+--- a/_bmad-output/implementation-artifacts/pilot-backlog.md
++++ b/_bmad-output/implementation-artifacts/pilot-backlog.md
+@@ -9,4 +9,17 @@ story. Entries follow the deferred-work entry format (`source_spec` / `summary`
+ 
+ - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-history-filter-pagination.md`
+   summary: No way to share a parameter value (e.g. the list of assets in the History Assets filter) across scenarios. A `TestPlan` scenario is only `{ id, steps }` with `{ stateId, contractId }` steps (`model/schemas.ts`), so a value used by several scenarios — the lifecycle keyed by a contract — must be duplicated inline in every scenario. The Escalating intent is a data-parameter slot shared across scenarios ("check every asset in the list"), which the current model cannot express.
+-  evidence: Scenario discussion (2026-09-07): user proposed "Then a list of assets with checkboxes is shown" followed by a later scenario "When I check asset for every one in the list then the app shows just the right asset items" — the list is meant to be wired once and reused. Live probe confirms the filter is a contract within `historyMain` (URL unchanged); `ScenarioStep`/`ScenarioPath`/`TestPlan` in `model/schemas.ts` carry no parameter field, and `model/contracts.ts` `DialogContract` has no parameterized contract shape. Gherkin `Scenario Outline`/`Examples` would be silently skipped by `reporter/gherkin-snapshot.ts` `extractScenario` (already a latent gap in deferred-work.md). Escalate: parameterized scenarios / data parameters shared across scenarios, when framework capabilities can be built.
+\ No newline at end of file
++  evidence: Scenario discussion (2026-09-07): user proposed "Then a list of assets with checkboxes is shown" followed by a later scenario "When I check asset for every one in the list then the app shows just the right asset items" — the list is meant to be wired once and reused. Live probe confirms the filter is a contract within `historyMain` (URL unchanged); `ScenarioStep`/`ScenarioPath`/`TestPlan` in `model/schemas.ts` carry no parameter field, and `model/contracts.ts` `DialogContract` has no parameterized contract shape. Gherkin `Scenario Outline`/`Examples` would be silently skipped by `reporter/gherkin-snapshot.ts` `extractScenario` (already a latent gap in deferred-work.md). Escalate: parameterized scenarios / data parameters shared across scenarios, when framework capabilities can be built.
++
++# Pilot Backlog — Story 5-2 (Order Book / Selected View)
++
++Friction points encountered while authoring `features/trade-order-book.feature`
++as a first-time operator (add-only, read-only). Doc-caused items close in-story via
++doc edits; framework-caused items escalate to `deferred-work.md` as their own later
++story. Entries follow the deferred-work entry format (`source_spec` / `summary` / `evidence`).
++
++## Framework-caused → escalate to deferred-work.md
++
++- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-order-book-selected-view.md`
++  summary: The "+"-add action (adding the Order Book tab to the Favorites bar) is non-idempotent — it creates the tab only when absent and has no effect when the tab already exists. The current `{stateId, contractId}` model has no mechanism to express conditional or state-dependent actions (create-or-affirm), so the "+"-add step cannot be a plan step. The scenario must use only the idempotent half (selecting the existing tab), and the "+"-add becomes an operator run-protocol precondition documented in `docs/usage.md`.
++  evidence: Spec discovery (2026-09-10): Jan confirmed the "+"-add is offered only when the tab is absent, making it non-deterministic for the static model. The scenario selects the existing Order Book tab (idempotent) and asserts `view-selected`. This is the same class of gap as the eye-toggle (`toggleEyeIcon`) and the parked state-loading concern (deferred-work.md:87-90) — all three are state-dependent outcomes the framework cannot control or branch on. Escalation filed in deferred-work.md.
+\ No newline at end of file
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index c0041cf..025a840 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -29,7 +29,7 @@
+ # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+ # - Retrospective appends its action items to action_items; the status view surfaces open ones
+ generated: 08-19-2026 19:58
+-last_updated: 09-08-2026
++last_updated: 09-10-2026
+ project: reactive-testing
+ project_key: NOKEY
+ tracking_system: file-system
+@@ -70,7 +70,7 @@ development_status:
+ 
+   epic-5: in-progress
+   5-1-history-filter-pagination: done
+-  5-2-order-book-selected-view: backlog
++  5-2-order-book-selected-view: in-progress
+   5-3-portfolio-summary-eye-toggle: backlog
+ action_items:
+   - id: "epic-1-retro-item-1-add-layout-menu-state-contract-to-model"
+diff --git a/bin/run-smoke.ts b/bin/run-smoke.ts
+index 5611431..5e06d7a 100644
+--- a/bin/run-smoke.ts
++++ b/bin/run-smoke.ts
+@@ -35,6 +35,15 @@ const config: OrchestratorConfig = {
+   // value there rather than a collection gap.
+   probes: [
+     { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
++    // Board-tab probe (Story 5-2, live-discovered 2026-09-10): the Trade page's
++    // board tabs are flexlayout divs (no role=tab / aria-current); the active
++    // board is .flexlayout__tab_button--selected with its label in the content
++    // node. selectOrderBookTab binds view-selected to this probe.
++    {
++      name: "selected-board-tab",
++      selector: ".flexlayout__tab_button--selected .flexlayout__tab_button_content",
++      optional: true,
++    },
+   ],
+   cdpUrl: "http://127.0.0.1:9222",
+   stepTimeout: 20_000,
+diff --git a/docs/usage.md b/docs/usage.md
+index ea3eac7..7f48f2e 100644
+--- a/docs/usage.md
++++ b/docs/usage.md
+@@ -23,6 +23,13 @@ This is how you actually use the testware, in the order you'll do it.
+ npm run run:smoke
+ ```
+ 
++**Run-protocol precondition (Trade / Order Book):** before a smoke run that
++includes the Order Book scenario, ensure the **Order Book** tab is present in
++the Favorites bar on the Trade page. The "+"-add action is non-idempotent (it
++creates the tab only when absent) and is excluded from plan steps. Add the tab
++manually via the "+" button, then re-run. A scenario whose precondition is
++violated fails fast with an actionable message — it never silently passes.
++
+ To re-run only selected scenarios, pass their exact ids after npm's `--` forwarding separator:
+ 
+ ```bash
+diff --git a/model/contracts.ts b/model/contracts.ts
+index 8f8f6b6..c07fc65 100644
+--- a/model/contracts.ts
++++ b/model/contracts.ts
+@@ -108,6 +108,33 @@ const homePageContracts: DialogContract[] = [
+     invariants: ["main navigation is visible", "portfolio value is displayed in the header"],
+   },
+ 
++  // --- Trade menu navigation (Story 5-2, pilot) ---
++  // The Trade board tabs are flexlayout divs, not role=tab anchors — the
++  // selected board's label (e.g. "Order book") lives in the
++  // .flexlayout__tab_button--selected .flexlayout__tab_button_content element,
++  // so the view-selected postcondition binds to the dedicated
++  // "selected-board-tab" probe (live-discovered 2026-09-10), not the sidebar
++  // "selected-view" probe.
++  {
++    contractId: "clickTradeMenu",
++    preconditions: [{ assert: "state-is", stateId: "homePage" }],
++    postconditions: [
++      { assert: "url-is", url: "/app/trade/btc-usd" },
++      { assert: "state-is", stateId: "orderBook" },
++    ],
++    invariants: ["main navigation is visible", "board displays the selected market view"],
++  },
++  {
++    contractId: "selectOrderBookTab",
++    preconditions: [{ assert: "state-is", stateId: "orderBook" }],
++    postconditions: [
++      { assert: "url-is", url: "/app/trade/btc-usd" },
++      { assert: "state-is", stateId: "orderBook" },
++      { assert: "view-selected", view: "Order book", probe: "selected-board-tab" },
++    ],
++    invariants: ["main navigation is visible", "board displays the selected market view"],
++  },
++
+   // --- Portfolio Summary dialog ---
+   // The un-mappable prose postconditions ("shows total value in USD", "shows
+   // sections for…", "values hidden/visible") have no predicate yet — they stay
+diff --git a/model/fsm.ts b/model/fsm.ts
+index 4ec3cf6..4adc16c 100644
+--- a/model/fsm.ts
++++ b/model/fsm.ts
+@@ -52,6 +52,9 @@ const states: FsmState[] = [
+   { stateId: "portfolioFutures", label: "Portfolio — Futures" },
+   { stateId: "portfolioLoans", label: "Portfolio — Loans" },
+ 
++  // Trade page states (reached from Home Page via navigation menu)
++  { stateId: "orderBook", label: "Trade — Order Book" },
++
+   // Standalone pages (reached from Home Page via navigation menu)
+   { stateId: "earn", label: "Earn" },
+ ];
+@@ -66,6 +69,10 @@ const transitions: FsmTransition[] = [
+   { from: "historyMain", to: "historyMain", contractId: "filterHistoryByAsset" },
+   { from: "historyMain", to: "historyMain", contractId: "paginateHistoryNext" },
+ 
++  // Trade page UI actions (Story 5-2, pilot — self-loop: tab selection changes
++  // the visible panel, not the URL or the FSM state)
++  { from: "orderBook", to: "orderBook", contractId: "selectOrderBookTab" },
++
+   // Portfolio menu → Portfolio page states
+   { from: "homePage", to: "portfolioOverview", contractId: "clickPortfolioMenuOverview" },
+   { from: "homePage", to: "portfolioMain", contractId: "clickPortfolioMenuMain" },
+@@ -73,6 +80,9 @@ const transitions: FsmTransition[] = [
+   { from: "homePage", to: "portfolioLoans", contractId: "clickPortfolioMenuLoans" },
+   { from: "homePage", to: "earn", contractId: "clickPortfolioMenuEarn" },
+ 
++  // Trade menu → Order Book (Story 5-2, pilot)
++  { from: "homePage", to: "orderBook", contractId: "clickTradeMenu" },
++
+   // Portfolio Summary dialog (nested state — self-loops on homePage)
+   { from: "homePage", to: "portfolioSummaryDialog", contractId: "openPortfolioSummary" },
+   { from: "portfolioSummaryDialog", to: "homePage", contractId: "closePortfolioSummary" },
+@@ -85,6 +95,7 @@ const transitions: FsmTransition[] = [
+   { from: "portfolioFutures", to: "homePage", contractId: "navigateHome" },
+   { from: "portfolioLoans", to: "homePage", contractId: "navigateHome" },
+   { from: "earn", to: "homePage", contractId: "navigateHome" },
++  { from: "orderBook", to: "homePage", contractId: "navigateHome" },
+ 
+   // Eye toggle (dialog self-loop — UI change only, no URL transition)
+   { from: "portfolioSummaryDialog", to: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },
+diff --git a/model/relations.ts b/model/relations.ts
+index e55f2b7..a44fa5a 100644
+--- a/model/relations.ts
++++ b/model/relations.ts
+@@ -112,6 +112,15 @@ export const relations: ScenarioRelation[] = [
+     states: ["historyMain"],
+     contracts: ["paginateHistoryNext"],
+   },
++  // trade-order-book.feature (Story 5-2, pilot)
++  {
++    scenarioId: "selecting-the-order-book-tab-shows-the-btc-usd-board",
++    feature: "trade-order-book",
++    featureTitle: "Trade order book — selected view",
++    scenarioTitle: "Selecting the Order Book tab shows the BTC/USD board",
++    states: ["orderBook"],
++    contracts: ["clickTradeMenu", "selectOrderBookTab"],
++  },
+   {
+     scenarioId: "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
+     feature: "home-page-portfolio-summary-dialog",
+diff --git a/model/schemas.ts b/model/schemas.ts
+index e30916d..a5d356e 100644
+--- a/model/schemas.ts
++++ b/model/schemas.ts
+@@ -148,7 +148,11 @@ export type ValidationResult = z.infer<typeof validationResultSchema>;
+ export const contractPredicateSchema = z.discriminatedUnion("assert", [
+   z.object({ assert: z.literal("state-is"), stateId: z.string() }),
+   z.object({ assert: z.literal("url-is"), url: z.string() }),
+-  z.object({ assert: z.literal("view-selected"), view: z.string() }),
++  z.object({
++    assert: z.literal("view-selected"),
++    view: z.string(),
++    probe: z.string().optional(),
++  }),
+   z.object({ assert: z.literal("dialog-open") }),
+   z.object({ assert: z.literal("dialog-closed") }),
+ ]);
+diff --git a/model/smoke.test-plan.ts b/model/smoke.test-plan.ts
+index 1dbe0b0..4a15d3d 100644
+--- a/model/smoke.test-plan.ts
++++ b/model/smoke.test-plan.ts
+@@ -4,12 +4,17 @@
+ // Regenerated for the test-run report (Story 1) after schemas.ts gained RunMetadata.
+ // Regenerated (Story 3) after schemas.ts gained StepEvidence.
+ // Regenerated (corpus handoff links) after schemas.ts gained RunResult.runId.
++// Regenerated (Story 5-2) after contracts.ts bound selectOrderBookTab's
++// view-selected to the selected-board-tab probe and schemas.ts gained the
++// view-selected probe binding field.
++// Regenerated (Story 5-2 review) after contracts.ts pinned selectOrderBookTab's
++// url-is postcondition and corrected the Trade-contract invariants.
+ 
+ import type { TestPlan } from "./schemas.js";
+ 
+ export const smokeTestPlan: TestPlan = {
+   planId: "smoke",
+-  modelVersion: "3b97cf8bac9b75c53891f62d5ae4f56ad3a5a8b075e15154ecd2a3abf11a901b",
++  modelVersion: "832c258f35e4e6806e2d1fd731b3df2ca0f3f44d8ffd96b8c8c6315ccaee0c6c",
+   scenarios: [
+     // home-page-history-menu.feature
+     {
+@@ -77,5 +82,11 @@ export const smokeTestPlan: TestPlan = {
+       id: "paginating-to-the-next-ledger-page",
+       steps: [{ stateId: "historyMain", contractId: "paginateHistoryNext" }],
+     },
++    // trade-order-book.feature
++    {
++      id: "selecting-the-order-book-tab-shows-the-btc-usd-board",
++      givenStateId: "orderBook",
++      steps: [{ stateId: "orderBook", contractId: "selectOrderBookTab" }],
++    },
+   ],
+ };
+diff --git a/orchestrator/action-map.test.ts b/orchestrator/action-map.test.ts
+index 07ca899..57529f4 100644
+--- a/orchestrator/action-map.test.ts
++++ b/orchestrator/action-map.test.ts
+@@ -115,11 +115,55 @@ describe("actionMap drifted entries (gh-22)", () => {
+     expect(page.click).toHaveBeenCalledTimes(1);
+     expect(page.waitForURL).not.toHaveBeenCalled();
+   });
++
++  it("clickTradeMenu clicks the Trade sidebar button and waits for /app/trade/btc-usd", async () => {
++    const page = makePage();
++
++    await actionMap.clickTradeMenu!({ page: page as unknown as Page });
++
++    expect(page.getByRole).toHaveBeenCalledTimes(1);
++    expect(page.getByRole).toHaveBeenCalledWith("button", { name: "Trade", exact: true });
++    expect(page.click).toHaveBeenCalledTimes(1);
++    expect(page.waitForURL).toHaveBeenCalledTimes(1);
++    expect(page.waitForURL).toHaveBeenCalledWith("**/app/trade/btc-usd");
++  });
++
++  it("selectOrderBookTab clicks the Order Book tab when present", async () => {
++    const page = makePage();
++    const tab = { click: vi.fn(async () => {}) };
++    const count = vi.fn(async () => 1);
++    page.locator = vi.fn(() => ({ count, first: () => tab })) as never;
++
++    await actionMap.selectOrderBookTab!({ page: page as unknown as Page });
++
++    expect(page.locator).toHaveBeenCalledWith(".flexlayout__tab_button", { hasText: "Order book" });
++    expect(tab.click).toHaveBeenCalledTimes(1);
++  });
++
++  it("selectOrderBookTab throws when Order Book tab is absent", async () => {
++    const page = makePage();
++    const count = vi.fn(async () => 0);
++    page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
++
++    await expect(
++      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
++    ).rejects.toThrow(/Order Book tab not found/);
++  });
++
++  it("selectOrderBookTab throws when multiple Order Book tabs match (duplicate precondition)", async () => {
++    const page = makePage();
++    const count = vi.fn(async () => 2);
++    page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
++
++    await expect(
++      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
++    ).rejects.toThrow(/Found 2 tabs matching "Order book"/);
++  });
+ });
+ 
+ describe("actionMap parity", () => {
+-  it("has exactly 13 entries: one per seeded contract, no extras", () => {
+-    expect(Object.keys(actionMap)).toHaveLength(13);
++  it("has exactly 15 entries: one per seeded contract, no extras", () => {
++    expect(Object.keys(actionMap)).toHaveLength(15);
+   });
+ 
+   it("maps every seeded contractId to an entry", () => {
+diff --git a/orchestrator/action-map.ts b/orchestrator/action-map.ts
+index b0a45fe..cdbba59 100644
+--- a/orchestrator/action-map.ts
++++ b/orchestrator/action-map.ts
+@@ -123,6 +123,46 @@ export const actionMap: Record<string, ContractAction> = {
+       .click();
+   },
+ 
++  clickTradeMenu: async ({ page }) => {
++    // Trade menu navigation (Story 5-2, live-discovered 2026-09-10): the sidebar
++    // "Trade" button (exact accessible name "Trade"; the only such button on the
++    // home page) navigates to the Trade page at /app/trade/btc-usd.
++    await page.getByRole("button", { name: "Trade", exact: true }).click();
++    await page.waitForURL("**/app/trade/btc-usd");
++  },
++
++  selectOrderBookTab: async ({ page }) => {
++    // Order Book tab selection (Story 5-2, pilot): the idempotent half of the
++    // order-book interaction — clicking the existing tab in the Favorites bar.
++    // The "+"-add action is non-idempotent and excluded from plan steps per the
++    // spec; the operator establishes the precondition (tab present) via the run
++    // protocol before the scenario runs.
++    //
++    // Live-discovered 2026-09-10: the board tabs are flexlayout DIVs, not
++    // role=tab anchors — the label ("Order book") sits in the
++    // .flexlayout__tab_button_content node, and the active board is marked with
++    // .flexlayout__tab_button--selected. Scoped by class + label text.
++    //
++    // TAB_ABSENT precondition: fail fast with an actionable message when the tab
++    // is not in the Favorites bar — deterministic failure, never a silent pass.
++    const tab = page.locator(".flexlayout__tab_button", { hasText: "Order book" });
++    const count = await tab.count();
++    if (count === 0) {
++      throw new Error(
++        'Order Book tab not found in the Favorites bar. ' +
++        'Run-protocol precondition: add the Order Book tab via the "+" button, ' +
++        'then re-run this scenario.',
++      );
++    }
++    if (count > 1) {
++      throw new Error(
++        `Found ${count} tabs matching "Order book"; expected exactly one. ` +
++        "Deterministic fail — duplicate tabs violate the single-board precondition.",
++      );
++    }
++    await tab.first().click();
++  },
++
+   navigateHome: async ({ page }) => {
+     await page.getByRole("button", { name: "Home", exact: true }).click();
+     await page.waitForURL("**/app/home");
+diff --git a/orchestrator/bootstrap.test.ts b/orchestrator/bootstrap.test.ts
+index 36c9da2..ebceb8b 100644
+--- a/orchestrator/bootstrap.test.ts
++++ b/orchestrator/bootstrap.test.ts
+@@ -13,6 +13,15 @@ describe("resolveBootstrapPath", () => {
+     ).toEqual(["clickHistoryMenuMain"]);
+   });
+ 
++  it("resolves the Trade order-book scenario from home through clickTradeMenu", () => {
++    expect(
++      resolveBootstrapPath(homePageModel, {
++        currentStateId: "homePage",
++        givenStateId: "orderBook",
++      }).map(({ contractId }) => contractId),
++    ).toEqual(["clickTradeMenu"]);
++  });
++
+   it("returns no steps when the current state already satisfies Given", () => {
+     expect(
+       resolveBootstrapPath(homePageModel, {
+diff --git a/validators/dependencies.test.ts b/validators/dependencies.test.ts
+index c895f0a..1218ec3 100644
+--- a/validators/dependencies.test.ts
++++ b/validators/dependencies.test.ts
+@@ -35,6 +35,14 @@ describe("requiredProbeNames", () => {
+     expect(requiredProbeNames("clickHistoryMenuMain")).toEqual(["selected-view"]);
+   });
+ 
++  it("returns the bound probe name when a view-selected predicate binds one (selectOrderBookTab)", () => {
++    expect(requiredProbeNames("selectOrderBookTab")).toEqual(["selected-board-tab"]);
++  });
++
++  it("derives snapshot + probe for the bound order-book contract", () => {
++    expect(corpusDependenciesFor("selectOrderBookTab")).toEqual(["snapshot", "probe"]);
++  });
++
+   it("returns [] for a contract without view-selected", () => {
+     expect(requiredProbeNames("clickPortfolioMenuEarn")).toEqual([]);
+   });
+diff --git a/validators/dependencies.ts b/validators/dependencies.ts
+index 569e0fc..b9c0cd3 100644
+--- a/validators/dependencies.ts
++++ b/validators/dependencies.ts
+@@ -37,13 +37,20 @@ export function corpusDependenciesFor(contractId: string): CollectorName[] {
+ }
+ 
+ /** The probe names a contract's predicates require by name (for the pre-flight
+- * probe-config check). Currently only `view-selected` requires `selected-view`. */
++ * probe-config check). `view-selected` names its probe — `selected-view` by
++ * default, or an explicit per-predicate `probe` binding (Story 5-2). */
+ export function requiredProbeNames(contractId: string): string[] {
+   const contract = allContracts.find((c) => c.contractId === contractId);
+   if (!contract) return [];
+ 
+-  const needsView = [...contract.preconditions, ...contract.postconditions].some(
+-    (p) => p.assert === "view-selected",
+-  );
+-  return needsView ? ["selected-view"] : [];
++  const probeNames = new Set<string>();
++  for (const predicate of [
++    ...contract.preconditions,
++    ...contract.postconditions,
++  ]) {
++    if (predicate.assert === "view-selected") {
++      probeNames.add(predicate.probe ?? "selected-view");
++    }
++  }
++  return [...probeNames];
+ }
+diff --git a/validators/validator-map.test.ts b/validators/validator-map.test.ts
+index 6d6d368..814f7e9 100644
+--- a/validators/validator-map.test.ts
++++ b/validators/validator-map.test.ts
+@@ -71,6 +71,98 @@ describe("validatorMap", () => {
+     expect(result.details).toContain("missing snapshot evidence");
+   });
+ 
++  it("view-selected honors a per-predicate probe binding (selected-board-tab)", () => {
++    const bound: ContractEvidence = {
++      pre: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      post: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      probes: [{ name: "selected-board-tab", value: "Order book", capturedAt: "t" }],
++    };
++    const validator = validatorsFor("selectOrderBookTab")[0]!;
++
++    expect(validator(bound).passed).toBe(true);
++  });
++
++  it("view-selected corpusRefs name the bound probe, not the default", () => {
++    const bound: ContractEvidence = {
++      pre: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      post: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      probes: [{ name: "selected-board-tab", value: "Order book", capturedAt: "t" }],
++    };
++    const result = validatorsFor("selectOrderBookTab")[0]!(bound);
++
++    expect(result.corpusRefs).toEqual(
++      expect.arrayContaining(["probe:selected-board-tab"]),
++    );
++    expect(result.corpusRefs).not.toEqual(
++      expect.arrayContaining(["probe:selected-view"]),
++    );
++  });
++
++  it("clickTradeMenu passes when evidence matches the Trade page", () => {
++    const validator = validatorsFor("clickTradeMenu")[0]!;
++    const result = validator({
++      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
++      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/btc-usd", snapshot: "", capturedAt: "t" },
++      probes: [],
++    });
++
++    expect(result.passed).toBe(true);
++  });
++
++  it("clickTradeMenu fails when the URL is not the BTC/USD trade page", () => {
++    const validator = validatorsFor("clickTradeMenu")[0]!;
++    const result = validator({
++      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
++      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/eth-usd", snapshot: "", capturedAt: "t" },
++      probes: [],
++    });
++
++    expect(result.passed).toBe(false);
++    expect(result.details).toContain("url-is");
++  });
++
++  it("view-selected probe binding reads only the bound probe", () => {
++    const unbound: ContractEvidence = {
++      pre: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      post: {
++        stateId: "orderBook",
++        url: "https://pro.kraken.com/app/trade/btc-usd",
++        snapshot: "",
++        capturedAt: "t",
++      },
++      probes: [{ name: "selected-view", value: "Order book", capturedAt: "t" }],
++    };
++    const result = validatorsFor("selectOrderBookTab")[0]!(unbound);
++
++    expect(result.passed).toBe(false);
++    expect(result.details).toContain('probe "selected-board-tab"');
++  });
++
+   it("reports an empty validator list (gap) for an unknown contractId", () => {
+     expect(validatorsFor("nonexistent")).toEqual([]);
+   });
+diff --git a/validators/validator-map.ts b/validators/validator-map.ts
+index de64338..d6493fa 100644
+--- a/validators/validator-map.ts
++++ b/validators/validator-map.ts
+@@ -50,12 +50,13 @@ function evaluate(
+       return { passed: true, detail: "" };
+     }
+     case "view-selected": {
+-      const probe = probes.find((p) => p.name === "selected-view");
++      const probeName = predicate.probe ?? "selected-view";
++      const probe = probes.find((p) => p.name === probeName);
+       const value = (probe?.value ?? "").trim().toLowerCase();
+       if (value !== predicate.view.toLowerCase()) {
+         return {
+           passed: false,
+-          detail: `view-selected "${predicate.view}" but selected view is "${value || "(none)"}"`,
++          detail: `view-selected "${predicate.view}" (probe "${probeName}") but selected view is "${value || "(none)"}"`,
+         };
+       }
+       return { passed: true, detail: "" };
+@@ -97,10 +98,11 @@ function validateContract(contract: DialogContract, evidence: ContractEvidence):
+     if (!r.passed) failures.push(`[postcondition] ${r.detail}`);
+   }
+ 
+-  const usesProbe = [...contract.preconditions, ...contract.postconditions].some(
+-    (p) => p.assert === "view-selected",
+-  );
+-  if (usesProbe) refs.add("probe:selected-view");
++  for (const predicate of [...contract.preconditions, ...contract.postconditions]) {
++    if (predicate.assert === "view-selected") {
++      refs.add(`probe:${predicate.probe ?? "selected-view"}`);
++    }
++  }
+ 
+   return {
+     contractId: contract.contractId,
+
+=== UNTRACKED: features/trade-order-book.feature ===
+@plan:smoke
+Feature: Trade order book — selected view
+
+  # First-time-operator pilot (Story 5-2): select the Order Book tab on the
+  # Trade page and verify it becomes the selected view. Read-only scope — no
+  # order execution, no numeric bid/ask value assertions. BTC/USD only.
+  #
+  # NOTE (operator precondition): the Order Book tab must be present in the
+  # Favorites bar before the run. The "+"-add action is non-idempotent and is
+  # excluded from plan steps — it is an operator run-protocol precondition
+  # (see docs/usage.md §1). The scenario selects the existing tab (idempotent:
+  # clicking the active tab leaves it selected) and asserts the view-selected
+  # postcondition.
+
+  Scenario: Selecting the Order Book tab shows the BTC/USD board
+    Given I am on the Trade page for BTC/USD
+    When I select the Order book tab in the Favorites bar
+    Then the selected view reads "Order book"
+    And the URL remains on the Trade page
+
+=== UNTRACKED: spec-5-2-order-book-selected-view.md ===
+---
+title: 'Pilot Story 2 — Order Book / Selected View Scenario (BTC/USD)'
+type: 'feature'
+created: '2026-09-10'
+status: 'in-review'
+baseline_commit: '7f9507d830d5e380845ab17cd3ea973eecf2cf39'
+review_loop_iteration: 0
+context:
+  - _bmad-output/implementation-artifacts/epic-5-context.md
+  - _bmad-output/implementation-artifacts/spec-5-1-history-filter-pagination.md
+  - docs/usage.md
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+**Problem:** The pilot (Epic 5) needs a second read-only scenario on a different surface; the order-book / selected-view surface is named but never modeled. Jan discovered at kickoff that the add-order-book action is not idempotent, so the scenario must use the deterministic half of the interaction.
+
+**Approach:** Author an add-only, BTC/USD-only scenario on the Trade page: the Order Book is a tab in the "Favorites" tab bar; the scenario selects the existing Order Book tab and asserts it becomes the selected view. The non-idempotent "+"-add action becomes an operator run-protocol precondition (docs/usage.md) and is escalated to deferred-work.md as a framework gap (same class as `toggleEyeIcon` and the parked state-loading concern). Live CDP discovery pins the concrete locators/labels; the story runs all three pilot caps (CAP-1 author, CAP-2 backlog, CAP-3 docs).
+
+## Boundaries & Constraints
+
+**Always:** Authoring is ADD-ONLY — new FSM state `orderBook` + nav contract + view-select contract; never fix existing model states, features, contracts, or behavior. Read-only scope (NFR-3); no order execution, no numeric bid/ask value assertions. BTC/USD pair only, English only, valid `@plan:smoke` tag. Scenario step must be the idempotent action (select the Order Book tab); the "+"-add step is never a plan step.
+
+**Ask First:** HALT if live discovery contradicts the pinned use case — wrong surface (Trade page absent / differently labeled), no "Favorites" tab bar with an Order Book tab, a `selected-view` probe value that is not the Order Book tab, or a URL path that is not `/app/trade…` (accept the discovered value, then confirm ladder). Also confirm the discovered tab label value used as the `view-selected` view string.
+
+**Never:** "+"-add as an executable step; fixing/deleting existing model entries; new framework capabilities (runtime branching, state establishment, conditional steps); new predicate types or validator code; asserting bid/ask prices or magnitudes; Gherkin `Scenario Outline`/`Examples` (silently skipped by the reporter); implementing the open retro items (epic-3 item-7/8/10, epic-4 item-5).
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| HAPPY_PATH | Trade page, Order Book tab present in Favorites bar | clicking the Order Book tab → selected view reads "Order Book", URL stays on `/app/trade…`, post snapshot records the board | N/A |
+| TAB_ABSENT | Order Book tab not in Favorites bar (operator precondition violated) | scenario FAILs fast at the select action with an actionable message | message names the run-protocol precondition (add the tab via "+" then re-run) — deterministic failure, never a silent pass |
+| NAV_DRIFT | `clickTradeMenu` locator stale / menu renamed | bootstrap (setup) fails; scenario marked setup-failed, run continues | setup failure surfaced via `[SETUP FAIL]`; spec-treated as app/locator drift to investigate, not adjudicated silently |
+| VIEW_PROBE_EMPTY | active tab lacks `aria-current="page"` match | `view-selected` check fails with clear details | record actual probe value in details ("selected view is …") |
+| MULTI_PATH | homePage → orderBook has >1 shortest path | no — only the seed nav contract exists today; if a review adds another, `resolveBootstrapPath` rejects and forces a `route` override | reject, do not guess |
+
+</frozen-after-approval>
+
+## Renegotiation Overrides (approved 2026-09-10)
+
+Renegotiated by Jan during implementation (decision [B]); recorded so the frozen block reads consistent with reality without editing it.
+
+- **Frozen Never ("new predicate types or validator code")** → approved exception: `view-selected` gained an optional `probe?` field and `validator-map.ts`/`dependencies.ts` changed to honor per-predicate probe binding. Fully documented in the Spec Change Log (2026-09-10 implementation entry).
+- **Frozen matrix row `VIEW_PROBE_EMPTY`** → the row was written against the pre-discovery `a[role="tab"][aria-current="page"]` assumption, which live discovery disproved (flexlayout divs, `--selected` class). Corrected meaning: the bound `selected-board-tab` probe yields empty/none (or is unpopulated) → the `view-selected` check fails with the actual probe value in the details ("selected view is …"). Behavior unchanged; wording now matches the pinned reality.
+
+## Code Map
+
+- `model/fsm.ts` -- states `:41-56` + transitions `:58-91`; ADD a new state `{ stateId: "orderBook", label: … }` and transitions `{ from: "homePage", to: "orderBook", contractId: "clickTradeMenu" }` + `{ from: "orderBook", to: "homePage", contractId: "navigateHome" }` (navigateHome transition already exists at `:58-91` per target — add the orderBook→homePage row). Model edit → `computeModelVersion()` bumps → plan must be regenerated (`model/model-version.test.ts` guard).
+- `model/contracts.ts` -- `DialogContract` shape `:17-26`; `homePageContracts` array `:32-142`. ADD nav contract `clickTradeMenu` (preconditions `[{state-is, homePage}]`, postconditions `[{state-is, orderBook}, {url-is, "/app/trade/btc-usd"}]`, invariants `["main navigation is visible", "board displays the selected market view"]`) and self-loop `selectOrderBookTab` (preconditions `[{state-is, orderBook}]`, postconditions `[{state-is, orderBook}, {url-is, "/app/trade/btc-usd"}, {view-selected, view: "Order book", probe: "selected-board-tab"}]`, invariants same). The `view-selected` predicate gained an optional `probe?` binding field (decision [B], 2026-09-10) so each view surface reads its own probe: `selected-view` (sidebar, default) vs `selected-board-tab` (flexlayout board). URL-hidden board shape is recorded evidence (snapshot), never asserted numerically.
+- `orchestrator/action-map.ts` -- register `clickTradeMenu` (sidebar button, `getByRole("button", { name: "Trade", exact: true })`, live-verified single match) and `selectOrderBookTab` (`.flexlayout__tab_button` scoped by `{ hasText: "Order book" }`, live-discovered 2026-09-10). Locators are OUTSIDE the model hash — no version bump on edit. Live-discovered, never guessed (AD-4).
+- `orchestrator/bootstrap.ts` `resolveBootstrapPath :12-89` -- auto-navigates `homePage → orderBook` via `clickTradeMenu` for the scenario's `givenStateId` (no plan change needed for bootstrap).
+- `bin/run-smoke.ts` -- `config.probes` ships `selected-view: a[role="tab"][aria-current="page"]` (optional, unchanged — load-bearing for the Portfolio `view-selected` contracts) PLUS the new `selected-board-tab: .flexlayout__tab_button--selected .flexlayout__tab_button_content` probe (live-discovered 2026-09-10: the Trade board tabs are flexlayout divs, no `role=tab`/`aria-current`). The orchestrator's dependency planning (`validators/dependencies.ts`) maps `view-selected` → probe by name.
+- `model/schemas.ts` `:229-250,347-374` -- `ScenarioPath`/`ScenarioStep`; scenario entry uses `givenStateId: "orderBook"` + one step `{ stateId: "orderBook", contractId: "selectOrderBookTab" }`; `route` override only if `resolveBootstrapPath` reports a multi-path (it won't today).
+- `model/relations.ts` -- add `ScenarioRelation` for the new scenario (scenarioId, `feature: "trade-order-book"`, featureTitle, scenarioTitle, `states: ["orderBook"]`, `contracts: ["clickTradeMenu", "selectOrderBookTab"]`). Keep scenarioId = kebab of scenarioTitle (deferred-work F4 note).
+- `model/smoke.test-plan.ts` -- REGENERATE (never hand-edit); header `:1-6` documents that; `modelVersion` must equal `computeModelVersion()` (test guard).
+- `features/trade-order-book.feature` -- NEW Gherkin, `@plan:smoke`; notes carry the operator precondition + the idempotency rationale (pattern: `features/history-filter-pagination.feature:8-11`).
+- `docs/usage.md` -- §1 "Record a corpus (live)": add the order-book run-protocol precondition (Order Book tab present in Favorites bar before the run).
+- `_bmad-output/implementation-artifacts/pilot-backlog.md` -- add Story 5-2 section recording the "+"-add non-idempotency friction (CAP-2).
+- `_bmad-output/implementation-artifacts/deferred-work.md` -- add the escalation for conditional/non-idempotent view actions, referencing the parked state-loading entry at `:87-90`.
+
+## Tasks & Acceptance
+
+**Execution:**
+
+- [x] Live CDP discovery (against authenticated browser) -- pin the Trade sidebar menu locator/label, the `/app/trade…` URL, the Favorites-bar Order Book tab locator/label, and the active-tab `selected-view` probe value; record findings in the spec change log -- never guess locators (AD-4)
+- [x] `model/fsm.ts` -- ADD `orderBook` state + `clickTradeMenu` transition (homePage→orderBook) + `navigateHome` row (orderBook→homePage) -- add-only seed extension
+- [x] `model/contracts.ts` -- ADD `clickTradeMenu` + `selectOrderBookTab` DialogContract entries with the pinned predicates -- machine-typed behavioral contract
+- [x] `orchestrator/action-map.ts` -- ADD live-discovered locators for both contracts -- locate/act on the real DOM
+- [x] `features/trade-order-book.feature` -- NEW feature: single scenario "Selecting the Order Book tab shows the BTC/USD board", `@plan:smoke`, with precondition NOTE -- CAP-1 primary deliverable
+- [x] `model/relations.ts` -- ADD ScenarioRelation for the new scenario -- keep relation↔model sync
+- [x] `model/smoke.test-plan.ts` -- REGENERATE with `givenStateId: "orderBook"` step -- modelVersion must match `computeModelVersion()`
+- [x] `docs/usage.md` -- ADD order-book run-protocol precondition under §1 -- CAP-3 doc close
+- [x] `pilot-backlog.md` -- ADD Story 5-2 friction entry (CAP-2)
+- [x] `deferred-work.md` -- ADD escalation: non-idempotent/conditional view actions need a state-establishment or runtime-branching mechanism; link to parked state-loading item -- framework gap filed, not papered over
+
+**Acceptance Criteria:**
+
+- Given the authoring-example walkthrough, when a new user authors the Trade/order-book scenario, then it carries a valid `@plan:smoke` tag, read-only `orderBook` FSM/contract entries, and live-discovered action-map locators (add-only)
+- Given the new model entries, when `npm run typecheck` runs, then it exits 0
+- Given the regenerated plan, when `npm test` runs, then it exits 0 and `modelVersion` equals `computeModelVersion()`
+- Given the operator precondition (Order Book tab present), when `npm run run:smoke` runs live, then the scenario records a `PASS` selection of the Order Book tab with `view-selected` and URL evidence in the corpus
+- Given the precondition is violated (tab absent), when the scenario runs, then it FAILs fast with the precondition named in the message — never silently passes
+- Given the pilot run, when friction is encountered, then it is recorded in `pilot-backlog.md`; the conditional-action gap is escalated in `deferred-work.md`; the doc gap (precondition) is closed in `docs/usage.md`
+
+## Spec Change Log
+
+- 2026-09-10: Pinned the concrete use case with Jan (Path C): Trade page, BTC/USD, deterministic tab-select scenario; "+"-add escalated as a framework gap and documented as an operator precondition. Live DOM discovery in-story will pin exact locators/labels and may adjust the predicate values (Ask First).
+- 2026-09-10 (implementation): Live discovery diverged from the Code Map assumption — the Trade board tabs are flexlayout DIVs (`.flexlayout__tab_button`, label in `.flexlayout__tab_button_content`, active marked `.flexlayout__tab_button--selected`), NOT `a[role="tab"][aria-current="page"]`. Jan chose decision **[B] per-predicate probe binding**: `view-selected` gained an optional `probe?` field (default `selected-view`); `selectOrderBookTab` binds `view-selected "Order book"` → probe `selected-board-tab` (new config probe). Portfolio `view-selected` contracts keep the untouched `selected-view` probe. Verified live: run:smoke 14/14 PASS incl. `selecting-the-order-book-tab-shows-the-btc-usd-board`; validate:smoke 11/18 (dialog-failures are the known runway gap), `selectOrderBookTab` PASS.
+- 2026-09-10 (review): Review round 2 on the corrected diff raised five code/doc issues, all patched: (1) `validateContract` accounted `view-selected` evidence against the hardcoded `probe:selected-view` even for bound predicates — now names the per-predicate probe (`predicate.probe ?? "selected-view"`); (2) `selectOrderBookTab` gained a `url-is "/app/trade/btc-usd"` postcondition so the feature's "URL remains on the Trade page" step is machine-backed; (3) duplicate-tab guard added (`count > 1` → deterministic fail) alongside TAB_ABSENT; (4) Trade-contract invariants corrected to the verified surface ("board displays the selected market view" — the header portfolio-value claim was carried over unverified); (5) relation now lists both `clickTradeMenu` and `selectOrderBookTab` (matches the Code Map). New coverage: bootstrap orderBook seed path, multi-match guard, bound-probe `corpusRefs`, and `clickTradeMenu` validator pass/fail. modelVersion `7ce88b30… → 832c258f35…`. Smoke plan regenerated; 340/340 tests pass.
+
+## Design Notes
+
+- **Deterministic half only.** Jan confirmed `+` → "Order Book" is offered only when the tab is absent, so a create-or-affirm step is non-deterministic. The scenario clicks the *existing* tab (idempotent: clicking the active tab leaves it selected) and asserts `view-selected`. Operator establishes the precondition per the run protocol.
+- **Same gap as eye-toggle and portfolio value.** All three are state-dependent outcomes the static `{stateId, contractId}` model cannot control or branch on; the escalation joins the parked state-loading item (deferred-work.md:87-90) rather than inventing a framework change mid-pilot.
+- **Value-agnostic board evidence.** No bid/ask price assertions (prices drift); the post snapshot records the board shape and the URL/tab predicates carry the contract.
+
+## Verification
+
+**Commands:**
+- `npm run typecheck` -- expected: exits 0, no type errors
+- `npm test` -- expected: exits 0, all pass incl. `model-version.test.ts` hash match
+- `npm run run:smoke` -- expected (precondition met): `[PASS] selecting-the-order-book-tab-…`, corpus under a new runId, `@last-run` fan re-pointed
+- `npm run validate:smoke` -- expected: selects `selectOrderBookTab` + `clickTradeMenu` contracts pass on the fresh corpus
+
+**Manual checks:**
+- `features/trade-order-book.feature` -- Gherkin syntax, `@plan:smoke`, precondition NOTE present
+- `model/smoke.test-plan.ts` -- new scenario with `givenStateId: "orderBook"` and the single select step; plan regenerated, not hand-edited
+- `deferred-work.md` / `pilot-backlog.md` / `docs/usage.md` -- escalation + friction + precondition edits present
