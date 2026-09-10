@@ -2,7 +2,7 @@
 title: 'Pilot Story 1 — History Filter/Pagination Scenario'
 type: 'feature'
 created: '2026-09-07'
-status: 'in-review'
+status: 'done'
 baseline_commit: '1747fe7ff7274a8df21ae5604e020227c72acf13'
 review_loop_iteration: 0
 context:
