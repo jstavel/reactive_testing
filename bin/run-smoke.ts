@@ -7,8 +7,8 @@
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { OrchestratorConfig } from "../model/schemas.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
-import { handoffLine } from "../orchestrator/handlinks.js";
 import { selectScenarios } from "./scenario-select.js";
+import { finishRun } from "./run-smoke-finish.js";
 
 const selectedIds = process.argv.slice(2);
 let plan;
@@ -61,9 +61,6 @@ if (selectedIds.length > 0) {
   console.log(`Selected scenarios: ${plan.scenarios.map(({ id }) => id).join(", ")}`);
 }
 
-const setupPassed: string[] = [];
-const setupFailed: Array<{ id: string; error: string }> = [];
-
 const result = await runTestPlan(plan, config, (scenario) => {
   const status = scenario.passed ? "PASS" : "FAIL";
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -73,62 +70,11 @@ const result = await runTestPlan(plan, config, (scenario) => {
   );
 });
 
-for (const setup of result.setup ?? []) {
-  if (setup.passed) {
-    setupPassed.push(setup.id);
-  } else {
-    setupFailed.push({ id: setup.id, error: setup.error ?? "bootstrap failed" });
-  }
+const finish = finishRun(result, config.corpusDir, (Date.now() - startedAt) / 1000);
+for (const error of finish.err) {
+  console.error(error);
 }
-
-for (const setup of setupFailed) {
-  console.error(`[SETUP FAIL] ${setup.id} — ${setup.error}`);
+for (const line of finish.out) {
+  console.log(line);
 }
-
-const passed = result.scenarios.filter((s) => s.passed).length;
-const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-
-/** The operator-facing handoff line, printed LAST on every completion path.
- * Prints nothing when there is nothing honest to hand off: a modelVersion
- * mismatch or browser-launch failure never started a corpus run (no runId),
- * and a fan that is absent or points at another run resolves to null. */
-const printHandoff = (): void => {
-  const line = handoffLine(
-    result,
-    config.corpusDir,
-    result.scenarios.some((scenario) => !scenario.passed),
-  );
-  if (line !== null) {
-    console.log(line);
-  }
-};
-
-if (result.scenarios.length === 0) {
-  console.error(
-    `Run produced zero scenarios (plan "${result.planId}", modelVersion "${result.modelVersion}"). ` +
-      `This is usually a modelVersion mismatch: the smoke plan's embedded modelVersion does not ` +
-      `match the current model. Regenerate the test plan or check for stale model files.`,
-  );
-  printHandoff();
-  process.exit(1);
-}
-
-if (passed === 0) {
-  console.error(
-    `Run failed: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s. ` +
-      `All scenarios failed — inspect the per-scenario errors above and the corpus in ` +
-      `${config.corpusDir}/ to diagnose. Exiting non-zero.`,
-  );
-  printHandoff();
-  process.exit(1);
-}
-
-console.log(
-  `Run complete: ${passed}/${result.scenarios.length} scenarios passed in ${elapsed}s` +
-    ` (${setupPassed.length} bootstrapped` +
-    (setupFailed.length > 0 ? `, ${setupFailed.length} setup failures` : "") +
-    `). ` +
-    `CDP connection closed on completion; the human's browser stays open (detached, never closed). ` +
-    `Corpus written to ${config.corpusDir}/.`,
-);
-printHandoff();
+process.exit(finish.exitCode);

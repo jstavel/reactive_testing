@@ -404,4 +404,30 @@ describe("npm validate:smoke (process-level operator surface)", () => {
 
     rmSync(corpusDir, { recursive: true, force: true });
   });
+
+  it("pins validate:smoke 18/18 against the latest recorded corpus run (expiry-pinned)", () => {
+    const repoRoot = resolve(import.meta.dirname, "..");
+    const latestRunId = resolveLatestRun(join(repoRoot, "corpus"));
+    // Corpus runs live only where a smoke ran (corpus/ is not versioned), so
+    // the pin degrades to a skip on machines without one — but wherever a run
+    // exists it must validate 18/18 against the committed plan + validators.
+    if (latestRunId === null) {
+      return;
+    }
+
+    const out = execFileSync(
+      npm,
+      ["run", "--silent", "validate:smoke"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        timeout: 60_000,
+      },
+    );
+
+    // Expiry pin: the smoke plan declares exactly 18 contracts today. A plan
+    // or validator-map change that grows/breaks the check count fails here
+    // until the expectation is explicitly updated (and a fresh corpus recorded).
+    expect(out.trim().split("\n").at(-1)).toBe(`18/18 checks passed in ${latestRunId}`);
+  });
 });
