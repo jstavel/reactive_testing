@@ -23,6 +23,13 @@ This is how you actually use the testware, in the order you'll do it.
 npm run run:smoke
 ```
 
+**Run-protocol precondition (Trade / Order Book):** before a smoke run that
+includes the Order Book scenario, ensure the **Order Book** tab is present in
+the Favorites bar on the Trade page. The "+"-add action is non-idempotent (it
+creates the tab only when absent) and is excluded from plan steps. Add the tab
+manually via the "+" button, then re-run. A scenario whose precondition is
+violated fails fast with an actionable message — it never silently passes.
+
 To re-run only selected scenarios, pass their exact ids after npm's `--` forwarding separator:
 
 ```bash

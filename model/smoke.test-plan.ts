@@ -4,12 +4,17 @@
 // Regenerated for the test-run report (Story 1) after schemas.ts gained RunMetadata.
 // Regenerated (Story 3) after schemas.ts gained StepEvidence.
 // Regenerated (corpus handoff links) after schemas.ts gained RunResult.runId.
+// Regenerated (Story 5-2) after contracts.ts bound selectOrderBookTab's
+// view-selected to the selected-board-tab probe and schemas.ts gained the
+// view-selected probe binding field.
+// Regenerated (Story 5-2 review) after contracts.ts pinned selectOrderBookTab's
+// url-is postcondition and corrected the Trade-contract invariants.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "3b97cf8bac9b75c53891f62d5ae4f56ad3a5a8b075e15154ecd2a3abf11a901b",
+  modelVersion: "832c258f35e4e6806e2d1fd731b3df2ca0f3f44d8ffd96b8c8c6315ccaee0c6c",
   scenarios: [
     // home-page-history-menu.feature
     {
@@ -76,6 +81,12 @@ export const smokeTestPlan: TestPlan = {
     {
       id: "paginating-to-the-next-ledger-page",
       steps: [{ stateId: "historyMain", contractId: "paginateHistoryNext" }],
+    },
+    // trade-order-book.feature
+    {
+      id: "selecting-the-order-book-tab-shows-the-btc-usd-board",
+      givenStateId: "orderBook",
+      steps: [{ stateId: "orderBook", contractId: "selectOrderBookTab" }],
     },
   ],
 };

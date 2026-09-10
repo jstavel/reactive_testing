@@ -35,6 +35,15 @@ const config: OrchestratorConfig = {
   // value there rather than a collection gap.
   probes: [
     { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
+    // Board-tab probe (Story 5-2, live-discovered 2026-09-10): the Trade page's
+    // board tabs are flexlayout divs (no role=tab / aria-current); the active
+    // board is .flexlayout__tab_button--selected with its label in the content
+    // node. selectOrderBookTab binds view-selected to this probe.
+    {
+      name: "selected-board-tab",
+      selector: ".flexlayout__tab_button--selected .flexlayout__tab_button_content",
+      optional: true,
+    },
   ],
   cdpUrl: "http://127.0.0.1:9222",
   stepTimeout: 20_000,

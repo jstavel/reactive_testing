@@ -37,13 +37,20 @@ export function corpusDependenciesFor(contractId: string): CollectorName[] {
 }
 
 /** The probe names a contract's predicates require by name (for the pre-flight
- * probe-config check). Currently only `view-selected` requires `selected-view`. */
+ * probe-config check). `view-selected` names its probe — `selected-view` by
+ * default, or an explicit per-predicate `probe` binding (Story 5-2). */
 export function requiredProbeNames(contractId: string): string[] {
   const contract = allContracts.find((c) => c.contractId === contractId);
   if (!contract) return [];
 
-  const needsView = [...contract.preconditions, ...contract.postconditions].some(
-    (p) => p.assert === "view-selected",
-  );
-  return needsView ? ["selected-view"] : [];
+  const probeNames = new Set<string>();
+  for (const predicate of [
+    ...contract.preconditions,
+    ...contract.postconditions,
+  ]) {
+    if (predicate.assert === "view-selected") {
+      probeNames.add(predicate.probe ?? "selected-view");
+    }
+  }
+  return [...probeNames];
 }

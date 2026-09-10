@@ -52,6 +52,9 @@ const states: FsmState[] = [
   { stateId: "portfolioFutures", label: "Portfolio — Futures" },
   { stateId: "portfolioLoans", label: "Portfolio — Loans" },
 
+  // Trade page states (reached from Home Page via navigation menu)
+  { stateId: "orderBook", label: "Trade — Order Book" },
+
   // Standalone pages (reached from Home Page via navigation menu)
   { stateId: "earn", label: "Earn" },
 ];
@@ -66,12 +69,19 @@ const transitions: FsmTransition[] = [
   { from: "historyMain", to: "historyMain", contractId: "filterHistoryByAsset" },
   { from: "historyMain", to: "historyMain", contractId: "paginateHistoryNext" },
 
+  // Trade page UI actions (Story 5-2, pilot — self-loop: tab selection changes
+  // the visible panel, not the URL or the FSM state)
+  { from: "orderBook", to: "orderBook", contractId: "selectOrderBookTab" },
+
   // Portfolio menu → Portfolio page states
   { from: "homePage", to: "portfolioOverview", contractId: "clickPortfolioMenuOverview" },
   { from: "homePage", to: "portfolioMain", contractId: "clickPortfolioMenuMain" },
   { from: "homePage", to: "portfolioFutures", contractId: "clickPortfolioMenuFutures" },
   { from: "homePage", to: "portfolioLoans", contractId: "clickPortfolioMenuLoans" },
   { from: "homePage", to: "earn", contractId: "clickPortfolioMenuEarn" },
+
+  // Trade menu → Order Book (Story 5-2, pilot)
+  { from: "homePage", to: "orderBook", contractId: "clickTradeMenu" },
 
   // Portfolio Summary dialog (nested state — self-loops on homePage)
   { from: "homePage", to: "portfolioSummaryDialog", contractId: "openPortfolioSummary" },
@@ -85,6 +95,7 @@ const transitions: FsmTransition[] = [
   { from: "portfolioFutures", to: "homePage", contractId: "navigateHome" },
   { from: "portfolioLoans", to: "homePage", contractId: "navigateHome" },
   { from: "earn", to: "homePage", contractId: "navigateHome" },
+  { from: "orderBook", to: "homePage", contractId: "navigateHome" },
 
   // Eye toggle (dialog self-loop — UI change only, no URL transition)
   { from: "portfolioSummaryDialog", to: "portfolioSummaryDialog", contractId: "toggleEyeIcon" },

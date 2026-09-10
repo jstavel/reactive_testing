@@ -115,11 +115,55 @@ describe("actionMap drifted entries (gh-22)", () => {
     expect(page.click).toHaveBeenCalledTimes(1);
     expect(page.waitForURL).not.toHaveBeenCalled();
   });
+
+  it("clickTradeMenu clicks the Trade sidebar button and waits for /app/trade/btc-usd", async () => {
+    const page = makePage();
+
+    await actionMap.clickTradeMenu!({ page: page as unknown as Page });
+
+    expect(page.getByRole).toHaveBeenCalledTimes(1);
+    expect(page.getByRole).toHaveBeenCalledWith("button", { name: "Trade", exact: true });
+    expect(page.click).toHaveBeenCalledTimes(1);
+    expect(page.waitForURL).toHaveBeenCalledTimes(1);
+    expect(page.waitForURL).toHaveBeenCalledWith("**/app/trade/btc-usd");
+  });
+
+  it("selectOrderBookTab clicks the Order Book tab when present", async () => {
+    const page = makePage();
+    const tab = { click: vi.fn(async () => {}) };
+    const count = vi.fn(async () => 1);
+    page.locator = vi.fn(() => ({ count, first: () => tab })) as never;
+
+    await actionMap.selectOrderBookTab!({ page: page as unknown as Page });
+
+    expect(page.locator).toHaveBeenCalledWith(".flexlayout__tab_button", { hasText: "Order book" });
+    expect(tab.click).toHaveBeenCalledTimes(1);
+  });
+
+  it("selectOrderBookTab throws when Order Book tab is absent", async () => {
+    const page = makePage();
+    const count = vi.fn(async () => 0);
+    page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
+
+    await expect(
+      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
+    ).rejects.toThrow(/Order Book tab not found/);
+  });
+
+  it("selectOrderBookTab throws when multiple Order Book tabs match (duplicate precondition)", async () => {
+    const page = makePage();
+    const count = vi.fn(async () => 2);
+    page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
+
+    await expect(
+      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
+    ).rejects.toThrow(/Found 2 tabs matching "Order book"/);
+  });
 });
 
 describe("actionMap parity", () => {
-  it("has exactly 13 entries: one per seeded contract, no extras", () => {
-    expect(Object.keys(actionMap)).toHaveLength(13);
+  it("has exactly 15 entries: one per seeded contract, no extras", () => {
+    expect(Object.keys(actionMap)).toHaveLength(15);
   });
 
   it("maps every seeded contractId to an entry", () => {

@@ -50,12 +50,13 @@ function evaluate(
       return { passed: true, detail: "" };
     }
     case "view-selected": {
-      const probe = probes.find((p) => p.name === "selected-view");
+      const probeName = predicate.probe ?? "selected-view";
+      const probe = probes.find((p) => p.name === probeName);
       const value = (probe?.value ?? "").trim().toLowerCase();
       if (value !== predicate.view.toLowerCase()) {
         return {
           passed: false,
-          detail: `view-selected "${predicate.view}" but selected view is "${value || "(none)"}"`,
+          detail: `view-selected "${predicate.view}" (probe "${probeName}") but selected view is "${value || "(none)"}"`,
         };
       }
       return { passed: true, detail: "" };
@@ -97,10 +98,11 @@ function validateContract(contract: DialogContract, evidence: ContractEvidence):
     if (!r.passed) failures.push(`[postcondition] ${r.detail}`);
   }
 
-  const usesProbe = [...contract.preconditions, ...contract.postconditions].some(
-    (p) => p.assert === "view-selected",
-  );
-  if (usesProbe) refs.add("probe:selected-view");
+  for (const predicate of [...contract.preconditions, ...contract.postconditions]) {
+    if (predicate.assert === "view-selected") {
+      refs.add(`probe:${predicate.probe ?? "selected-view"}`);
+    }
+  }
 
   return {
     contractId: contract.contractId,

@@ -123,6 +123,46 @@ export const actionMap: Record<string, ContractAction> = {
       .click();
   },
 
+  clickTradeMenu: async ({ page }) => {
+    // Trade menu navigation (Story 5-2, live-discovered 2026-09-10): the sidebar
+    // "Trade" button (exact accessible name "Trade"; the only such button on the
+    // home page) navigates to the Trade page at /app/trade/btc-usd.
+    await page.getByRole("button", { name: "Trade", exact: true }).click();
+    await page.waitForURL("**/app/trade/btc-usd");
+  },
+
+  selectOrderBookTab: async ({ page }) => {
+    // Order Book tab selection (Story 5-2, pilot): the idempotent half of the
+    // order-book interaction — clicking the existing tab in the Favorites bar.
+    // The "+"-add action is non-idempotent and excluded from plan steps per the
+    // spec; the operator establishes the precondition (tab present) via the run
+    // protocol before the scenario runs.
+    //
+    // Live-discovered 2026-09-10: the board tabs are flexlayout DIVs, not
+    // role=tab anchors — the label ("Order book") sits in the
+    // .flexlayout__tab_button_content node, and the active board is marked with
+    // .flexlayout__tab_button--selected. Scoped by class + label text.
+    //
+    // TAB_ABSENT precondition: fail fast with an actionable message when the tab
+    // is not in the Favorites bar — deterministic failure, never a silent pass.
+    const tab = page.locator(".flexlayout__tab_button", { hasText: "Order book" });
+    const count = await tab.count();
+    if (count === 0) {
+      throw new Error(
+        'Order Book tab not found in the Favorites bar. ' +
+        'Run-protocol precondition: add the Order Book tab via the "+" button, ' +
+        'then re-run this scenario.',
+      );
+    }
+    if (count > 1) {
+      throw new Error(
+        `Found ${count} tabs matching "Order book"; expected exactly one. ` +
+        "Deterministic fail — duplicate tabs violate the single-board precondition.",
+      );
+    }
+    await tab.first().click();
+  },
+
   navigateHome: async ({ page }) => {
     await page.getByRole("button", { name: "Home", exact: true }).click();
     await page.waitForURL("**/app/home");
