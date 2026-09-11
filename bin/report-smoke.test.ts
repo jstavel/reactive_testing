@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { StepEvidence, TestPlan, ValidationResult } from "../model/schemas.js";
+import { generateSampleReport } from "./generate-sample-report.js";
 import { resolveLatestRun } from "./validate-smoke.js";
 import { buildStepEvidence, deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
 
@@ -378,6 +379,68 @@ describe("reportSmoke", () => {
       `Report written: ${join(corpusDir, "r-real", "report.html")}, ${join(corpusDir, "r-real", "report.json")}`,
     );
     expect(existsSync(join(corpusDir, "example", "report.html"))).toBe(false);
+  });
+
+  it("NEWEST_SKIP — the implicit default never reports the fail-demo throwaway", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    // The failure demo's throwaway carries the same fixed future timestamp;
+    // a leftover red demo must never hijack the implicit default.
+    writeRunManifest(corpusDir, "fail-demo", [], "2026-09-11T00:00:00.000Z");
+
+    const outcome = reportSmoke([], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out).toContain(
+      `Report written: ${join(corpusDir, "r-real", "report.html")}, ${join(corpusDir, "r-real", "report.json")}`,
+    );
+    expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(false);
+  });
+
+  it("NEWEST_SKIP — an explicit fail-demo runId still resolves and reports the throwaway run", () => {
+    writeAllPassRun(corpusDir, "fail-demo", "2026-09-11T00:00:00.000Z");
+
+    const outcome = reportSmoke(["fail-demo"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out).toContain(
+      `Report written: ${join(corpusDir, "fail-demo", "report.html")}, ${join(corpusDir, "fail-demo", "report.json")}`,
+    );
+  });
+
+  it("NEWEST_SKIP — a lone fail-demo run never becomes the implicit default", () => {
+    writeRunManifest(corpusDir, "fail-demo", [], "2026-09-11T00:00:00.000Z");
+
+    expect(resolveLatestRun(corpusDir)).toBeNull();
+
+    const outcome = reportSmoke([], { corpusDir });
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toBe(
+      `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
+    );
+    expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(false);
+  });
+
+  it("FAIL_DEMO_E2E — reports a real minted fail-demo fixture red: both reports written, exit 1, pinned error", () => {
+    // A real fail-demo fixture (the --fail generator), not a synthetic run.
+    expect(generateSampleReport(corpusDir, { fail: true }).exitCode).toBe(0);
+
+    const outcome = reportSmoke(["fail-demo"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out).toContain("13/14 scenarios passed (18 checks)");
+    expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
+    expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);
+    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+    const report = JSON.parse(
+      readFileSync(join(corpusDir, "fail-demo", "report.json"), "utf8"),
+    ) as { scenarios: Array<{ id: string; passed: boolean; error?: string }> };
+    const failed = report.scenarios.filter((s) => !s.passed);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.id).toBe("clicking-main-opens-the-portfolio-page-with-the-main-view");
+    expect(failed[0]?.error).toBe(
+      '[postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
+    );
   });
 
   it("EMPTY_VALUE — an empty --corpus-dir value is rejected with the Invalid-argument(s) + usage error", () => {

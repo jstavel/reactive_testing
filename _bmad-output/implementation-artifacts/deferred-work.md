@@ -288,3 +288,16 @@
   summary: Automated .gitignore trackability checks — assert the 57 fixture paths are addable while representative real-run/network/screenshot paths stay ignored (`git check-ignore`/`git add`-derived test). Manual check covers it today.
   evidence: Verification-gap review of the S2 diff: no test invokes git; a changed negation/guard line could silently un-track the fixture or expose private evidence. Git-in-unit-tests doesn't fit the repo's offline-pure test suite; the S4 CI determinism gate (regenerate → git diff --exit-code) will exercise the same surface end-to-end.
 
+## Deferred from: S3 failure-demo spec split (2026-09-11)
+
+- source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/3-failure-demo-red-report-showcase-zero-committed-footprint.md`
+  summary: README failure showcase — dev-only Playwright rasterizer (bin/screenshot-report.ts, screenshot:report script) rendering the fail-demo report to a committed docs/report-failure.png, plus the README "Error report showcase" block (image + regenerate commands + not-committed note) and docs/usage.md entries.
+  evidence: Token-budget split of the S3 story at plan time ([S] Split): the generator --fail red-report production (the standalone, headless-testable core) was kept; the human-visible presentation layer (PNG + README + docs) was deferred to a follow-up story because it needs a browser dependency (Playwright rasterize) and a human-reviewed artifact, both outside the generator's offline-pure surface.
+
+## Deferred from: S3 failure-demo review (2026-09-11)
+
+- source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/3-failure-demo-red-report-showcase-zero-committed-footprint.md`
+  summary: Automated fail-demo git-ignore coverage — assert (git check-ignore / git status) that corpus/fail-demo/** stays untracked and never becomes committable (the S4 determinism gate covers only the example fixture, so the fail-demo surface has no CI/unit check today). Fold explicitly into the S4 CI story.
+  
+  evidence: Verification-gap review of the S3 diff: every fail-mode test writes to temp dirs and never invokes git; the "zero committed footprint" title contract is verified only by the spec's manual git check-ignore step. A .gitignore change un-ignoring corpus/fail-demo would go unnoticed by npm test.
+

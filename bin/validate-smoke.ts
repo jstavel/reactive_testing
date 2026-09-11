@@ -26,7 +26,7 @@ import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
 import { LAST_RUN, RUN_ID_PATTERN, resolveFan } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
-import { SAMPLE_RUN_ID } from "./sample-run-id.js";
+import { FAIL_DEMO_RUN_ID, SAMPLE_RUN_ID } from "./sample-run-id.js";
 
 const CORPUS_DIR = "corpus";
 export const USAGE =
@@ -168,12 +168,15 @@ function newestKey(corpusDir: string, entry: string): number | undefined {
  * participate. Absent corpus or no runs → `null`. Per-entry read/stat failures
  * skip that entry; they never collapse the whole scan.
  *
- * Implicit resolution prefers real recorded runs: the committed mock
- * fixture's runId (SAMPLE_RUN_ID) never wins the default while a real
- * recorded run exists — its fixed future timestamp would otherwise silently
- * shadow every real run. With no real run (fresh checkout) the fixture stays
- * the implicit default; an explicit `example` positional bypasses this
- * resolution entirely. */
+ * Implicit resolution prefers real recorded runs: the reserved runIds never
+ * hijack the default — the committed mock fixture (SAMPLE_RUN_ID) because its
+ * fixed future timestamp would otherwise silently shadow every real run, and
+ * the failure demo's throwaway (FAIL_DEMO_RUN_ID) because a leftover red demo
+ * must never become the default validation target. The filter covers the
+ * fallback too: fail-demo never resolves implicitly (a corpus holding only
+ * the throwaway reports "no recorded run"). With no real run (fresh
+ * checkout) the fixture stays the implicit default; an explicit positional
+ * (`example` or `fail-demo`) bypasses this resolution entirely. */
 function newestManifestRun(corpusDir: string): string | null {
   let entries: string[];
   try {
@@ -193,18 +196,28 @@ function newestManifestRun(corpusDir: string): string | null {
       return key === undefined ? [] : [{ entry, key }];
     });
   return (
-    newest(candidates.filter(({ entry }) => entry !== SAMPLE_RUN_ID)) ??
-    newest(candidates)
+    newest(
+      candidates.filter(
+        ({ entry }) => entry !== SAMPLE_RUN_ID && entry !== FAIL_DEMO_RUN_ID,
+      ),
+    ) ??
+    newest(candidates.filter(({ entry }) => entry !== FAIL_DEMO_RUN_ID))
   );
 }
 
 /** The run to validate by default: the `@last-run` fan's canonical run dir
  * (exactly what run:smoke last wrote), falling back to the newest manifest so
  * the CLI stays usable before/independently of the handoff links. Null when
- * no run exists. */
+ * no run exists. A fan that resolves to the throwaway fail-demo run is
+ * ignored — a stale handoff must never hand the implicit default to the red
+ * demo — and manifest resolution decides instead. */
 export function resolveLatestRun(corpusDir: string): string | null {
   const viaFan = resolveFan(corpusDir, LAST_RUN);
-  return viaFan !== null ? basename(viaFan) : newestManifestRun(corpusDir);
+  const fanRun = viaFan !== null ? basename(viaFan) : null;
+  if (fanRun !== null && fanRun !== FAIL_DEMO_RUN_ID) {
+    return fanRun;
+  }
+  return newestManifestRun(corpusDir);
 }
 
 /** One result line: `[PASS]/[FAIL] contractId — details?` — failures print

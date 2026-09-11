@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan } from "../model/schemas.js";
+import { generateSampleReport } from "./generate-sample-report.js";
 import {
   extractCorpusDir,
   parseArgs,
@@ -212,6 +213,36 @@ describe("resolveLatestRun", () => {
     expect(resolveLatestRun(corpusDir)).toBe("example");
   });
 
+  it("NEWEST_SKIP — never resolves the fail-demo throwaway while a real run exists", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    // The failure demo's manifest carries the same fixed future timestamp;
+    // a leftover red demo must never hijack the implicit default.
+    writeRunManifest(corpusDir, "fail-demo", [], "2026-09-11T00:00:00.000Z");
+
+    expect(resolveLatestRun(corpusDir)).toBe("r-real");
+  });
+
+  it("NEWEST_SKIP — a lone fail-demo run never becomes the implicit default", () => {
+    writeRunManifest(corpusDir, "fail-demo", [], "2026-09-11T00:00:00.000Z");
+
+    expect(resolveLatestRun(corpusDir)).toBeNull();
+  });
+
+  it("NEWEST_SKIP — a @last-run fan pointing at the fail-demo throwaway falls through to the newest real run", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    writeAllPassRun(corpusDir, "fail-demo", "2026-09-11T00:00:00.000Z");
+    linkLastRun(corpusDir, "fail-demo");
+
+    expect(resolveLatestRun(corpusDir)).toBe("r-real");
+  });
+
+  it("NEWEST_SKIP — a lone fail-demo fan with no other run resolves null, never the throwaway", () => {
+    writeAllPassRun(corpusDir, "fail-demo", "2026-09-11T00:00:00.000Z");
+    linkLastRun(corpusDir, "fail-demo");
+
+    expect(resolveLatestRun(corpusDir)).toBeNull();
+  });
+
   it("returns null when no run exists", () => {
     expect(resolveLatestRun(corpusDir)).toBeNull();
   });
@@ -396,6 +427,31 @@ describe("validateSmoke", () => {
     const explicit = validateSmoke(["example"], { corpusDir, plan: testPlan });
     expect(explicit.exitCode).toBe(0);
     expect(explicit.out.at(-1)).toBe("2/2 checks passed in example");
+  });
+
+  it("NEWEST_SKIP — an explicit fail-demo positional still resolves the throwaway run", () => {
+    writeAllPassRun(corpusDir, "fail-demo", "2026-09-11T00:00:00.000Z");
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+
+    const outcome = validateSmoke(["fail-demo"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out.at(-1)).toBe("2/2 checks passed in fail-demo");
+  });
+
+  it("FAIL_DEMO_E2E — validates a real minted fail-demo fixture red: 17/18 checks, exit 1", () => {
+    // A real fail-demo fixture (the --fail generator), not a synthetic run.
+    expect(generateSampleReport(corpusDir, { fail: true }).exitCode).toBe(0);
+
+    const outcome = validateSmoke(["fail-demo"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(17);
+    expect(outcome.out).toContain(
+      '[FAIL] clickPortfolioMenuMain — [postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
+    );
+    expect(outcome.out.at(-1)).toBe("17/18 checks passed in fail-demo");
   });
 
   it("EMPTY_VALUE — an empty --corpus-dir value is rejected with the Invalid-argument(s) + usage error", () => {
