@@ -80,7 +80,7 @@ context:
 
 ## Design Notes
 
-The one-defect recipe keeps the demo deliberate and honest: the deterministic `example` mint plus a single url edit on step 3's post snapshot. The failing scenario's report row reads `url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"` — concrete expected-vs-actual diagnostics a headhunter or AI assistant can read without context.
+The one-defect recipe keeps the demo deliberate and honest: the deterministic `example` mint plus a single url edit on step 3's post snapshot. The failing scenario's report row reads `url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"` — concrete expected-vs-actual diagnostics any reader can understand without context, which is exactly the diagnostic quality an industry-standard test report must show.
 
 Reserved run ids: `example` (committed) and `fail-demo` (throwaway) are both excluded from implicit newest-run resolution; explicit runIds still work (`npm run validate:smoke -- fail-demo --corpus-dir corpus`). The deferred follow-up story renders this report to a committed README PNG with a browser-free-core dev tool.
 

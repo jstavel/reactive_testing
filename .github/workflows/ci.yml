@@ -1,0 +1,151 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The merge gate: the whole offline pipeline. No browser, no CDP, no
+  # Playwright — `npm ci` is the only network step. Every step is green-only:
+  # any red outcome is a real regression, never normal operation.
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24 with the npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies (the only network step)
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Unit tests (vitest run — offline, no browser)
+        run: npm test
+
+      - name: Fixture determinism gate — regenerate in place, the tree must be unchanged
+        run: |
+          npm run generate:sample
+          git diff --exit-code -- corpus/example corpus/snapshots/example corpus/probes/example
+          test -f corpus/example/report.json && test -f corpus/example/report.html && test -f corpus/example/run-manifest.json
+          test -z "$(git status --porcelain -- corpus/example corpus/snapshots/example corpus/probes/example)"
+
+      - name: Validate the committed fixture (validate:smoke — 18/18 checks, exit 0)
+        run: npm run validate:smoke -- example --corpus-dir corpus
+
+      - name: Report the committed fixture (report:smoke — 14/14 scenarios, exit 0)
+        run: npm run report:smoke -- example --corpus-dir corpus
+
+      - name: Re-assert the tree clean — the reporter rewrote the reports after the diff
+        run: |
+          test -z "$(git status --porcelain -- corpus/example corpus/snapshots/example corpus/probes/example)"
+
+      - name: Fail-demo surface gate — failing evidence stays gitignored and uncommittable
+        run: |
+          npm run generate:sample -- --fail
+          for d in corpus/fail-demo corpus/snapshots/fail-demo corpus/probes/fail-demo; do
+            if ! git check-ignore -q -- "$d"; then
+              echo "::error::fail-demo surface gate failed: '$d' is not gitignored — failing evidence must never become committable"
+              exit 1
+            fi
+            echo "gitignored: $d"
+          done
+          tracked="$(git ls-files -- corpus/fail-demo corpus/snapshots/fail-demo corpus/probes/fail-demo)"
+          if [ -n "$tracked" ]; then
+            echo "::error::fail-demo surface gate failed: failing evidence is already tracked — it must never be committed"
+            echo "$tracked"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain -- corpus/fail-demo corpus/snapshots/fail-demo corpus/probes/fail-demo)" ]; then
+            echo "::error::fail-demo surface gate failed: fail-demo paths appear in git status — failing evidence must never become committable"
+            git status --porcelain -- corpus/fail-demo corpus/snapshots/fail-demo corpus/probes/fail-demo
+            exit 1
+          fi
+          if grep -Eq '^![^#]*fail-demo' .gitignore; then
+            echo "::error::fail-demo surface gate failed: .gitignore re-includes fail-demo — failing evidence must never become committable"
+            grep -nE '^![^#]*fail-demo' .gitignore
+            exit 1
+          fi
+          echo "fail-demo surface gate OK — all three fail-demo roots gitignored, nothing tracked or dirty, no .gitignore negation"
+
+  # The live sample: only after ci is green, only on a push to main (never on
+  # a pull request) or a manual dispatch on main (the way to redo the deploy
+  # right after enabling Pages). Stages the committed sample fixture — never
+  # fail-demo — and publishes it through the official Pages actions.
+  pages:
+    needs: ci
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # Own group, queued (never canceled) — an in-flight deploy must not be
+    # killed by a superseding run; the next one waits its turn.
+    concurrency:
+      group: ${{ github.workflow }}-pages-${{ github.ref }}
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the committed sample fixture
+        uses: actions/checkout@v4
+
+      - name: Stage the committed sample fixture into _site/corpus/… (fail-demo never staged)
+        run: |
+          mkdir -p _site/corpus/example _site/corpus/snapshots/example _site/corpus/probes/example
+          cp -a corpus/example/.           _site/corpus/example/
+          cp -a corpus/snapshots/example/. _site/corpus/snapshots/example/
+          cp -a corpus/probes/example/.    _site/corpus/probes/example/
+          # Minimal root page (relative redirect) so the site root is not a 404.
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>reactive-testing — sample report</title>
+          <meta http-equiv="refresh" content="0; url=corpus/example/report.html">
+          <p>Redirecting to the <a href="corpus/example/report.html">sample report</a>.</p>
+          HTML
+
+      - name: Guard — the staged site must not contain fail-demo
+        run: |
+          if [ -n "$(find _site -name '*fail-demo*' -print -quit)" ]; then
+            echo "::error::pages staging guard failed: fail-demo paths staged — refusing to publish failing evidence"
+            find _site -name '*fail-demo*'
+            exit 1
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify the deployed report is live (report.v1 schema)
+        run: |
+          curl -fsS --retry 5 --retry-connrefused --retry-all-errors \
+            "${{ steps.deployment.outputs.page_url }}corpus/example/report.json" \
+            | jq -e '.schema == "report.v1"'
