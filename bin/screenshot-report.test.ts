@@ -10,14 +10,7 @@
 // too, so they never reach chromium either.
 
 import { execFileSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -25,10 +18,10 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  USAGE,
-  toFileUrl,
-  validateScreenshotArgs,
   type ScreenshotArgsValidation,
+  toFileUrl,
+  USAGE,
+  validateScreenshotArgs,
 } from "./screenshot-report.js";
 
 function failureOf(result: ScreenshotArgsValidation): readonly string[] {
@@ -75,9 +68,7 @@ describe("validateScreenshotArgs (arg/fs seam — no browser)", () => {
   });
 
   it("EXTRA_ARGS — 3 args: usage + error naming the extras", () => {
-    const errors = failureOf(
-      validateScreenshotArgs(["report.html", "report.png", "extra.png"]),
-    );
+    const errors = failureOf(validateScreenshotArgs(["report.html", "report.png", "extra.png"]));
 
     expect(errors.at(-1)).toBe(USAGE);
     expect(errors[0]).toBe(
@@ -147,7 +138,10 @@ describe("validateScreenshotArgs (arg/fs seam — no browser)", () => {
     writeFileSync(join(scratch, "report.html"), "<h1>PASS</h1>");
 
     const request = requestOf(
-      validateScreenshotArgs([join(scratch, "report.html"), join(scratch, "nested", "deep", "report.png")]),
+      validateScreenshotArgs([
+        join(scratch, "report.html"),
+        join(scratch, "nested", "deep", "report.png"),
+      ]),
     );
 
     expect(request).toEqual({
@@ -162,9 +156,7 @@ describe("validateScreenshotArgs (arg/fs seam — no browser)", () => {
 
 describe("toFileUrl (the file:// URL seam — no launch)", () => {
   it("encodes spaces and a `#` fragment char via pathToFileURL", () => {
-    expect(toFileUrl("/tmp/some dir/re#port.html")).toBe(
-      "file:///tmp/some%20dir/re%23port.html",
-    );
+    expect(toFileUrl("/tmp/some dir/re#port.html")).toBe("file:///tmp/some%20dir/re%23port.html");
   });
 
   it("encodes a raw `%` like pathToFileURL does", () => {
@@ -187,7 +179,11 @@ describe("npm screenshot:report (process-level operator surface)", () => {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   let scratch: string;
 
-  function spawnScreenshotReport(args: readonly string[]): { status: number; out: string; err: string } {
+  function spawnScreenshotReport(args: readonly string[]): {
+    status: number;
+    out: string;
+    err: string;
+  } {
     try {
       const out = execFileSync(
         npm,

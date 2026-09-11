@@ -36,6 +36,43 @@ jobs:
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
 
+      - name: Lint (biome check — same command as local npm run lint, fails on warnings)
+        run: npm run lint
+
+      - name: Lint red-path gate — the gate must fail on violations and recover via fix
+        run: |
+          scratch="$(mktemp -d lint-redpath.XXXXXX)"
+          trap 'rm -rf "$scratch"' EXIT
+          cat > "$scratch/violation.ts" <<'TS'
+          import { existsSync } from "node:fs";
+          const step = 1;
+          if (step === 1) {
+            console.log(step);
+              }
+          TS
+          out="$scratch/check.out"
+          if npx biome check --error-on-warnings "$scratch" >"$out" 2>&1; then
+            echo "::error::lint red-path gate failed: biome check --error-on-warnings exited 0 on a deliberately violated file — the gate cannot fail"
+            cat "$out"
+            exit 1
+          fi
+          if ! grep -qF 'violation.ts' "$out"; then
+            echo "::error::lint red-path gate failed: the violation output does not name the offending file"
+            cat "$out"
+            exit 1
+          fi
+          if ! npx biome check --write --unsafe "$scratch" >"$out" 2>&1; then
+            echo "::error::lint red-path gate failed: biome check --write could not repair the violation (unused-import removal is an unsafe-class fix)"
+            cat "$out"
+            exit 1
+          fi
+          if ! npx biome check --error-on-warnings "$scratch" >"$out" 2>&1; then
+            echo "::error::lint red-path gate failed: the repaired file still fails the gate"
+            cat "$out"
+            exit 1
+          fi
+          echo "lint red-path gate OK — violation named and failed the gate, fix flow recovered"
+
       - name: Unit tests (vitest run — offline, no browser)
         run: npm test
 

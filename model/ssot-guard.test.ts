@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
-
-import { homePageModel } from "./fsm.js";
 import { allContracts } from "./contracts.js";
-import { smokeTestPlan } from "./smoke.test-plan.js";
+import { homePageModel } from "./fsm.js";
 import type { TestPlan } from "./schemas.js";
-import {
-  resolveTestPlanAgainstModel,
-  assertTestPlanResolvesToModel,
-} from "./ssot-guard.js";
+import { smokeTestPlan } from "./smoke.test-plan.js";
+import { assertTestPlanResolvesToModel, resolveTestPlanAgainstModel } from "./ssot-guard.js";
 
 describe("resolveTestPlanAgainstModel", () => {
   it("passes the committed smokeTestPlan against the real model (RESOLVES)", () => {
@@ -33,15 +29,13 @@ describe("resolveTestPlanAgainstModel", () => {
       ],
     };
 
-    expect(() =>
-      assertTestPlanResolvesToModel(plan, homePageModel, allContracts),
-    ).toThrow(Error);
-    expect(() =>
-      assertTestPlanResolvesToModel(plan, homePageModel, allContracts),
-    ).toThrow(/unknown-state/);
-    expect(() =>
-      assertTestPlanResolvesToModel(plan, homePageModel, allContracts),
-    ).toThrow(/bad-state/);
+    expect(() => assertTestPlanResolvesToModel(plan, homePageModel, allContracts)).toThrow(Error);
+    expect(() => assertTestPlanResolvesToModel(plan, homePageModel, allContracts)).toThrow(
+      /unknown-state/,
+    );
+    expect(() => assertTestPlanResolvesToModel(plan, homePageModel, allContracts)).toThrow(
+      /bad-state/,
+    );
   });
 
   it("returns [] for an empty scenarios list", () => {
@@ -83,9 +77,7 @@ describe("resolveTestPlanAgainstModel", () => {
     const plan: TestPlan = {
       planId: "smoke",
       modelVersion: smokeTestPlan.modelVersion,
-      scenarios: [
-        { id: "empty-contract", steps: [{ stateId: "homePage", contractId: "" }] },
-      ],
+      scenarios: [{ id: "empty-contract", steps: [{ stateId: "homePage", contractId: "" }] }],
     };
 
     const issues = resolveTestPlanAgainstModel(plan, homePageModel, allContracts);

@@ -8,15 +8,9 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import type {
-  RunMetadata,
-  ScenarioResult,
-  StepEvidence,
-  TestPlan,
-} from "../model/schemas.js";
 import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
+import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
 
 /** Inputs to `emitHtmlReport`. */
 export interface EmitHtmlReportInput {
@@ -110,23 +104,23 @@ export function renderHtmlReport({
 
     const evidence = stepEvidence?.[scenario.id];
     const stepsHtml = scenario.steps
-      .map(
-        (step, idx) => {
-          const ev = evidence?.[idx];
-          if (!ev) {
-            return plainStepRow(step);
-          }
-          const linksHtml = renderEvidenceLinks(ev);
-          // Timing-only evidence renders nothing visible — fall back to the
-          // plain Story-2 row instead of a details block reading "0 ms".
-          if (ev.screenshot === undefined && linksHtml.length === 0) {
-            return plainStepRow(step);
-          }
-          const hasScreenshot = ev.screenshot !== undefined && ev.screenshot.filePath.trim().length > 0;
-          const imgHtml = hasScreenshot
-            ? `<div class="step-screenshot"><img src="../${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
-            : "";
-          return `<li>
+      .map((step, idx) => {
+        const ev = evidence?.[idx];
+        if (!ev) {
+          return plainStepRow(step);
+        }
+        const linksHtml = renderEvidenceLinks(ev);
+        // Timing-only evidence renders nothing visible — fall back to the
+        // plain Story-2 row instead of a details block reading "0 ms".
+        if (ev.screenshot === undefined && linksHtml.length === 0) {
+          return plainStepRow(step);
+        }
+        const hasScreenshot =
+          ev.screenshot !== undefined && ev.screenshot.filePath.trim().length > 0;
+        const imgHtml = hasScreenshot
+          ? `<div class="step-screenshot"><img src="../${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
+          : "";
+        return `<li>
             <details>
               <summary><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></summary>
               <div class="step-evidence">
@@ -136,8 +130,7 @@ export function renderHtmlReport({
               </div>
             </details>
           </li>`;
-        },
-      )
+      })
       .join("\n        ");
 
     // Model linkage from the relation map — which states/contracts this
@@ -153,9 +146,7 @@ export function renderHtmlReport({
     // at run time so the report reflects exactly what was run, not an authored
     // copy that could drift. Falls back to title-only when no snapshot exists.
     const gherkin = gherkinSource?.[scenario.id];
-    const gherkinHtml = gherkin
-      ? `<pre class="gherkin">${escapeHtml(gherkin)}</pre>`
-      : "";
+    const gherkinHtml = gherkin ? `<pre class="gherkin">${escapeHtml(gherkin)}</pre>` : "";
 
     const title = rel?.scenarioTitle ?? scenario.id;
 
@@ -291,7 +282,9 @@ function renderEvidenceLinks(ev: StepEvidence): string {
     ["network", ev.network],
   ] as const) {
     if (ref !== undefined && SAFE_HREF_PATTERN.test(ref)) {
-      links.push(`<a class="step-link" href="../${escapeHtml(ref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`);
+      links.push(
+        `<a class="step-link" href="../${escapeHtml(ref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`,
+      );
     }
   }
   return links.length > 0 ? `<div class="step-links">${links.join("")}</div>` : "";

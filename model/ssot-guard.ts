@@ -24,9 +24,7 @@ export function resolveTestPlanAgainstModel(
 ): ModelResolutionIssue[] {
   const stateIds = new Set(fsm.states.map((s) => s.stateId));
   const contractIds = new Set(contracts.map((c) => c.contractId));
-  const transitionKeys = new Set(
-    fsm.transitions.map((t) => `${t.from}\u0000${t.contractId}`),
-  );
+  const transitionKeys = new Set(fsm.transitions.map((t) => `${t.from}\u0000${t.contractId}`));
 
   const issues: ModelResolutionIssue[] = [];
   const seenIds = new Set<string>();

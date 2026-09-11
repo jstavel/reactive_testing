@@ -16,19 +16,18 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
+import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
 import {
   HANDOFF_KINDS,
+  handoffLine,
   LAST_FAIL,
   LAST_RUN,
-  handoffLine,
   linkRun,
   resolveFan,
   resolveFanRunId,
   unlinkLastFail,
   writeHandoff,
 } from "./handlinks.js";
-import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
 
 let tempDirs: string[] = [];
 
@@ -51,10 +50,7 @@ function seedRun(corpusDir: string, runId: string): void {
   mkdirSync(join(corpusDir, "snapshots", runId), { recursive: true });
   writeFileSync(join(corpusDir, "snapshots", runId, "0.json"), "{}");
   mkdirSync(join(corpusDir, runId), { recursive: true });
-  writeFileSync(
-    join(corpusDir, runId, "run-manifest.json"),
-    JSON.stringify({ runId }),
-  );
+  writeFileSync(join(corpusDir, runId, "run-manifest.json"), JSON.stringify({ runId }));
 }
 
 /** Recursive relative-path listing, for asserting "no filesystem change". */
@@ -90,7 +86,9 @@ describe("linkRun", () => {
     expect(readlinkSync(join(fanDir, "manifest"))).toBe(`../run-a`);
     expect(realpathSync(join(fanDir, "manifest"))).toBe(realpathSync(join(corpusDir, "run-a")));
     // The fan's manifest entry reaches the same-run manifest.
-    expect(JSON.parse(readFileSync(join(fanDir, "manifest", "run-manifest.json"), "utf8")).runId).toBe("run-a");
+    expect(
+      JSON.parse(readFileSync(join(fanDir, "manifest", "run-manifest.json"), "utf8")).runId,
+    ).toBe("run-a");
   });
 
   it("missing kind: the fan still includes the link, pointing at a pre-created empty dir", () => {
@@ -128,7 +126,10 @@ describe("linkRun", () => {
     tempDirs.push(moved);
 
     expect(existsSync(join(moved, LAST_RUN, "manifest", "run-manifest.json"))).toBe(true);
-    expect(JSON.parse(readFileSync(join(moved, LAST_RUN, "manifest", "run-manifest.json"), "utf8")).runId).toBe("run-a");
+    expect(
+      JSON.parse(readFileSync(join(moved, LAST_RUN, "manifest", "run-manifest.json"), "utf8"))
+        .runId,
+    ).toBe("run-a");
   });
 
   it("rejects runIds that could escape the corpus via symlink targets", () => {
@@ -290,7 +291,17 @@ describe("run completion wiring (via finishRun)", () => {
     const run = startCorpusRun();
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
 
-    finishRun(corpusDir, run, "t", "plan-hash", [], [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }], ["snapshot"], [], { failed: true });
+    finishRun(
+      corpusDir,
+      run,
+      "t",
+      "plan-hash",
+      [],
+      [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
+      ["snapshot"],
+      [],
+      { failed: true },
+    );
 
     expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
     expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe(run.runId);
@@ -300,7 +311,17 @@ describe("run completion wiring (via finishRun)", () => {
     const corpusDir = makeCorpusDir();
     const failed = startCorpusRun();
     const passed = startCorpusRun();
-    finishRun(corpusDir, failed, "t1", "plan-hash", [], [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }], [], [], { failed: true });
+    finishRun(
+      corpusDir,
+      failed,
+      "t1",
+      "plan-hash",
+      [],
+      [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
+      [],
+      [],
+      { failed: true },
+    );
 
     finishRun(corpusDir, passed, "t2", "plan-hash", [], [], [], [], { failed: false });
 

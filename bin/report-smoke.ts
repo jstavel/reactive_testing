@@ -39,8 +39,6 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { relations } from "../model/relations.js";
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
-import { screenshotRefSchema } from "../model/schemas.js";
 import type {
   RunMetadata,
   ScenarioResult,
@@ -48,10 +46,12 @@ import type {
   TestPlan,
   ValidationResult,
 } from "../model/schemas.js";
+import { screenshotRefSchema } from "../model/schemas.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
+import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
+import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { emitHtmlReport } from "../reporter/html-report.js";
 import { emitJsonReport } from "../reporter/json-report.js";
-import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
-import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import {
   type CliOutcome,
@@ -182,10 +182,7 @@ function stepEvidenceFor(corpusDir: string, runId: string, stepIndex: number): S
 
   return {
     // A reversed delta (post before pre) is nonsense timing — clamp to 0.
-    timingMs:
-      preMs !== undefined && postMs !== undefined && postMs >= preMs
-        ? postMs - preMs
-        : 0,
+    timingMs: preMs !== undefined && postMs !== undefined && postMs >= preMs ? postMs - preMs : 0,
     ...(corpusRef(corpusDir, snapshotPre) !== undefined ? { snapshotPre } : {}),
     ...(corpusRef(corpusDir, snapshotPost) !== undefined ? { snapshotPost } : {}),
     ...(corpusRef(corpusDir, probes) !== undefined ? { probes } : {}),
@@ -258,12 +255,10 @@ function readScreenshotRef(corpusDir: string, relPath: string): StepEvidence["sc
  * error — the re-record message, nothing written), or a usage error (any
  * remaining flag or a second positional after the `--corpus-dir` tokens are
  * removed) — in the error cases nothing is written. */
-export function reportSmoke(
-  argv: readonly string[],
-  options: ReportOptions = {},
-): ReportOutcome {
+export function reportSmoke(argv: readonly string[], options: ReportOptions = {}): ReportOutcome {
   const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
-  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
+  const corpusDir =
+    flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
   // The positional-count guard applies to the args that remain after the
@@ -311,8 +306,7 @@ export function reportSmoke(
 
   // Unfiltered: the report always covers the whole plan (mirrors validate:smoke
   // without contract filters).
-  const results =
-    run === undefined ? [] : runValidatorsOffline(corpusDir, runId, plan);
+  const results = run === undefined ? [] : runValidatorsOffline(corpusDir, runId, plan);
 
   // Zero results after a run was selected means validators ran over nothing —
   // an unreadable manifest or a stepless plan — never a reportable pass.

@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,8 +22,7 @@ function makeCorpusDir(): string {
   return dir;
 }
 
-const MODEL_VERSION =
-  "fab621435d1cbcad3cd10e730f56decf9fc62bc7e50648fb27b100b25348da7d";
+const MODEL_VERSION = "fab621435d1cbcad3cd10e730f56decf9fc62bc7e50648fb27b100b25348da7d";
 
 const run: RunMetadata = {
   runId: "2026-09-02T10:00:00Z",
@@ -91,9 +89,7 @@ describe("renderHtmlReport", () => {
   });
 
   it("MISSING_RESULT — scenario with no matching result treated as failed", () => {
-    const plan = makePlan([
-      { id: "orphan", steps: [{ stateId: "home", contractId: "doThing" }] },
-    ]);
+    const plan = makePlan([{ id: "orphan", steps: [{ stateId: "home", contractId: "doThing" }] }]);
     const results: ScenarioResult[] = [];
 
     const html = renderHtmlReport({ run, plan, results });
@@ -132,9 +128,7 @@ describe("renderHtmlReport", () => {
 describe("emitHtmlReport", () => {
   it("ALL_PASS_E2E — writes report.html under the run dir with green bar", () => {
     const corpusDir = makeCorpusDir();
-    const plan = makePlan([
-      { id: "login", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "login", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
 
     const relPath = emitHtmlReport({ corpusDir, run, plan, results: [result("login", true)] });
 
@@ -187,9 +181,7 @@ describe("emitHtmlReport", () => {
 
   it("RE_EMIT — overwrites cleanly, same bytes", () => {
     const corpusDir = makeCorpusDir();
-    const plan = makePlan([
-      { id: "x", steps: [{ stateId: "home", contractId: "openX" }] },
-    ]);
+    const plan = makePlan([{ id: "x", steps: [{ stateId: "home", contractId: "openX" }] }]);
 
     emitHtmlReport({ corpusDir, run, plan, results: [result("x", true)] });
     const first = readReport(corpusDir, run.runId);
@@ -239,7 +231,9 @@ describe("emitHtmlReport", () => {
 });
 
 describe("renderHtmlReport with relations (Story 2)", () => {
-  function relation(overrides: Partial<import("../model/relations.js").ScenarioRelation>): import("../model/relations.js").ScenarioRelation {
+  function relation(
+    overrides: Partial<import("../model/relations.js").ScenarioRelation>,
+  ): import("../model/relations.js").ScenarioRelation {
     return {
       scenarioId: "scenario-a",
       feature: "home-page-history-menu",
@@ -333,7 +327,9 @@ describe("renderHtmlReport with relations (Story 2)", () => {
       plan,
       results,
       relations: rels,
-      gherkinSource: { a: "Scenario: Scenario A\n  Given some precondition\n  Then something holds" },
+      gherkinSource: {
+        a: "Scenario: Scenario A\n  Given some precondition\n  Then something holds",
+      },
     });
 
     expect(html).toContain("Scenario: Scenario A");
@@ -352,7 +348,7 @@ describe("renderHtmlReport with relations (Story 2)", () => {
 
     // Title still shown; no <pre class="gherkin"> because no snapshot text.
     expect(html).toContain("Scenario A");
-    expect(html).not.toContain("<pre class=\"gherkin\">");
+    expect(html).not.toContain('<pre class="gherkin">');
   });
 
   it("FALLBACK_FLAT — without relations, no feature headings and raw scenario ids", () => {
@@ -364,8 +360,8 @@ describe("renderHtmlReport with relations (Story 2)", () => {
     const html = renderHtmlReport({ run, plan, results });
 
     expect(html).toContain("scenario-a");
-    expect(html).not.toContain("<div class=\"feature-group\">");
-    expect(html).not.toContain("<div class=\"model-link\">");
+    expect(html).not.toContain('<div class="feature-group">');
+    expect(html).not.toContain('<div class="model-link">');
   });
 
   it("UNCATEGORIZED — scenario with no matching relation grouped under 'Uncategorized'", () => {
@@ -402,9 +398,7 @@ describe("renderHtmlReport with relations (Story 2)", () => {
 
 describe("renderHtmlReport with stepEvidence (Story 3)", () => {
   it("TIMING_ONLY — step with timing but no screenshot/link falls back to the plain row", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
       sc: [{ timingMs: 42 }],
@@ -420,12 +414,15 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
   });
 
   it("WITH_SCREENSHOT — step with timing and screenshot shows both", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
-      sc: [{ timingMs: 120, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } }],
+      sc: [
+        {
+          timingMs: 120,
+          screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" },
+        },
+      ],
     };
 
     const html = renderHtmlReport({ run, plan, results, stepEvidence });
@@ -437,9 +434,7 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
   });
 
   it("MISSING_EVIDENCE — step absent from stepEvidence renders as plain line", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     // stepEvidence is present but empty — no entry for "sc".
     const stepEvidence: Record<string, StepEvidence[]> = {};
@@ -455,9 +450,7 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
   });
 
   it("STEP_EVIDENCE_OMITTED — omitting stepEvidence entirely matches Story 2 output", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
 
     const without = renderHtmlReport({ run, plan, results });
@@ -467,9 +460,7 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
   });
 
   it("EMPTY_FILEPATH — screenshot ref with empty filePath omits <img> but shows timing", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
       sc: [{ timingMs: 55, screenshot: { filePath: "", capturedAt: "2026-09-03T10:00:00Z" } }],
@@ -495,7 +486,10 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
       sc: [
-        { timingMs: 30, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } },
+        {
+          timingMs: 30,
+          screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" },
+        },
         { timingMs: 80, probes: "probes/run1/1.json" },
       ],
     };
@@ -512,14 +506,14 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     expect(html).toContain('<img src="../screenshots/run1/0.png"');
     expect(html.match(/<img/g)?.length ?? 0).toBe(1);
     // …and a link only for the second.
-    expect(html).toContain('<a class="step-link" href="../probes/run1/1.json" target="_blank" rel="noopener noreferrer">probes</a>');
+    expect(html).toContain(
+      '<a class="step-link" href="../probes/run1/1.json" target="_blank" rel="noopener noreferrer">probes</a>',
+    );
     expect(html.match(/class="step-link"/g)?.length ?? 0).toBe(1);
   });
 
   it("CLOSED_BY_DEFAULT — step-level <details> has no open attribute", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
       sc: [{ timingMs: 10, probes: "probes/run1/0.json" }],
@@ -536,12 +530,15 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
 
   it("EMIT_FORWARDS — emitHtmlReport writes stepEvidence into the report file", () => {
     const corpusDir = makeCorpusDir();
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
-      sc: [{ timingMs: 77, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } }],
+      sc: [
+        {
+          timingMs: 77,
+          screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" },
+        },
+      ],
     };
 
     emitHtmlReport({ corpusDir, run, plan, results, stepEvidence });
@@ -563,22 +560,33 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
   };
 
   function planWithStep(): TestPlan {
-    return makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    return makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
   }
 
   it("FULL_EVIDENCE — a step with all four refs plus a screenshot shows the four links and the img", () => {
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullEvidence] };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     // The report lives one level below the corpus root — hrefs are ../-prefixed
     // (the stored ref values stay corpus-root-relative).
-    expect(html).toContain('<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>');
-    expect(html).toContain('<a class="step-link" href="../snapshots/run1/0.json" target="_blank" rel="noopener noreferrer">snapshot post</a>');
-    expect(html).toContain('<a class="step-link" href="../probes/run1/0.json" target="_blank" rel="noopener noreferrer">probes</a>');
-    expect(html).toContain('<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>');
+    expect(html).toContain(
+      '<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>',
+    );
+    expect(html).toContain(
+      '<a class="step-link" href="../snapshots/run1/0.json" target="_blank" rel="noopener noreferrer">snapshot post</a>',
+    );
+    expect(html).toContain(
+      '<a class="step-link" href="../probes/run1/0.json" target="_blank" rel="noopener noreferrer">probes</a>',
+    );
+    expect(html).toContain(
+      '<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>',
+    );
     expect(html).toContain('<img src="../screenshots/run1/0.png"');
     // Every link opens in a new tab, rel-guarded, and cites a relative href.
     expect(html.match(/class="step-link"/g)?.length).toBe(4);
@@ -599,9 +607,16 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
         sc: [{ timingMs: 5, [kind]: ref }],
       };
 
-      const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+      const html = renderHtmlReport({
+        run,
+        plan: planWithStep(),
+        results: [result("sc", true)],
+        stepEvidence,
+      });
 
-      expect(html, kind).toContain(`<a class="step-link" href="../${ref}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+      expect(html, kind).toContain(
+        `<a class="step-link" href="../${ref}" target="_blank" rel="noopener noreferrer">${label}</a>`,
+      );
       expect(html.match(/class="step-link"/g)?.length, kind).toBe(1);
       expect(html, kind).not.toContain("<img");
     }
@@ -612,7 +627,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
       sc: [{ timingMs: 5, snapshotPre: "javascript:alert(1)", probes: "probes/run1/0.json" }],
     };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     // The hostile ref is discarded entirely — nowhere in the document.
     expect(html).not.toContain("javascript:");
@@ -624,7 +644,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
   it("TIMING_ONLY_PLAIN_ROW — zero-timing step with no refs renders the plain row (no details, no timing)", () => {
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [{ timingMs: 0 }] };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     expect(html).not.toContain("<details>\n              <summary>");
     expect(html).not.toContain('class="step-timing"');
@@ -638,7 +663,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
       sc: [{ timingMs: 0, probes: "probes/run1/0.json" }],
     };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     expect(html).toContain("<details>\n              <summary>");
     expect(html).toContain('class="step-timing"');
@@ -649,7 +679,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
     const { network: _absent, ...partial } = fullEvidence;
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [partial] };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     expect(html).not.toContain('href="../network/run1/0.json"');
     expect(html).toContain('href="../snapshots/run1/0.pre.json"');
@@ -665,7 +700,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
       sc: [{ ...fullEvidence, screenshot: undefined }],
     };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     expect(html).not.toContain("<img");
     expect(html.match(/class="step-link"/g)?.length).toBe(4);
@@ -676,7 +716,12 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
       sc: [{ timingMs: 5, snapshotPre: "", probes: "probes/run1/0.json" }],
     };
 
-    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     expect(html).not.toContain('href=""');
     expect(html).not.toContain('href="../"');
@@ -709,10 +754,20 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
     const corpusDir = makeCorpusDir();
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullEvidence] };
 
-    emitHtmlReport({ corpusDir, run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+    emitHtmlReport({
+      corpusDir,
+      run,
+      plan: planWithStep(),
+      results: [result("sc", true)],
+      stepEvidence,
+    });
 
     const written = readReport(corpusDir, run.runId);
-    expect(written).toContain('<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>');
-    expect(written).toContain('<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>');
+    expect(written).toContain(
+      '<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>',
+    );
+    expect(written).toContain(
+      '<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>',
+    );
   });
 });

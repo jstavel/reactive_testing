@@ -135,9 +135,7 @@ describe("launchBrowser CDP-attach", () => {
     // A subsequent launch must not throw "session already active".
     const browser2 = makeCdpBrowser();
     mockConnectOverCDP.mockResolvedValue(browser2);
-    const session2 = await launchBrowser(
-      makeConfig({ cdpUrl: "http://127.0.0.1:9222" }),
-    );
+    const session2 = await launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }));
     expect(session2).toBeTruthy();
     expect(browser2.close).not.toHaveBeenCalled();
   });
@@ -145,9 +143,9 @@ describe("launchBrowser CDP-attach", () => {
   it("fails fast when the CDP endpoint is unreachable", async () => {
     mockConnectOverCDP.mockRejectedValue(new Error("ECONNREFUSED 127.0.0.1:9222"));
 
-    await expect(
-      launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" })),
-    ).rejects.toThrow(/connect over CDP/i);
+    await expect(launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }))).rejects.toThrow(
+      /connect over CDP/i,
+    );
     // No session should be left active after a failed attach.
     await expect(closeBrowser()).resolves.toBeUndefined();
   });
@@ -161,16 +159,12 @@ describe("launchBrowser CDP-attach", () => {
       });
       mockConnectOverCDP.mockReturnValue(connectPromise);
 
-      const launchPromise = launchBrowser(
-        makeConfig({ cdpUrl: "http://127.0.0.1:9222" }),
-      );
+      const launchPromise = launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }));
 
       // Attach the rejection matcher BEFORE advancing time so the timeout
       // rejection is handled synchronously (avoiding an unhandled-rejection
       // warning from the fake-timer window).
-      const rejection = expect(launchPromise).rejects.toThrow(
-        /Timed out connecting to CDP/,
-      );
+      const rejection = expect(launchPromise).rejects.toThrow(/Timed out connecting to CDP/);
 
       // The connect never settles before the timeout → fail fast with the timeout message.
       await vi.advanceTimersByTimeAsync(CDP_CONNECT_TIMEOUT_MS + 1);
@@ -193,9 +187,9 @@ describe("launchBrowser CDP-attach", () => {
     page.goto.mockRejectedValue(new Error("net::ERR_NAME_NOT_RESOLVED"));
     mockConnectOverCDP.mockResolvedValue(browser);
 
-    await expect(
-      launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" })),
-    ).rejects.toThrow(/ERR_NAME_NOT_RESOLVED/);
+    await expect(launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }))).rejects.toThrow(
+      /ERR_NAME_NOT_RESOLVED/,
+    );
 
     // The acquired CDP handle must be released (disconnected) on bootstrap failure.
     expect(browser.close).toHaveBeenCalled();
@@ -206,9 +200,9 @@ describe("launchBrowser CDP-attach", () => {
     const browser = makeCdpBrowser([]);
     mockConnectOverCDP.mockResolvedValue(browser);
 
-    await expect(
-      launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" })),
-    ).rejects.toThrow(/exposes no contexts/);
+    await expect(launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }))).rejects.toThrow(
+      /exposes no contexts/,
+    );
     // The acquired handle must be released on this failure path too.
     expect(browser.close).toHaveBeenCalled();
   });
@@ -219,9 +213,9 @@ describe("launchBrowser CDP-attach", () => {
     const browser = makeCdpBrowser([c1, c2]);
     mockConnectOverCDP.mockResolvedValue(browser);
 
-    await expect(
-      launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" })),
-    ).rejects.toThrow(/exposes 2 contexts/);
+    await expect(launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222" }))).rejects.toThrow(
+      /exposes 2 contexts/,
+    );
     expect(browser.close).toHaveBeenCalled();
   });
 
@@ -232,16 +226,12 @@ describe("launchBrowser CDP-attach", () => {
     const page = makePage();
     const browser = makeCdpBrowser([makeContext(page)]);
     page.waitForSelector.mockRejectedValue(
-      new Error(
-        `waitForSelector: Timeout 30000ms exceeded while waiting for selector "#app"`,
-      ),
+      new Error(`waitForSelector: Timeout 30000ms exceeded while waiting for selector "#app"`),
     );
     mockConnectOverCDP.mockResolvedValue(browser);
 
     await expect(
-      launchBrowser(
-        makeConfig({ cdpUrl: "http://127.0.0.1:9222", readySelector: "#app" }),
-      ),
+      launchBrowser(makeConfig({ cdpUrl: "http://127.0.0.1:9222", readySelector: "#app" })),
     ).rejects.toThrow(/waiting for selector "#app"/);
     // No session should be left active after a failed bootstrap.
     await expect(closeBrowser()).resolves.toBeUndefined();

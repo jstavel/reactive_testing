@@ -15,12 +15,14 @@
 // gave runManifestSchema the required planModelVersion provenance field.
 // Regenerated (story 6 review) after planModelVersion gained min(1) — blank
 // provenance is unrecordable.
+// Regenerated (spec repo-hygiene-biome-contributing, story 1) after Biome's
+// 100-col formatter reflowed fsm.ts and schemas.ts, changing the model hash.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "320bed0cf074a40e59dbda1a55e0f7b389d358aa45376042cb8c6514888380b1",
+  modelVersion: "eace0d6f677c2ba81698d931123d96f03bf5415777ba4e0249a5bfe4fe86d13e",
   scenarios: [
     // home-page-history-menu.feature
     {

@@ -1,5 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -60,12 +59,12 @@ describe("buildGherkinSnapshot", () => {
 
     const snapshot = buildGherkinSnapshot(dir, rels);
 
-    expect(snapshot["a"]).toContain("Scenario: Scenario A");
-    expect(snapshot["a"]).toContain('When I click "Main" in the History menu');
+    expect(snapshot.a).toContain("Scenario: Scenario A");
+    expect(snapshot.a).toContain('When I click "Main" in the History menu');
     // Does not leak the next scenario into this block.
-    expect(snapshot["a"]).not.toContain("Scenario: Scenario B");
-    expect(snapshot["b"]).toContain("Scenario: Scenario B");
-    expect(snapshot["b"]).toContain('When I click "Futures" in the History menu');
+    expect(snapshot.a).not.toContain("Scenario: Scenario B");
+    expect(snapshot.b).toContain("Scenario: Scenario B");
+    expect(snapshot.b).toContain('When I click "Futures" in the History menu');
   });
 
   it("MISSING_TITLE — scenario not in the feature file is omitted from snapshot", () => {
@@ -103,12 +102,16 @@ describe("buildGherkinSnapshot", () => {
 
     const rels = [
       relation({ scenarioId: "a", scenarioTitle: "Scenario A" }),
-      relation({ scenarioId: "c", feature: "home-page-portfolio-menu", scenarioTitle: "Scenario C" }),
+      relation({
+        scenarioId: "c",
+        feature: "home-page-portfolio-menu",
+        scenarioTitle: "Scenario C",
+      }),
     ];
 
     const snapshot = buildGherkinSnapshot(dir, rels);
 
-    expect(snapshot["a"]).toContain("Scenario: Scenario A");
-    expect(snapshot["c"]).toContain("Scenario: Scenario C");
+    expect(snapshot.a).toContain("Scenario: Scenario A");
+    expect(snapshot.c).toContain("Scenario: Scenario C");
   });
 });

@@ -1,7 +1,5 @@
-import type { Page } from "playwright";
-
-import type { Probe, ProbeResult } from "../model/schemas.js";
 import { z } from "zod";
+import type { Probe, ProbeResult } from "../model/schemas.js";
 import { probeSchema } from "../model/schemas.js";
 import type { CollectorFn } from "./collect.js";
 
@@ -19,11 +17,7 @@ export class ProbePartialError extends Error {
   readonly partialResults: ProbeResult[];
   readonly missingProbe: string;
 
-  constructor(
-    message: string,
-    partialResults: ProbeResult[],
-    missingProbe: string,
-  ) {
+  constructor(message: string, partialResults: ProbeResult[], missingProbe: string) {
     super(message);
     this.name = "ProbePartialError";
     this.partialResults = partialResults;
@@ -39,10 +33,7 @@ export class ProbePartialError extends Error {
  * against probeSchema so a null/broken entry is rejected rather than crashing
  * the loop.
  */
-export const collectProbe: CollectorFn<ProbeResult[], [Probe[]]> = async (
-  page,
-  probes,
-) => {
+export const collectProbe: CollectorFn<ProbeResult[], [Probe[]]> = async (page, probes) => {
   const parsed = z.array(probeSchema).parse(probes);
   const results: ProbeResult[] = [];
 

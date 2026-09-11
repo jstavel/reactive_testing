@@ -8,9 +8,9 @@
 //
 // Layer direction preserved: validators/ imports only model/.
 
+import type { TestPlan, ValidationResult } from "../model/schemas.js";
 import { loadCorpusSteps } from "./corpus-loader.js";
 import { validatorsFor } from "./validator-map.js";
-import type { TestPlan, ValidationResult } from "../model/schemas.js";
 
 /**
  * Re-validate a previously recorded run offline, purely over its corpus.

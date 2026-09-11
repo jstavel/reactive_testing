@@ -77,7 +77,7 @@ describe("resolveBootstrapPath", () => {
         currentStateId: null,
         givenStateId: "historyMain",
       }),
-    ).toThrow('Bootstrap state is unknown after a previous failure');
+    ).toThrow("Bootstrap state is unknown after a previous failure");
   });
 
   it("rejects a model with ambiguous duplicate transition keys", () => {

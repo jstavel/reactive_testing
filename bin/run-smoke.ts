@@ -4,14 +4,14 @@
 // connection + new tab + confirmed readySelector and leaves the human's
 // browser open.
 
+import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
-import type { OrchestratorConfig } from "../model/schemas.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
-import { selectScenarios } from "./scenario-select.js";
 import { finishRun } from "./run-smoke-finish.js";
+import { selectScenarios } from "./scenario-select.js";
 
 const selectedIds = process.argv.slice(2);
-let plan;
+let plan: TestPlan;
 try {
   plan = selectScenarios(smokeTestPlan, selectedIds);
 } catch (error) {
@@ -62,7 +62,6 @@ if (selectedIds.length > 0) {
 }
 
 const result = await runTestPlan(plan, config, (scenario) => {
-  const status = scenario.passed ? "PASS" : "FAIL";
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(
     `[${scenario.passed ? "PASS" : "FAIL"}] ${scenario.id} (${elapsed}s)` +

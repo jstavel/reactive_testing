@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import { homePageModel } from "../model/fsm.js";
 import type { FsmModel } from "../model/fsm.js";
+import { homePageModel } from "../model/fsm.js";
 import { blockedContractIds } from "./reachability.js";
 
 describe("blockedContractIds", () => {
@@ -26,8 +25,6 @@ describe("blockedContractIds", () => {
   });
 
   it("is deterministic", () => {
-    expect(blockedContractIds(homePageModel)).toEqual(
-      blockedContractIds(homePageModel),
-    );
+    expect(blockedContractIds(homePageModel)).toEqual(blockedContractIds(homePageModel));
   });
 });

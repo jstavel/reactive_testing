@@ -1,0 +1,15 @@
+- id: "1"
+  title: "Biome lint gate + CONTRIBUTING.md"
+  description: >-
+    Add @biomejs/biome with a repo-matching config (style mirroring), lint /
+    lint:fix npm scripts, a green-only lint step in ci.yml, apply mechanical
+    fixes across the tree; create CONTRIBUTING.md documenting the BMad workflow
+    and current setup (CAP-1, CAP-2)
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Config mirrors existing style (single quotes, semicolons, space 2, ~100 col);
+    apply only mechanical lint fixes (+ formatter normalization where it
+    actually deviates), keep the diff reviewable; disable noisy rules with
+    rationale; lint step additive + green-only in ci.yml; CONTRIBUTING created
+    (not duplicated from README), pointing at README/docs and matching AGENTS.md.

@@ -16,10 +16,7 @@ export function corpusDependenciesFor(contractId: string): CollectorName[] {
   if (!contract) return [];
 
   const deps = new Set<CollectorName>();
-  for (const predicate of [
-    ...contract.preconditions,
-    ...contract.postconditions,
-  ]) {
+  for (const predicate of [...contract.preconditions, ...contract.postconditions]) {
     switch (predicate.assert) {
       case "state-is":
       case "url-is":
@@ -45,10 +42,7 @@ export function requiredProbeNames(contractId: string): string[] {
   if (!contract) return [];
 
   const probeNames = new Set<string>();
-  for (const predicate of [
-    ...contract.preconditions,
-    ...contract.postconditions,
-  ]) {
+  for (const predicate of [...contract.preconditions, ...contract.postconditions]) {
     if (predicate.assert === "view-selected") {
       probeNames.add(predicate.probe ?? "selected-view");
     }

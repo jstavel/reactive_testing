@@ -103,10 +103,7 @@ export const actionMap: Record<string, ContractAction> = {
   openPortfolioSummary: async ({ page }) => {
     // The header portfolio value button, scoped to the nav. Matches any magnitude
     // and the masked form (text always ends in "USD"); value-agnostic by design.
-    await page
-      .getByRole("navigation")
-      .getByRole("button", { name: /USD$/ })
-      .click();
+    await page.getByRole("navigation").getByRole("button", { name: /USD$/ }).click();
   },
 
   closePortfolioSummary: async ({ page }) => {
@@ -149,15 +146,15 @@ export const actionMap: Record<string, ContractAction> = {
     const count = await tab.count();
     if (count === 0) {
       throw new Error(
-        'Order Book tab not found in the Favorites bar. ' +
-        'Run-protocol precondition: add the Order Book tab via the "+" button, ' +
-        'then re-run this scenario.',
+        "Order Book tab not found in the Favorites bar. " +
+          'Run-protocol precondition: add the Order Book tab via the "+" button, ' +
+          "then re-run this scenario.",
       );
     }
     if (count > 1) {
       throw new Error(
         `Found ${count} tabs matching "Order book"; expected exactly one. ` +
-        "Deterministic fail — duplicate tabs violate the single-board precondition.",
+          "Deterministic fail — duplicate tabs violate the single-board precondition.",
       );
     }
     await tab.first().click();

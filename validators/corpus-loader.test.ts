@@ -3,9 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
-import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
 import type { CollectorName, CorpusRun, TestPlan } from "../model/schemas.js";
+import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
 import { loadCorpusSteps } from "./corpus-loader.js";
 
 let tempDirs: string[] = [];
@@ -24,7 +23,11 @@ function makeCorpusDir(): string {
 }
 
 /** Write the run-manifest so the loader can discover the file list. */
-function finish(corpusDir: string, run: CorpusRun, collectors: CollectorName[] = ["snapshot", "probe"]): void {
+function finish(
+  corpusDir: string,
+  run: CorpusRun,
+  collectors: CollectorName[] = ["snapshot", "probe"],
+): void {
   finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], collectors);
 }
 
@@ -69,10 +72,26 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger", capturedAt: "t" }]);
-    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "1.pre");
+    writeSnapshot(
+      corpusDir,
+      run,
+      1,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "1.pre",
+    );
     finish(corpusDir, run);
 
     const steps = loadCorpusSteps(corpusDir, run.runId, twoStepPlan);
@@ -82,8 +101,18 @@ describe("loadCorpusSteps", () => {
       stepIndex: 0,
       contractId: "clickHistoryMenuMain",
       evidence: {
-        pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
-        post: { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", snapshot: "", capturedAt: "t" },
+        pre: {
+          stateId: "homePage",
+          url: "https://pro.kraken.com/app/home",
+          snapshot: "",
+          capturedAt: "t",
+        },
+        post: {
+          stateId: "historyMain",
+          url: "https://pro.kraken.com/app/history/main/ledger",
+          snapshot: "",
+          capturedAt: "t",
+        },
         probes: [{ name: "selected-view", value: "Ledger", capturedAt: "t" }],
       },
     });
@@ -96,8 +125,18 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/wrong", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/wrong",
+      capturedAt: "t",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Orders", capturedAt: "t" }]);
     finish(corpusDir, run);
 
@@ -113,7 +152,13 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
     // No post snapshot written — a collector gap leaves it out of manifest files.
     finish(corpusDir, run);
 
@@ -127,8 +172,18 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     // No probe file written — a probe collector gap.
     finish(corpusDir, run);
 
@@ -156,10 +211,30 @@ describe("loadCorpusSteps", () => {
       ],
     };
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", capturedAt: "t" });
-    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "1.pre");
-    writeSnapshot(corpusDir, run, 1, { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "portfolioSummaryDialog",
+      url: "https://pro.kraken.com/app/home",
+      capturedAt: "t",
+    });
+    writeSnapshot(
+      corpusDir,
+      run,
+      1,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "1.pre",
+    );
+    writeSnapshot(corpusDir, run, 1, {
+      stateId: "portfolioSummaryDialog",
+      url: "https://pro.kraken.com/app/home",
+      capturedAt: "t",
+    });
     finish(corpusDir, run);
 
     const steps = loadCorpusSteps(corpusDir, run.runId, repeatedPlan);
@@ -181,8 +256,18 @@ describe("loadCorpusSteps", () => {
   it("returns [] for a legacy manifest lacking planModelVersion (plan-version guard ripple, story 6)", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     // Hand-write the manifest WITHOUT planModelVersion — the pre-guard
     // (legacy) shape: the required provenance field fails safeParse, so the
     // loader yields [] exactly as for an unreadable manifest (the CLIs guard
@@ -208,8 +293,18 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     finish(corpusDir, run);
 
     const a = loadCorpusSteps(corpusDir, run.runId, twoStepPlan);
@@ -222,7 +317,13 @@ describe("loadCorpusSteps", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
     // The post-snapshot path IS listed in the manifest files, but the on-disk
     // file is corrupt (invalid JSON) — the loader must yield undefined post
     // evidence rather than throw.
@@ -245,8 +346,18 @@ describe("loadCorpusSteps", () => {
   it("returns [] for a malformed plan instead of throwing (PATCH 3)", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     finish(corpusDir, run);
 
     expect(loadCorpusSteps(corpusDir, run.runId, null as unknown as TestPlan)).toEqual([]);
@@ -258,8 +369,18 @@ describe("loadCorpusSteps", () => {
   it("defensively skips malformed scenarios/steps rather than throwing", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
     finish(corpusDir, run);
 
     const plan = {

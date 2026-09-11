@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { rm, readFile, access } from "node:fs/promises";
+import { access, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { generateReproScript, writeReproScript, type ReproPath } from "./repro-generator.js";
+import { generateReproScript, type ReproPath, writeReproScript } from "./repro-generator.js";
 
 const SCRIPTS_DIR = "scripts";
 
@@ -61,7 +61,7 @@ describe("generateReproScript", () => {
     const source = generateReproScript(validPath());
     expect(source).toContain("homePageModel.states");
     expect(source).toContain("homePageModel.transitions");
-    expect(source).toContain('no longer exists in the current model');
+    expect(source).toContain("no longer exists in the current model");
     expect(source).toContain("is no longer in the current model");
   });
 
@@ -126,22 +126,30 @@ describe("generateReproScript gaps (FR-12c)", () => {
 
   it("throws a gap naming the step for an unknown state (UNKNOWN_STATE)", () => {
     expect(() =>
-      generateReproScript(validPath({ steps: [{ stateId: "nonexistentPage", contractId: "clickHistoryMenuMain" }] })),
+      generateReproScript(
+        validPath({ steps: [{ stateId: "nonexistentPage", contractId: "clickHistoryMenuMain" }] }),
+      ),
     ).toThrow(/gap.*nonexistentPage/);
     expect(() =>
-      generateReproScript(validPath({ steps: [{ stateId: "nonexistentPage", contractId: "clickHistoryMenuMain" }] })),
+      generateReproScript(
+        validPath({ steps: [{ stateId: "nonexistentPage", contractId: "clickHistoryMenuMain" }] }),
+      ),
     ).toThrow(/step 1/);
   });
 
   it("throws a gap naming the step for an unknown contract (UNKNOWN_CONTRACT)", () => {
     expect(() =>
-      generateReproScript(validPath({ steps: [{ stateId: "homePage", contractId: "nonexistentContract" }] })),
+      generateReproScript(
+        validPath({ steps: [{ stateId: "homePage", contractId: "nonexistentContract" }] }),
+      ),
     ).toThrow(/gap.*nonexistentContract/);
   });
 
   it("throws a gap naming the step for an undeclared transition (UNKNOWN_TRANSITION)", () => {
     expect(() =>
-      generateReproScript(validPath({ steps: [{ stateId: "earn", contractId: "clickHistoryMenuMain" }] })),
+      generateReproScript(
+        validPath({ steps: [{ stateId: "earn", contractId: "clickHistoryMenuMain" }] }),
+      ),
     ).toThrow(/gap.*no transition from state "earn"/);
   });
 
@@ -150,21 +158,25 @@ describe("generateReproScript gaps (FR-12c)", () => {
     // homePage step), but together the path cannot run — step 1 leads to
     // portfolioSummaryDialog while step 2 starts at homePage.
     expect(() =>
-      generateReproScript(validPath({
-        steps: [
-          { stateId: "homePage", contractId: "openPortfolioSummary" },
-          { stateId: "homePage", contractId: "clickHistoryMenuMain" },
-        ],
-      })),
+      generateReproScript(
+        validPath({
+          steps: [
+            { stateId: "homePage", contractId: "openPortfolioSummary" },
+            { stateId: "homePage", contractId: "clickHistoryMenuMain" },
+          ],
+        }),
+      ),
     ).toThrow(/gap.*leads to "portfolioSummaryDialog" but next step starts from "homePage"/);
   });
 
   it("accepts an off-home path when Given identifies its required state", () => {
     expect(() =>
-      generateReproScript(validPath({
-        givenStateId: "portfolioSummaryDialog",
-        steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
-      })),
+      generateReproScript(
+        validPath({
+          givenStateId: "portfolioSummaryDialog",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        }),
+      ),
     ).not.toThrow();
   });
 
@@ -173,12 +185,16 @@ describe("generateReproScript gaps (FR-12c)", () => {
   });
 
   it("throws a gap for an unsafe slug", () => {
-    expect(() => generateReproScript(validPath({ slug: "../../etc/passwd" }))).toThrow(/safe kebab-case filename/);
+    expect(() => generateReproScript(validPath({ slug: "../../etc/passwd" }))).toThrow(
+      /safe kebab-case filename/,
+    );
   });
 
   it("throws a gap for a missing baseUrl or readySelector", () => {
     expect(() => generateReproScript(validPath({ baseUrl: "" }))).toThrow(/gap.*baseUrl/);
-    expect(() => generateReproScript(validPath({ readySelector: "" }))).toThrow(/gap.*readySelector/);
+    expect(() => generateReproScript(validPath({ readySelector: "" }))).toThrow(
+      /gap.*readySelector/,
+    );
   });
 });
 
@@ -193,7 +209,9 @@ describe("writeReproScript", () => {
 
   it("writes nothing when the path is a gap", async () => {
     await expect(
-      writeReproScript(validPath({ steps: [{ stateId: "nope", contractId: "clickHistoryMenuMain" }] })),
+      writeReproScript(
+        validPath({ steps: [{ stateId: "nope", contractId: "clickHistoryMenuMain" }] }),
+      ),
     ).rejects.toThrow(/gap/);
 
     await expect(access(join(SCRIPTS_DIR, "repro-portfolio-summary.ts"))).rejects.toThrow();

@@ -40,7 +40,11 @@ export interface FsmModel {
 
 const states: FsmState[] = [
   { stateId: "homePage", label: "Home Page" },
-  { stateId: "portfolioSummaryDialog", label: "Portfolio Summary dialog", parentStateId: "homePage" },
+  {
+    stateId: "portfolioSummaryDialog",
+    label: "Portfolio Summary dialog",
+    parentStateId: "homePage",
+  },
 
   // History page states (reached from Home Page via navigation menu)
   { stateId: "historyMain", label: "History — Main" },

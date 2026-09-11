@@ -9,10 +9,7 @@ export interface BootstrapPathInput {
   route?: RouteStep[];
 }
 
-export function resolveBootstrapPath(
-  model: FsmModel,
-  input: BootstrapPathInput,
-): FsmTransition[] {
+export function resolveBootstrapPath(model: FsmModel, input: BootstrapPathInput): FsmTransition[] {
   const stateIds = new Set(model.states.map((state) => state.stateId));
   if (input.currentStateId === null) {
     throw new Error(
@@ -61,10 +58,7 @@ export function resolveBootstrapPath(
     }
     const transitions = model.transitions
       .filter((transition) => transition.from === current.stateId)
-      .sort(
-        (a, b) =>
-          a.contractId.localeCompare(b.contractId) || a.to.localeCompare(b.to),
-      );
+      .sort((a, b) => a.contractId.localeCompare(b.contractId) || a.to.localeCompare(b.to));
     for (const transition of transitions) {
       const depth = current.path.length + 1;
       const previousDepth = visitedAtDepth.get(transition.to);
@@ -77,9 +71,7 @@ export function resolveBootstrapPath(
   }
 
   if (shortestPaths.length === 0) {
-    throw new Error(
-      `No bootstrap path from "${input.currentStateId}" to "${input.givenStateId}".`,
-    );
+    throw new Error(`No bootstrap path from "${input.currentStateId}" to "${input.givenStateId}".`);
   }
   if (shortestPaths.length > 1) {
     throw new Error(
@@ -104,8 +96,7 @@ function validateRoute(
       );
     }
     const transition = model.transitions.find(
-      (candidate) =>
-        candidate.from === stateId && candidate.contractId === step.contractId,
+      (candidate) => candidate.from === stateId && candidate.contractId === step.contractId,
     );
     if (!transition) {
       throw new Error(

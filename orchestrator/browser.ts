@@ -173,31 +173,29 @@ async function connectOverCDPWithTimeout(cdpUrl: string): Promise<Browser> {
         ),
       );
     }, CDP_CONNECT_TIMEOUT);
-    chromium
-      .connectOverCDP(cdpUrl)
-      .then(
-        (browser) => {
-          if (settled) {
-            // The timeout already won — release this late handle and discard it.
-            browser.close().catch(() => {});
-            return;
-          }
-          clearTimeout(timer);
-          resolve(browser);
-        },
-        (err) => {
-          if (settled) {
-            return;
-          }
-          clearTimeout(timer);
-          reject(
-            new Error(
-              `Failed to connect over CDP to ${cdpUrl}: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
-            ),
-          );
-        },
-      );
+    chromium.connectOverCDP(cdpUrl).then(
+      (browser) => {
+        if (settled) {
+          // The timeout already won — release this late handle and discard it.
+          browser.close().catch(() => {});
+          return;
+        }
+        clearTimeout(timer);
+        resolve(browser);
+      },
+      (err) => {
+        if (settled) {
+          return;
+        }
+        clearTimeout(timer);
+        reject(
+          new Error(
+            `Failed to connect over CDP to ${cdpUrl}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+        );
+      },
+    );
   });
 }

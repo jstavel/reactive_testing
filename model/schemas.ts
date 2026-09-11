@@ -43,8 +43,7 @@ export const networkEventSchema = z
     if (hasStatus === hasError) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "network event must have exactly one of `status` or `error`",
+        message: "network event must have exactly one of `status` or `error`",
       });
     }
   });
@@ -69,11 +68,9 @@ export type ProbeResult = z.infer<typeof probeResultSchema>;
 /** A reference to a screenshot file, never the image bytes (plain data). */
 export const screenshotRefSchema = z.object({
   /** Corpus-relative path to the PNG within the run (e.g. screenshots/<runId>/<stepIndex>.png). */
-  filePath: z
-    .string()
-    .refine((p) => !/^([A-Za-z]:[\\/]|[\\/])/.test(p), {
-      message: "filePath must be corpus-relative, not absolute",
-    }),
+  filePath: z.string().refine((p) => !/^([A-Za-z]:[\\/]|[\\/])/.test(p), {
+    message: "filePath must be corpus-relative, not absolute",
+  }),
   /** ISO-8601 capture timestamp. */
   capturedAt: z.string(),
 });
@@ -188,12 +185,7 @@ export type Validator = (evidence: ContractEvidence) => ValidationResult;
 // ---- Collector gap records (AD-16: isolation) ----
 
 /** The four collectors, as recorded by name in a collector gap (AD-13). */
-export const collectorNameSchema = z.enum([
-  "snapshot",
-  "network",
-  "screenshot",
-  "probe",
-]);
+export const collectorNameSchema = z.enum(["snapshot", "network", "screenshot", "probe"]);
 export type CollectorName = z.infer<typeof collectorNameSchema>;
 
 /** A recorded collector failure gap: one collector threw for one step. The
@@ -234,11 +226,7 @@ export type StepFailure = z.infer<typeof stepFailureSchema>;
 // ---- Plan / artifact types ----
 
 /** Named test plans drawn from a fixed traditional taxonomy (AD-19). */
-export const planIdSchema = z.enum([
-  "smoke",
-  "regression",
-  "acceptance",
-] as const);
+export const planIdSchema = z.enum(["smoke", "regression", "acceptance"] as const);
 export type PlanId = z.infer<typeof planIdSchema>;
 
 /** One step in a scenario's path through the FSM. */

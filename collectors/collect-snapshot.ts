@@ -1,10 +1,5 @@
-import type { Page } from "playwright";
-
+import type { SnapshotCollectorOptions, SnapshotRecord } from "../model/schemas.js";
 import { snapshotCollectorOptionsSchema } from "../model/schemas.js";
-import type {
-  SnapshotCollectorOptions,
-  SnapshotRecord,
-} from "../model/schemas.js";
 import type { CollectorFn } from "./collect.js";
 
 /**
@@ -12,10 +7,10 @@ import type { CollectorFn } from "./collect.js";
  * stateId is required and non-empty — a snapshot without an FSM state is corrupt
  * corpus data, so there is no silent "" default.
  */
-export const collectSnapshot: CollectorFn<
-  SnapshotRecord,
-  [SnapshotCollectorOptions]
-> = async (page, options) => {
+export const collectSnapshot: CollectorFn<SnapshotRecord, [SnapshotCollectorOptions]> = async (
+  page,
+  options,
+) => {
   const { stateId } = snapshotCollectorOptionsSchema.parse(options);
   const snapshot = await page.locator("body").innerHTML();
   const url = page.url();

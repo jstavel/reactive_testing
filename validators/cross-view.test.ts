@@ -3,14 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
-import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
 import type { CorpusRun, TestPlan } from "../model/schemas.js";
 import { validationResultSchema } from "../model/schemas.js";
-import {
-  crossViewInvariants,
-  runCrossViewInvariants,
-} from "./cross-view.js";
+import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
+import { crossViewInvariants, runCrossViewInvariants } from "./cross-view.js";
 
 let tempDirs: string[] = [];
 
@@ -35,7 +31,10 @@ function twoSurfacePlan(): TestPlan {
     planId: "smoke",
     modelVersion: "x",
     scenarios: [
-      { id: "s1", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
+      {
+        id: "s1",
+        steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+      },
       { id: "s2", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
     ],
   };
@@ -53,7 +52,12 @@ function writePostSnapshot(
     "snapshots",
     stepIndex,
     "json",
-    JSON.stringify({ stateId, url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" }),
+    JSON.stringify({
+      stateId,
+      url: "https://pro.kraken.com/app/home",
+      snapshot: "",
+      capturedAt: "t",
+    }),
   );
 }
 
@@ -156,7 +160,7 @@ describe("runCrossViewInvariants", () => {
     const result = runSeed(corpusDir, run, twoSurfacePlan());
     expect(result!.passed).toBe(false);
     expect(result!.details).toContain('surface "portfolioSummaryDialog"');
-    expect(result!.details).toContain('empty value');
+    expect(result!.details).toContain("empty value");
   });
 
   it("NORMALIZE: formatting-only differences agree after the declared normalize (no false positive)", () => {
@@ -193,7 +197,11 @@ describe("runCrossViewInvariants", () => {
       fact: "Purchase status",
       probeName: "purchase-status",
       surfaces: ["homePage", "portfolioSummaryDialog"],
-      normalize: (v) => v.replace(/\(pending\)/g, "").replace(/\s+/g, " ").trim(),
+      normalize: (v) =>
+        v
+          .replace(/\(pending\)/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
     });
     try {
       const result = runCrossViewInvariants(corpusDir, run.runId, twoSurfacePlan()).find(
@@ -212,18 +220,22 @@ describe("runCrossViewInvariants", () => {
 
     // Step 0: an early homePage landing showing the old value.
     writePostSnapshot(corpusDir, run, 0, "homePage");
-    writeProbes(corpusDir, run, 0, [{
-      name: "portfolio-value",
-      value: "4,000.00 USD",
-      capturedAt: "2026-09-01T10:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 0, [
+      {
+        name: "portfolio-value",
+        value: "4,000.00 USD",
+        capturedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ]);
     // Step 1: a later homePage landing (the latest observation wins).
     writePostSnapshot(corpusDir, run, 1, "homePage");
-    writeProbes(corpusDir, run, 1, [{
-      name: "portfolio-value",
-      value: "5,034.89 USD",
-      capturedAt: "2026-09-01T12:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 1, [
+      {
+        name: "portfolio-value",
+        value: "5,034.89 USD",
+        capturedAt: "2026-09-01T12:00:00.000Z",
+      },
+    ]);
     // Step 2: the dialog surface.
     writePostSnapshot(corpusDir, run, 2, "portfolioSummaryDialog");
     writeProbes(corpusDir, run, 2, [{ name: "portfolio-value", value: "5,034.89 USD" }]);
@@ -233,8 +245,14 @@ describe("runCrossViewInvariants", () => {
       planId: "smoke",
       modelVersion: "x",
       scenarios: [
-        { id: "s1", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
-        { id: "s2", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
+        {
+          id: "s1",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
+        {
+          id: "s2",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
         { id: "s3", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
@@ -296,12 +314,10 @@ describe("runCrossViewInvariants", () => {
       normalize: (v) => v,
     });
     try {
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(/declares no surfaces/);
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(INVARIANT_ID);
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(
+        /declares no surfaces/,
+      );
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(INVARIANT_ID);
     } finally {
       crossViewInvariants.pop();
     }
@@ -317,12 +333,10 @@ describe("runCrossViewInvariants", () => {
       normalize: (v) => v,
     });
     try {
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(`declares surface "homePage" more than once`);
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(INVARIANT_ID);
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(
+        `declares surface "homePage" more than once`,
+      );
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(INVARIANT_ID);
     } finally {
       crossViewInvariants.pop();
     }
@@ -331,13 +345,25 @@ describe("runCrossViewInvariants", () => {
   it("DUPLICATE INVARIANT ID: two invariants sharing an invariantId throw naming it", () => {
     const INVARIANT_ID = "__duplicateId";
     crossViewInvariants.push(
-      { invariantId: INVARIANT_ID, fact: "Duplicate A", probeName: "portfolio-value", surfaces: ["homePage"], normalize: (v) => v },
-      { invariantId: INVARIANT_ID, fact: "Duplicate B", probeName: "portfolio-value", surfaces: ["homePage"], normalize: (v) => v },
+      {
+        invariantId: INVARIANT_ID,
+        fact: "Duplicate A",
+        probeName: "portfolio-value",
+        surfaces: ["homePage"],
+        normalize: (v) => v,
+      },
+      {
+        invariantId: INVARIANT_ID,
+        fact: "Duplicate B",
+        probeName: "portfolio-value",
+        surfaces: ["homePage"],
+        normalize: (v) => v,
+      },
     );
     try {
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(`duplicate cross-view invariant id "${INVARIANT_ID}"`);
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(
+        `duplicate cross-view invariant id "${INVARIANT_ID}"`,
+      );
     } finally {
       crossViewInvariants.pop();
       crossViewInvariants.pop();
@@ -353,9 +379,9 @@ describe("runCrossViewInvariants", () => {
       normalize: (v) => v,
     });
     try {
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(/empty invariantId/);
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(
+        /empty invariantId/,
+      );
     } finally {
       crossViewInvariants.pop();
     }
@@ -370,9 +396,9 @@ describe("runCrossViewInvariants", () => {
       normalize: (v) => v,
     });
     try {
-      expect(() =>
-        runCrossViewInvariants("corpus", "run", twoSurfacePlan()),
-      ).toThrow(/__emptyProbe.*empty probeName/);
+      expect(() => runCrossViewInvariants("corpus", "run", twoSurfacePlan())).toThrow(
+        /__emptyProbe.*empty probeName/,
+      );
     } finally {
       crossViewInvariants.pop();
     }
@@ -451,17 +477,21 @@ describe("runCrossViewInvariants", () => {
     // Two homePage landings recorded at the SAME capturedAt: the tie must keep
     // the first step encountered (plan order = step 0), never the later one.
     writePostSnapshot(corpusDir, run, 0, "homePage");
-    writeProbes(corpusDir, run, 0, [{
-      name: "portfolio-value",
-      value: "5,034.89 USD",
-      capturedAt: "2026-09-01T10:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 0, [
+      {
+        name: "portfolio-value",
+        value: "5,034.89 USD",
+        capturedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ]);
     writePostSnapshot(corpusDir, run, 1, "homePage");
-    writeProbes(corpusDir, run, 1, [{
-      name: "portfolio-value",
-      value: "4,000.00 USD",
-      capturedAt: "2026-09-01T10:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 1, [
+      {
+        name: "portfolio-value",
+        value: "4,000.00 USD",
+        capturedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ]);
     writePostSnapshot(corpusDir, run, 2, "portfolioSummaryDialog");
     writeProbes(corpusDir, run, 2, [{ name: "portfolio-value", value: "4,000.00 USD" }]);
     finish(corpusDir, run);
@@ -472,7 +502,10 @@ describe("runCrossViewInvariants", () => {
       scenarios: [
         { id: "s1", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
         { id: "s2", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
-        { id: "s3", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
+        {
+          id: "s3",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
       ],
     };
 
@@ -490,34 +523,46 @@ describe("runCrossViewInvariants", () => {
 
     // Step 0: an early homePage landing with a value.
     writePostSnapshot(corpusDir, run, 0, "homePage");
-    writeProbes(corpusDir, run, 0, [{
-      name: "portfolio-value",
-      value: "5,034.89 USD",
-      capturedAt: "2026-09-01T10:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 0, [
+      {
+        name: "portfolio-value",
+        value: "5,034.89 USD",
+        capturedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ]);
     // Step 1: a LATER homePage landing whose probe is empty (values hidden via
     // the eye icon) — this must supersede step 0, not be skipped in its favour.
     writePostSnapshot(corpusDir, run, 1, "homePage");
-    writeProbes(corpusDir, run, 1, [{
-      name: "portfolio-value",
-      value: "  ",
-      capturedAt: "2026-09-01T12:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 1, [
+      {
+        name: "portfolio-value",
+        value: "  ",
+        capturedAt: "2026-09-01T12:00:00.000Z",
+      },
+    ]);
     // Step 2: the dialog surface still shows the value.
     writePostSnapshot(corpusDir, run, 2, "portfolioSummaryDialog");
-    writeProbes(corpusDir, run, 2, [{
-      name: "portfolio-value",
-      value: "5,034.89 USD",
-      capturedAt: "2026-09-01T13:00:00.000Z",
-    }]);
+    writeProbes(corpusDir, run, 2, [
+      {
+        name: "portfolio-value",
+        value: "5,034.89 USD",
+        capturedAt: "2026-09-01T13:00:00.000Z",
+      },
+    ]);
     finish(corpusDir, run);
 
     const plan: TestPlan = {
       planId: "smoke",
       modelVersion: "x",
       scenarios: [
-        { id: "s1", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
-        { id: "s2", steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }] },
+        {
+          id: "s1",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
+        {
+          id: "s2",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
         { id: "s3", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
@@ -525,7 +570,9 @@ describe("runCrossViewInvariants", () => {
     const result = runSeed(corpusDir, run, plan);
     expect(result!.passed).toBe(false);
     expect(result!.details).toContain('surface "homePage"');
-    expect(result!.details).toContain('"portfolio-value" probe recorded an empty value on this surface');
+    expect(result!.details).toContain(
+      '"portfolio-value" probe recorded an empty value on this surface',
+    );
     // Only the dialog surface is observed; the hidden homePage value is missing
     // evidence, and the stale non-empty step is never compared.
     expect(result!.corpusRefs).toEqual(["probe:portfolio-value@2"]);

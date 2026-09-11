@@ -100,11 +100,7 @@ function escapeTableCell(value: string): string {
  * drops only the evidence table (the corpus stays named through the `@run:`
  * tag and the Feature plan line).
  */
-function renderFailureFeature(
-  runId: string,
-  plan: TestPlan,
-  failures: ValidationResult[],
-): string {
+function renderFailureFeature(runId: string, plan: TestPlan, failures: ValidationResult[]): string {
   const lines: string[] = [...DERIVED_HEADER];
 
   lines.push(`@run:${runId}`);
@@ -116,7 +112,9 @@ function renderFailureFeature(
   for (const failure of [...failures].sort(compareResults)) {
     lines.push(`  Scenario: contract "${failure.contractId}" was violated`);
     lines.push(`    Given a recorded corpus run "${runId}" for plan "${plan.planId}"`);
-    lines.push(`    When the shared validator for contract "${failure.contractId}" ran over the corpus`);
+    lines.push(
+      `    When the shared validator for contract "${failure.contractId}" ran over the corpus`,
+    );
     lines.push(`    Then the validation failed`);
     if (failure.details !== undefined) {
       lines.push(`    And the validator reported: ${toSingleLine(failure.details)}`);

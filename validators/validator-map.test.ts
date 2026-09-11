@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import {
-  contractPredicateSchema,
-  validationResultSchema,
-} from "../model/schemas.js";
 import type { ContractEvidence } from "../model/schemas.js";
+import { contractPredicateSchema, validationResultSchema } from "../model/schemas.js";
 import { validatorMap, validatorsFor } from "./validator-map.js";
 
 const evidence: ContractEvidence = {
@@ -110,19 +106,25 @@ describe("validatorMap", () => {
     };
     const result = validatorsFor("selectOrderBookTab")[0]!(bound);
 
-    expect(result.corpusRefs).toEqual(
-      expect.arrayContaining(["probe:selected-board-tab"]),
-    );
-    expect(result.corpusRefs).not.toEqual(
-      expect.arrayContaining(["probe:selected-view"]),
-    );
+    expect(result.corpusRefs).toEqual(expect.arrayContaining(["probe:selected-board-tab"]));
+    expect(result.corpusRefs).not.toEqual(expect.arrayContaining(["probe:selected-view"]));
   });
 
   it("clickTradeMenu passes when evidence matches the Trade page", () => {
     const validator = validatorsFor("clickTradeMenu")[0]!;
     const result = validator({
-      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
-      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/btc-usd", snapshot: "", capturedAt: "t" },
+      pre: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/btc-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
       probes: [],
     });
 
@@ -132,8 +134,18 @@ describe("validatorMap", () => {
   it("clickTradeMenu fails when the URL is not the BTC/USD trade page", () => {
     const validator = validatorsFor("clickTradeMenu")[0]!;
     const result = validator({
-      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "", capturedAt: "t" },
-      post: { stateId: "orderBook", url: "https://pro.kraken.com/app/trade/eth-usd", snapshot: "", capturedAt: "t" },
+      pre: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "orderBook",
+        url: "https://pro.kraken.com/app/trade/eth-usd",
+        snapshot: "",
+        capturedAt: "t",
+      },
       probes: [],
     });
 
@@ -167,21 +179,41 @@ describe("validatorMap", () => {
     expect(validatorsFor("nonexistent")).toEqual([]);
   });
 
-  it("dialog-open passes when snapshot contains role=\"dialog\"", () => {
+  it('dialog-open passes when snapshot contains role="dialog"', () => {
     const validator = validatorsFor("openPortfolioSummary")[0]!;
     const result = validator({
-      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
-      post: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
+      pre: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "before",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">portfolio</div>',
+        capturedAt: "t",
+      },
     });
     expect(result.passed).toBe(true);
     expect(result.corpusRefs).toEqual(expect.arrayContaining(["snapshot:post"]));
   });
 
-  it("dialog-open fails when snapshot is missing the role=\"dialog\" marker", () => {
+  it('dialog-open fails when snapshot is missing the role="dialog" marker', () => {
     const validator = validatorsFor("openPortfolioSummary")[0]!;
     const result = validator({
-      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
-      post: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "no dialog here", capturedAt: "t" },
+      pre: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "before",
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "no dialog here",
+        capturedAt: "t",
+      },
     });
     expect(result.passed).toBe(false);
     expect(result.details).toContain("dialog-open");
@@ -191,27 +223,52 @@ describe("validatorMap", () => {
   it("dialog-open fails with missing snapshot evidence when post snapshot is absent", () => {
     const validator = validatorsFor("openPortfolioSummary")[0]!;
     const result = validator({
-      pre: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "before", capturedAt: "t" },
+      pre: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "before",
+        capturedAt: "t",
+      },
     });
     expect(result.passed).toBe(false);
     expect(result.details).toContain("missing snapshot evidence");
   });
 
-  it("dialog-closed passes when snapshot has no role=\"dialog\" marker", () => {
+  it('dialog-closed passes when snapshot has no role="dialog" marker', () => {
     const validator = validatorsFor("closePortfolioSummary")[0]!;
     const result = validator({
-      pre: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
-      post: { stateId: "homePage", url: "https://pro.kraken.com/app/home", snapshot: "home page content", capturedAt: "t" },
+      pre: {
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">portfolio</div>',
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "homePage",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: "home page content",
+        capturedAt: "t",
+      },
     });
     expect(result.passed).toBe(true);
     expect(result.corpusRefs).toEqual(expect.arrayContaining(["snapshot:pre", "snapshot:post"]));
   });
 
-  it("dialog-closed fails when role=\"dialog\" marker is still present", () => {
+  it('dialog-closed fails when role="dialog" marker is still present', () => {
     const validator = validatorsFor("closePortfolioSummary")[0]!;
     const result = validator({
-      pre: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">portfolio</div>', capturedAt: "t" },
-      post: { stateId: "portfolioSummaryDialog", url: "https://pro.kraken.com/app/home", snapshot: '<div role="dialog">still open</div>', capturedAt: "t" },
+      pre: {
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">portfolio</div>',
+        capturedAt: "t",
+      },
+      post: {
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">still open</div>',
+        capturedAt: "t",
+      },
     });
     expect(result.passed).toBe(false);
     expect(result.details).toContain("dialog-closed");
@@ -236,9 +293,13 @@ describe("contractPredicateSchema", () => {
   });
 
   it("accepts every vocabulary member", () => {
-    expect(contractPredicateSchema.safeParse({ assert: "state-is", stateId: "x" }).success).toBe(true);
+    expect(contractPredicateSchema.safeParse({ assert: "state-is", stateId: "x" }).success).toBe(
+      true,
+    );
     expect(contractPredicateSchema.safeParse({ assert: "url-is", url: "/x" }).success).toBe(true);
-    expect(contractPredicateSchema.safeParse({ assert: "view-selected", view: "x" }).success).toBe(true);
+    expect(contractPredicateSchema.safeParse({ assert: "view-selected", view: "x" }).success).toBe(
+      true,
+    );
     expect(contractPredicateSchema.safeParse({ assert: "dialog-open" }).success).toBe(true);
     expect(contractPredicateSchema.safeParse({ assert: "dialog-closed" }).success).toBe(true);
   });

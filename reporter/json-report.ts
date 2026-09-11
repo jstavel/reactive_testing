@@ -13,15 +13,9 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import type {
-  RunMetadata,
-  ScenarioResult,
-  StepEvidence,
-  TestPlan,
-} from "../model/schemas.js";
 import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
+import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
 
 /** Top-level schema tag — bumped when the report shape changes (CI consumes it). */
 export const REPORT_SCHEMA = "report.v1";

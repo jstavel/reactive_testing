@@ -14,11 +14,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { StepEvidence, TestPlan, ValidationResult } from "../model/schemas.js";
-import { generateSampleReport } from "./generate-sample-report.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { resolveLatestRun } from "./cli-shared.js";
+import { generateSampleReport } from "./generate-sample-report.js";
 import { buildStepEvidence, deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
 
 // Ghost-result injection: the offline runner is wrapped so one test can append
@@ -57,13 +56,27 @@ function snapshot(stateId: string, url: string, snapshotBody = ""): unknown {
   return { stateId, url, snapshot: snapshotBody, capturedAt: CAPTURED_AT };
 }
 
-function writeSnapshot(corpusDir: string, runId: string, stepIndex: number, phase: "pre" | "post", record: unknown): void {
+function writeSnapshot(
+  corpusDir: string,
+  runId: string,
+  stepIndex: number,
+  phase: "pre" | "post",
+  record: unknown,
+): void {
   const dir = join(corpusDir, "snapshots", runId);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, phase === "pre" ? `${stepIndex}.pre.json` : `${stepIndex}.json`), JSON.stringify(record));
+  writeFileSync(
+    join(dir, phase === "pre" ? `${stepIndex}.pre.json` : `${stepIndex}.json`),
+    JSON.stringify(record),
+  );
 }
 
-function writeProbes(corpusDir: string, runId: string, stepIndex: number, records: unknown[]): void {
+function writeProbes(
+  corpusDir: string,
+  runId: string,
+  stepIndex: number,
+  records: unknown[],
+): void {
   const dir = join(corpusDir, "probes", runId);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${stepIndex}.json`), JSON.stringify(records));
@@ -127,7 +140,9 @@ function postSnapshotFor(contractId: string): unknown {
 
 /** The probe batch satisfying each contract's view-selected postcondition. */
 function postProbesFor(contractId: string): unknown[] | undefined {
-  const selectedView = (value: string): unknown[] => [{ name: "selected-view", value, capturedAt: CAPTURED_AT }];
+  const selectedView = (value: string): unknown[] => [
+    { name: "selected-view", value, capturedAt: CAPTURED_AT },
+  ];
   switch (contractId) {
     case "clickHistoryMenuMain":
     case "clickHistoryMenuFutures":
@@ -212,7 +227,10 @@ function listFiles(dir: string, prefix = ""): string[] {
     if (!entry.isFile()) {
       return [];
     }
-    const digest = createHash("sha256").update(readFileSync(join(dir, entry.name))).digest("hex").slice(0, 16);
+    const digest = createHash("sha256")
+      .update(readFileSync(join(dir, entry.name)))
+      .digest("hex")
+      .slice(0, 16);
     return [`${prefix}${entry.name} ${digest}`];
   });
 }
@@ -226,13 +244,23 @@ const multiPlan: TestPlan = {
   planId: "smoke",
   modelVersion: "test-hash",
   scenarios: [
-    { id: "a", steps: [{ stateId: "s1", contractId: "c1" }, { stateId: "s2", contractId: "c2" }] },
+    {
+      id: "a",
+      steps: [
+        { stateId: "s1", contractId: "c1" },
+        { stateId: "s2", contractId: "c2" },
+      ],
+    },
     { id: "b", steps: [{ stateId: "s1", contractId: "c1" }] },
     { id: "c", steps: [{ stateId: "s1", contractId: "c3" }] },
   ],
 };
 
-function result(contractId: string, passed: boolean, details?: string): { contractId: string; passed: boolean; details?: string; corpusRefs: string[] } {
+function result(
+  contractId: string,
+  passed: boolean,
+  details?: string,
+): { contractId: string; passed: boolean; details?: string; corpusRefs: string[] } {
   return { contractId, passed, ...(details !== undefined ? { details } : {}), corpusRefs: [] };
 }
 
@@ -258,7 +286,13 @@ describe("deriveScenarioResults", () => {
       planId: "smoke",
       modelVersion: "test-hash",
       scenarios: [
-        { id: "a", steps: [{ stateId: "s1", contractId: "c1" }, { stateId: "s2", contractId: "c1" }] },
+        {
+          id: "a",
+          steps: [
+            { stateId: "s1", contractId: "c1" },
+            { stateId: "s2", contractId: "c1" },
+          ],
+        },
         { id: "b", steps: [{ stateId: "s1", contractId: "c2" }] },
       ],
     };
@@ -290,7 +324,11 @@ describe("deriveScenarioResults", () => {
   });
 
   it("keeps plan order and aggregates a scenario's failures into one error string", () => {
-    const results = [result("c1", false, "one"), result("c2", false, "two"), result("c3", false, "three")];
+    const results = [
+      result("c1", false, "one"),
+      result("c2", false, "two"),
+      result("c3", false, "three"),
+    ];
 
     expect(deriveScenarioResults(multiPlan, results)).toEqual([
       { id: "a", passed: false, error: "one; two" },
@@ -320,7 +358,12 @@ describe("deriveScenarioResults", () => {
   });
 
   it("passes every scenario when every check passed", () => {
-    const results = [result("c1", true), result("c2", true), result("c1", true), result("c3", true)];
+    const results = [
+      result("c1", true),
+      result("c2", true),
+      result("c1", true),
+      result("c3", true),
+    ];
 
     expect(deriveScenarioResults(multiPlan, results)).toEqual([
       { id: "a", passed: true },
@@ -361,7 +404,9 @@ describe("reportSmoke", () => {
     expect(report).toContain("14 passed, 0 failed, 14 total");
     expect(report).toContain("Clicking Main opens the History page for the Main account");
     // The CLI wiring reached the renderers: step 0 cites its fixture evidence…
-    const reportJson = JSON.parse(readFileSync(join(corpusDir, "run-1", "report.json"), "utf8")) as {
+    const reportJson = JSON.parse(
+      readFileSync(join(corpusDir, "run-1", "report.json"), "utf8"),
+    ) as {
       scenarios: Array<{ steps: Array<Record<string, string>> }>;
     };
     expect(reportJson.scenarios[0]?.steps[0]).toMatchObject({
@@ -453,7 +498,9 @@ describe("reportSmoke", () => {
     expect(outcome.out).toContain("13/14 scenarios passed (18 checks)");
     expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
     expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);
-    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain(
+      "<h1>FAIL</h1>",
+    );
     const report = JSON.parse(
       readFileSync(join(corpusDir, "fail-demo", "report.json"), "utf8"),
     ) as { scenarios: Array<{ id: string; passed: boolean; error?: string }> };
@@ -554,7 +601,9 @@ describe("reportSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err[0]).toBe(`Unknown run "../evil" — no run-manifest.json in ${corpusDir}/../evil/.`);
+    expect(outcome.err[0]).toBe(
+      `Unknown run "../evil" — no run-manifest.json in ${corpusDir}/../evil/.`,
+    );
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
 
@@ -563,7 +612,9 @@ describe("reportSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err[0]).toBe(`No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`);
+    expect(outcome.err[0]).toBe(
+      `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
+    );
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
 
@@ -635,7 +686,9 @@ describe("reportSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err[0]).toBe("Invalid argument(s): run-1, extra — only positional [<runId>] is accepted.");
+    expect(outcome.err[0]).toBe(
+      "Invalid argument(s): run-1, extra — only positional [<runId>] is accepted.",
+    );
   });
 
   it("mutates the corpus only by writing report.html and report.json", () => {
@@ -830,7 +883,13 @@ describe("buildStepEvidence", () => {
     planId: "smoke",
     modelVersion: "test-hash",
     scenarios: [
-      { id: "a", steps: [{ stateId: "s1", contractId: "c1" }, { stateId: "s2", contractId: "c2" }] },
+      {
+        id: "a",
+        steps: [
+          { stateId: "s1", contractId: "c1" },
+          { stateId: "s2", contractId: "c2" },
+        ],
+      },
     ],
   };
 
@@ -843,9 +902,16 @@ describe("buildStepEvidence", () => {
   it("FULL_EVIDENCE — every present kind becomes a ref, timing from the snapshots' capturedAt", () => {
     writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
     writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.412Z" });
-    writeCorpusJson(`probes/run-1/0.json`, [{ name: "selected-view", value: "Main", capturedAt: "2026-09-11T09:00:00.412Z" }]);
-    writeCorpusJson(`network/run-1/0.json`, [{ url: "https://x", method: "GET", status: 200, capturedAt: "2026-09-11T09:00:00.412Z" }]);
-    writeCorpusJson(`screenshots/run-1/0.json`, { filePath: "screenshots/run-1/0.png", capturedAt: "2026-09-11T09:00:00.412Z" });
+    writeCorpusJson(`probes/run-1/0.json`, [
+      { name: "selected-view", value: "Main", capturedAt: "2026-09-11T09:00:00.412Z" },
+    ]);
+    writeCorpusJson(`network/run-1/0.json`, [
+      { url: "https://x", method: "GET", status: 200, capturedAt: "2026-09-11T09:00:00.412Z" },
+    ]);
+    writeCorpusJson(`screenshots/run-1/0.json`, {
+      filePath: "screenshots/run-1/0.png",
+      capturedAt: "2026-09-11T09:00:00.412Z",
+    });
     // The ref's target PNG must exist (regular file) for the ref to be cited.
     writeCorpusJson(`screenshots/run-1/0.png`, "png-bytes");
 
@@ -894,7 +960,10 @@ describe("buildStepEvidence", () => {
   it("DANGLING_SCREENSHOT — a sidecar whose target PNG is missing cites no screenshot ref", () => {
     writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
     writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.100Z" });
-    writeCorpusJson(`screenshots/run-1/0.json`, { filePath: "screenshots/run-1/0.png", capturedAt: "2026-09-11T09:00:00.100Z" });
+    writeCorpusJson(`screenshots/run-1/0.json`, {
+      filePath: "screenshots/run-1/0.png",
+      capturedAt: "2026-09-11T09:00:00.100Z",
+    });
 
     const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
 
@@ -966,7 +1035,10 @@ describe("npm report:smoke (process-level operator surface)", () => {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   let corpusDir: string;
 
-  function spawnReportSmoke(args: readonly string[], corpusDirOverride?: string): { status: number; out: string; err: string } {
+  function spawnReportSmoke(
+    args: readonly string[],
+    corpusDirOverride?: string,
+  ): { status: number; out: string; err: string } {
     try {
       const out = execFileSync(
         npm,
@@ -1038,7 +1110,9 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(1);
     expect(out).toBe("");
-    expect(err).toContain(`Unknown run "unknown-run" — no run-manifest.json in ${corpusDir}/unknown-run/.`);
+    expect(err).toContain(
+      `Unknown run "unknown-run" — no run-manifest.json in ${corpusDir}/unknown-run/.`,
+    );
     expect(err).toContain("Usage: npm run report:smoke");
     expect(existsSync(join(corpusDir, "unknown-run"))).toBe(false);
   });
@@ -1048,7 +1122,9 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(1);
     expect(out).toBe("");
-    expect(err).toContain(`No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`);
+    expect(err).toContain(
+      `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
+    );
   });
 
   it("exits 1 with the zero-checks error on an unreadable manifest, writing no report", () => {
@@ -1059,7 +1135,9 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(1);
     expect(out).toBe("");
-    expect(err).toContain('no checks ran for "spawn-run" — the run manifest was unreadable or lacks a timestamp, or the plan declares no steps.');
+    expect(err).toContain(
+      'no checks ran for "spawn-run" — the run manifest was unreadable or lacks a timestamp, or the plan declares no steps.',
+    );
     expect(existsSync(join(corpusDir, "spawn-run", "report.html"))).toBe(false);
   });
 
@@ -1068,7 +1146,9 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(1);
     expect(out).toBe("");
-    expect(err).toContain("Invalid argument(s): --run, xyz — only positional [<runId>] is accepted.");
+    expect(err).toContain(
+      "Invalid argument(s): --run, xyz — only positional [<runId>] is accepted.",
+    );
     expect(err).toContain("Usage: npm run report:smoke");
   });
 
@@ -1087,10 +1167,7 @@ describe("npm report:smoke (process-level operator surface)", () => {
     // An empty decoy corpus: the env would fail with "no recorded run".
     const decoy = mkdtempSync(join(tmpdir(), "report-smoke-decoy-"));
 
-    const { status, out } = spawnReportSmoke(
-      ["spawn-run", "--corpus-dir", corpusDir],
-      decoy,
-    );
+    const { status, out } = spawnReportSmoke(["spawn-run", "--corpus-dir", corpusDir], decoy);
 
     expect(status).toBe(0);
     expect(out).toContain(`Report written: ${join(corpusDir, "spawn-run", "report.html")}`);
@@ -1112,7 +1189,9 @@ describe("npm report:smoke (process-level operator surface)", () => {
     const { status, err } = spawnReportSmoke(["--corpus-dir", corpusDir, "spawn-run", "extra"]);
 
     expect(status).toBe(1);
-    expect(err).toContain("Invalid argument(s): spawn-run, extra — only positional [<runId>] is accepted.");
+    expect(err).toContain(
+      "Invalid argument(s): spawn-run, extra — only positional [<runId>] is accepted.",
+    );
   });
 
   it("pins report:smoke against the latest recorded corpus run (expiry-pinned, guard-aware)", () => {
@@ -1175,7 +1254,9 @@ describe("reportSmoke against the committed sample fixture (unconditional)", () 
       `Report written: ${join(corpusDir, "example", "report.html")}, ${join(corpusDir, "example", "report.json")}`,
     );
     expect(outcome.out).toContain("14/14 scenarios passed (18 checks)");
-    expect(readFileSync(join(corpusDir, "example", "report.html"), "utf8")).toContain("<h1>PASS</h1>");
+    expect(readFileSync(join(corpusDir, "example", "report.html"), "utf8")).toContain(
+      "<h1>PASS</h1>",
+    );
     expect(
       JSON.parse(readFileSync(join(corpusDir, "example", "report.json"), "utf8")) as unknown,
     ).toMatchObject({ schema: "report.v1", runId: "example" });

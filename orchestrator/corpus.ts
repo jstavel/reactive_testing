@@ -1,16 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 
 import type {
-  CollectorError,
   BootstrapRecord,
+  CollectorError,
   CollectorName,
   CorpusRun,
   RunManifest,
   StepFailure,
 } from "../model/schemas.js";
-import { LAST_FAIL, LAST_RUN, writeHandoff } from "./handlinks.js";
+import { writeHandoff } from "./handlinks.js";
 
 /**
  * Start a new corpus run — assigns a unique run-id and initializes the file list.
@@ -86,10 +86,7 @@ export function finishRun(
   };
   const manifestDir = join(corpusDir, run.runId);
   mkdirSync(manifestDir, { recursive: true });
-  writeFileSync(
-    join(manifestDir, "run-manifest.json"),
-    JSON.stringify(manifest, null, 2),
-  );
+  writeFileSync(join(manifestDir, "run-manifest.json"), JSON.stringify(manifest, null, 2));
   if (!handoff) {
     return;
   }
