@@ -353,6 +353,343 @@ describe("generateSampleReport", () => {
   });
 });
 
+// ---- --fail: the failure demo (story 3 — throwaway red report, zero
+// committed footprint) ----
+
+/** A plan whose steps never touch clickPortfolioMenuMain: in fail mode the
+ * mint's single defect has no step to land on, so every check passes — the
+ * wrong-signature shape "zero failures". */
+const defectlessPlan: TestPlan = {
+  planId: "smoke",
+  modelVersion: "test-hash",
+  scenarios: [{ id: "plain", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] }],
+};
+
+/** A plan where the defect contract's step carries an orderBook pre state:
+ * exactly one failing check with the defect's contractId, but the details
+ * also carry a precondition failure — the wrong-detail signature shape. */
+const wrongDetailPlan: TestPlan = {
+  planId: "smoke",
+  modelVersion: "test-hash",
+  scenarios: [{ id: "defect", steps: [{ stateId: "orderBook", contractId: "clickPortfolioMenuMain" }] }],
+};
+
+/** A plan producing two failing checks (a broken extra step + the defect):
+ * the wrong-count signature shape. */
+const extraFailuresPlan: TestPlan = {
+  planId: "smoke",
+  modelVersion: "test-hash",
+  scenarios: [
+    { id: "broken", steps: [{ stateId: "homePage", contractId: "filterHistoryByAsset" }] },
+    { id: "defect", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+  ],
+};
+
+/** No fail-demo state may survive a non-zero outcome — the rollback removes
+ * the run dir and both evidence kind subtrees. */
+function expectNoFailDemoState(corpusRoot: string): void {
+  expect(existsSync(join(corpusRoot, "fail-demo"))).toBe(false);
+  expect(existsSync(join(corpusRoot, "snapshots", "fail-demo"))).toBe(false);
+  expect(existsSync(join(corpusRoot, "probes", "fail-demo"))).toBe(false);
+}
+
+describe("generateSampleReport --fail (failure demo)", () => {
+  let corpusRoot: string;
+
+  beforeEach(() => {
+    corpusRoot = mkdtempSync(join(tmpdir(), "generate-sample-fail-"));
+  });
+
+  afterEach(() => {
+    rmSync(corpusRoot, { recursive: true, force: true });
+  });
+
+  it("HAPPY_DEMO — mints the one-defect fixture under fail-demo, emits the red pair, exits 0", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out).toContain("17/18 checks passed in fail-demo");
+    expect(outcome.out).toContain("13/14 scenarios passed (18 checks)");
+    // The expected failure detail is printed…
+    expect(outcome.out).toContain(
+      'Expected failure: [FAIL] clickPortfolioMenuMain — [postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
+    );
+    // …and the report paths carry the explicit throwaway note.
+    expect(outcome.out.at(-1)).toMatch(
+      /^Fail-demo report written: .*, .* — throwaway demo output; committed only when copied manually\.$/,
+    );
+    // The fail-demo subtrees hold the fixture + the red report pair.
+    expect(existsSync(join(corpusRoot, "fail-demo", "run-manifest.json"))).toBe(true);
+    expect(existsSync(join(corpusRoot, "fail-demo", "report.html"))).toBe(true);
+    expect(existsSync(join(corpusRoot, "fail-demo", "report.json"))).toBe(true);
+    expect(existsSync(join(corpusRoot, "snapshots", "fail-demo", "3.json"))).toBe(true);
+    expect(existsSync(join(corpusRoot, "probes", "fail-demo", "3.json"))).toBe(true);
+    // No handoff fans, no network/screenshots dirs for the throwaway.
+    expect(existsSync(join(corpusRoot, "@last-run"))).toBe(false);
+    expect(existsSync(join(corpusRoot, "network", "fail-demo"))).toBe(false);
+    expect(existsSync(join(corpusRoot, "screenshots", "fail-demo"))).toBe(false);
+  });
+
+  it("HAPPY_DEMO — exactly one check fails with the pinned signature; the defect is step 3's post url", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true });
+
+    expect(outcome.exitCode).toBe(0);
+    const post = JSON.parse(
+      readFileSync(join(corpusRoot, "snapshots", "fail-demo", "3.json"), "utf8"),
+    ) as { stateId: string; url: string };
+    // The single hand-placed defect: clickPortfolioMenuMain's post url
+    // pathname corrupted to /app/portfolio/futures (state untouched).
+    expect(post.stateId).toBe("portfolioMain");
+    expect(post.url).toBe("https://pro.kraken.com/app/portfolio/futures");
+    // Every other minted snapshot is the pass-mode recipe — e.g. step 2.
+    const other = JSON.parse(
+      readFileSync(join(corpusRoot, "snapshots", "fail-demo", "2.json"), "utf8"),
+    ) as { url: string };
+    expect(other.url).toBe("https://pro.kraken.com/app/portfolio/overview");
+  });
+
+  it("HAPPY_DEMO — report.json is the same report.v1 contract with the one failing scenario", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true });
+    expect(outcome.exitCode).toBe(0);
+
+    const report = JSON.parse(
+      readFileSync(join(corpusRoot, "fail-demo", "report.json"), "utf8"),
+    ) as {
+      schema: string;
+      runId: string;
+      summary: { total: number; passed: number; failed: number };
+      scenarios: Array<{ id: string; passed: boolean; error?: string }>;
+    };
+    expect(report.schema).toBe("report.v1");
+    expect(report.runId).toBe("fail-demo");
+    expect(report.summary).toEqual({ total: 14, passed: 13, failed: 1 });
+    const failed = report.scenarios.filter((s) => !s.passed);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.id).toBe("clicking-main-opens-the-portfolio-page-with-the-main-view");
+    expect(failed[0]?.error).toBe(
+      '[postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
+    );
+  });
+
+  it("HAPPY_DEMO — report.html renders the red bar with one failing scenario", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true });
+    expect(outcome.exitCode).toBe(0);
+
+    const html = readFileSync(join(corpusRoot, "fail-demo", "report.html"), "utf8");
+    expect(html).toContain("<h1>FAIL</h1>");
+    expect(html).toContain("13 passed, 1 failed, 14 total");
+    expect(html).toContain("../snapshots/fail-demo/3.json");
+  });
+
+  it("REGEN — a second --fail over the same root is byte-identical and clears stale leftovers", () => {
+    const first = generateSampleReport(corpusRoot, { fail: true });
+    expect(first.exitCode).toBe(0);
+    const before = listWithHashes(corpusRoot);
+
+    // Stale leftovers an older recipe could leave behind.
+    writeFileSync(join(corpusRoot, "snapshots", "fail-demo", "99.pre.json"), '{"stateId":"ghostState"}');
+    writeFileSync(join(corpusRoot, "probes", "fail-demo", "99.json"), "[]");
+    writeFileSync(join(corpusRoot, "fail-demo", "stale-extra.txt"), "older demo leftover");
+
+    const second = generateSampleReport(corpusRoot, { fail: true });
+
+    expect(second.exitCode).toBe(0);
+    expect(existsSync(join(corpusRoot, "snapshots", "fail-demo", "99.pre.json"))).toBe(false);
+    expect(existsSync(join(corpusRoot, "fail-demo", "stale-extra.txt"))).toBe(false);
+    expect(listWithHashes(corpusRoot)).toEqual(before);
+  });
+
+  it("writes a fail-demo manifest listing all 54 evidence paths — runId, fixed timestamp, only snapshots/probes", () => {
+    generateSampleReport(corpusRoot, { fail: true });
+
+    const manifest = JSON.parse(
+      readFileSync(join(corpusRoot, "fail-demo", "run-manifest.json"), "utf8"),
+    ) as RunManifest;
+    expect(manifest.runId).toBe("fail-demo");
+    expect(manifest.timestamp).toBe("2026-09-11T00:00:00.000Z");
+    expect(manifest.errors).toEqual([]);
+    expect(manifest.failures).toEqual([]);
+    expect(manifest.files).toHaveLength(54);
+    for (let i = 0; i < 18; i++) {
+      expect(manifest.files).toContain(`snapshots/fail-demo/${i}.pre.json`);
+      expect(manifest.files).toContain(`snapshots/fail-demo/${i}.json`);
+      expect(manifest.files).toContain(`probes/fail-demo/${i}.json`);
+    }
+    // Screenshots and network are omitted in v1 — the fail-demo manifest
+    // names no other kinds and no handoff fans exist.
+    expect(manifest.files.every((f) => /^(snapshots|probes)\/fail-demo\//.test(f))).toBe(true);
+    expect(existsSync(join(corpusRoot, "@last-run"))).toBe(false);
+    expect(existsSync(join(corpusRoot, "@last-fail"))).toBe(false);
+  });
+
+  it("ONE_DEFECT — the fail-demo evidence tree differs from the example fixture in exactly one file", () => {
+    const passRoot = mkdtempSync(join(tmpdir(), "generate-sample-delta-pass-"));
+    const failRoot = mkdtempSync(join(tmpdir(), "generate-sample-delta-fail-"));
+    try {
+      expect(generateSampleReport(passRoot).exitCode).toBe(0);
+      expect(generateSampleReport(failRoot, { fail: true }).exitCode).toBe(0);
+
+      // The evidence trees (snapshots + probes), keyed with the kind dir +
+      // runId segment normalized so the two runs' trees are comparable.
+      const passHashes = new Map(
+        [
+          ...listWithHashes(join(passRoot, "snapshots")).map((line) => `snapshots/${line}`),
+          ...listWithHashes(join(passRoot, "probes")).map((line) => `probes/${line}`),
+        ].map((line) => {
+          const [relPath, digest] = line.split(" ");
+          return [relPath!.replace("example", "RUN"), digest] as const;
+        }),
+      );
+      const differing: string[] = [];
+      for (const line of [
+        ...listWithHashes(join(failRoot, "snapshots")).map((l) => `snapshots/${l}`),
+        ...listWithHashes(join(failRoot, "probes")).map((l) => `probes/${l}`),
+      ]) {
+        const [relPath, digest] = line.split(" ");
+        if (passHashes.get(relPath!.replace("fail-demo", "RUN")) !== digest) {
+          differing.push(relPath!.replace("fail-demo", "RUN"));
+        }
+      }
+      // Exactly one hand-placed defect: step 3's post snapshot.
+      expect(differing).toEqual(["snapshots/RUN/3.json"]);
+      const passPost = JSON.parse(
+        readFileSync(join(passRoot, "snapshots", "example", "3.json"), "utf8"),
+      ) as { url: string };
+      const failPost = JSON.parse(
+        readFileSync(join(failRoot, "snapshots", "fail-demo", "3.json"), "utf8"),
+      ) as { url: string };
+      expect(passPost.url).toBe("https://pro.kraken.com/app/portfolio/main");
+      expect(failPost.url).toBe("https://pro.kraken.com/app/portfolio/futures");
+    } finally {
+      rmSync(passRoot, { recursive: true, force: true });
+      rmSync(failRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("ISOLATION — a failed fail-demo run over a seeded corpus rolls back only fail-demo; the example fixture stays byte-identical", () => {
+    const pass = generateSampleReport(corpusRoot);
+    expect(pass.exitCode).toBe(0);
+    const exampleBefore = listWithHashes(corpusRoot);
+
+    const outcome = generateSampleReport(corpusRoot, { fail: true, plan: defectlessPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
+    expectNoFailDemoState(corpusRoot);
+    // The example subtrees are byte-identical to what pass-mode wrote — the
+    // failed fail run removed nothing but its own (rolled-back) subtrees.
+    expect(listWithHashes(corpusRoot)).toEqual(exampleBefore);
+  });
+
+  it("VALIDATION_SIGNATURE — zero failures (the defect found no step) exits 1 and rolls back", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true, plan: defectlessPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
+    expect(outcome.err[0]).toContain("no failing checks (every check passed)");
+    expectNoFailDemoState(corpusRoot);
+  });
+
+  it("VALIDATION_SIGNATURE — wrong contract + wrong detail (a broken recipe) exits 1 and rolls back", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true, plan: brokenPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
+    expect(outcome.err[0]).toContain("filterHistoryByAsset");
+    expectNoFailDemoState(corpusRoot);
+  });
+
+  it("VALIDATION_SIGNATURE — right contract but wrong detail exits 1 and rolls back", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true, plan: wrongDetailPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
+    expect(outcome.err[0]).toContain("state-is");
+    expectNoFailDemoState(corpusRoot);
+  });
+
+  it("VALIDATION_SIGNATURE — extra failures (wrong count) exits 1 and rolls back", () => {
+    const outcome = generateSampleReport(corpusRoot, { fail: true, plan: extraFailuresPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
+    expectNoFailDemoState(corpusRoot);
+  });
+
+  it("VALIDATION_SIGNATURE — zero checks (stepless plan) exits 1 and rolls back", () => {
+    const outcome = generateSampleReport(corpusRoot, {
+      fail: true,
+      plan: { planId: "smoke", modelVersion: "test-hash", scenarios: [] },
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("self-check ran 0 checks");
+    expectNoFailDemoState(corpusRoot);
+  });
+
+  it("WRITE_ERROR — a directory at report.json rolls the fail-demo subtrees back", () => {
+    reportEmitState.plantReportJsonDir = true;
+    try {
+      const outcome = generateSampleReport(corpusRoot, { fail: true });
+
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.out).toEqual([]);
+      expect(outcome.err[0]).toMatch(/^fail demo could not be generated: EISDIR/);
+      expectNoFailDemoState(corpusRoot);
+    } finally {
+      reportEmitState.plantReportJsonDir = false;
+    }
+  });
+
+  it("ISOLATION — the example fixture and unrelated corpus content are untouched; only the fail-demo subtrees are written", () => {
+    const pass = generateSampleReport(corpusRoot);
+    expect(pass.exitCode).toBe(0);
+    mkdirSync(join(corpusRoot, "real-run"), { recursive: true });
+    writeFileSync(
+      join(corpusRoot, "real-run", "run-manifest.json"),
+      JSON.stringify({ runId: "real-run", timestamp: "2026-09-08T00:00:00.000Z", files: [] }),
+    );
+    writeFileSync(join(corpusRoot, "real-run", "0.json"), "unrelated snapshot");
+    const before = listWithHashes(corpusRoot);
+
+    const outcome = generateSampleReport(corpusRoot, { fail: true });
+
+    expect(outcome.exitCode).toBe(0);
+    const after = listWithHashes(corpusRoot);
+    // Every pre-existing entry is byte-unchanged…
+    expect(after.filter((line) => before.includes(line))).toEqual(before);
+    // …and the additions are exactly the fail-demo subtrees.
+    const added = after.filter((line) => !before.includes(line));
+    expect(added.length).toBeGreaterThan(0);
+    expect(
+      added.every((line) => /^(fail-demo\/|snapshots\/fail-demo\/|probes\/fail-demo\/)/.test(line)),
+    ).toBe(true);
+    // The example fixture still carries the all-pass report.
+    expect(readFileSync(join(corpusRoot, "example", "report.html"), "utf8")).toContain("<h1>PASS</h1>");
+  });
+
+  it("MUTUAL_ISOLATION — a pass-mode regeneration never touches the fail-demo subtrees", () => {
+    const failRun = generateSampleReport(corpusRoot, { fail: true });
+    expect(failRun.exitCode).toBe(0);
+    const before = listWithHashes(corpusRoot);
+
+    const passRun = generateSampleReport(corpusRoot);
+
+    expect(passRun.exitCode).toBe(0);
+    const after = listWithHashes(corpusRoot);
+    expect(after.filter((line) => line.includes("fail-demo"))).toEqual(
+      before.filter((line) => line.includes("fail-demo")),
+    );
+    expect(readFileSync(join(corpusRoot, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+  });
+});
+
 // ---- npm generate:sample (process-level operator surface) ----
 
 describe("npm generate:sample (process-level operator surface)", () => {
@@ -398,12 +735,44 @@ describe("npm generate:sample (process-level operator surface)", () => {
     expect(existsSync(join(corpusDir, "probes", "example", "17.json"))).toBe(true);
   });
 
-  it("exits 1 with the invalid-argument error on a flag", () => {
+  it("HAPPY_DEMO — --fail writes the red pair into the positional corpus root and exits 0 with the throwaway note", () => {
+    const { status, out } = spawnGenerateSample(["--fail", corpusDir]);
+
+    expect(status).toBe(0);
+    expect(out).toContain("17/18 checks passed in fail-demo");
+    expect(out).toContain("13/14 scenarios passed (18 checks)");
+    expect(out).toContain("committed only when copied manually");
+    expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
+    expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);
+    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+  });
+
+  it("UNKNOWN_FLAG — --bogus still exits 1 with the invalid-argument error (--fail is the only new flag)", () => {
     const { status, out, err } = spawnGenerateSample(["--bogus"]);
 
     expect(status).toBe(1);
     expect(out).toBe("");
     expect(err).toContain("Invalid argument(s): --bogus");
+    expect(err).toContain("Usage: npm run generate:sample");
+  });
+
+  it("UNKNOWN_FLAG — --fail combined with an unknown flag errors listing only the unknown argument", () => {
+    const { status, out, err } = spawnGenerateSample(["--fail", "--bogus"]);
+
+    expect(status).toBe(1);
+    expect(out).toBe("");
+    // The accepted --fail is not accused; only the bogus flag is listed.
+    expect(err).toContain("Invalid argument(s): --bogus");
+    expect(err).not.toContain("--fail, --bogus");
+    expect(err).toContain("Usage: npm run generate:sample");
+  });
+
+  it("UNKNOWN_FLAG — a repeated --fail is still rejected with the usage error", () => {
+    const { status, out, err } = spawnGenerateSample(["--fail", "--fail"]);
+
+    expect(status).toBe(1);
+    expect(out).toBe("");
+    expect(err).toContain("Invalid argument(s): --fail");
     expect(err).toContain("Usage: npm run generate:sample");
   });
 });
