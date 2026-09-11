@@ -53,6 +53,29 @@ Two phases, deliberately separated (see [docs/architecture.md](docs/architecture
    validators** re-check that evidence offline. A failure surfaces as reviewable
    Gherkin; a human adjudicates *spec drift* vs *app bug*.
 
+## Error report showcase
+
+![Error report: red summary bar, one red scenario exposing the expected-vs-actual url-is line, 13 green](docs/report-failure.png)
+
+What a failing run looks like: the red summary bar, and the single red scenario
+carrying the expected-vs-actual diagnostic — `url-is "/app/portfolio/main" but
+url pathname is "/app/portfolio/futures"` — while the 13 other scenarios stay
+green around it. The fixture behind it is throwaway: `generate:sample -- --fail`
+mints it on demand into the gitignored `corpus/fail-demo/` subtrees — never
+committed, never CI-guarded, and never committed after a regeneration. Only
+this rendered snapshot is committed, produced once by hand; regenerating it is
+allowed to differ (font/rendering variance), so re-review a fresh PNG before
+committing it.
+
+Both commands run from the repository root (the paths are cwd-relative), and
+`screenshot:report` needs the repo's Playwright chromium installed once before
+first use (`npx playwright install chromium`):
+
+```bash
+npm run generate:sample -- --fail   # mint the throwaway red demo (gitignored)
+npm run screenshot:report corpus/fail-demo/report.html docs/report-failure.png   # dev-only headless-chromium rasterizer
+```
+
 ## Quick start
 
 Prerequisites: **Node ≥ 24**, Playwright browsers installed
