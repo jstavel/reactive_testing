@@ -80,3 +80,27 @@ The badge is a shield reading the deployed artifact, so it can never lie about t
 ## Spec Change Log
 
 <!-- Append-only -- populated by step-04 on review loopback. -->
+
+
+## Suggested Review Order
+
+**The feed producer (tested, not inline)**
+
+- The tested transform: validates counts are finite non-negative ints, passed <= total, refuses to write a bogus file
+  [`tests-summary.ts:27`](../../../../bin/tests-summary.ts#L27)
+
+- ci.yml: the JSON-summary step calls the script; artifact uploaded with 1-day retention
+  [`ci.yml:tests-summary`](../../../../.github/workflows/ci.yml#L76)
+
+**The reader (badge + deployed feed)**
+
+- README's single live "tests passed" badge reading the deployed tests.json, with the pre-deploy caveat (and no conflict markers)
+  [`README.md:4`](../../../../README.md#L4)
+
+- pages job: staged tests.json existence guard + post-deploy curl/jq numbers-equal verify
+  [`ci.yml:pages`](../../../../.github/workflows/ci.yml#L176)
+
+**Supporting pins**
+
+- README hygiene pins (badge URL, caveat, no conflict markers) + the tests-summary unit suite
+  [`repo-hygiene.test.ts:71`](../../../../scripts/repo-hygiene.test.ts#L71)

@@ -79,7 +79,7 @@ jobs:
       - name: Vitest JSON summary → tests.json (live badge feed; fails loudly when the counts are missing)
         run: |
           npx vitest run --reporter=json --outputFile=vitest-summary.json
-          node -e 'const fs=require("node:fs");const s=JSON.parse(fs.readFileSync("vitest-summary.json","utf8"));if(typeof s.numPassedTests!=="number"||typeof s.numTotalTests!=="number"){console.error("::error::vitest JSON summary lacks numPassedTests/numTotalTests — refusing to write a bogus tests.json");process.exit(1)}fs.writeFileSync("tests.json",JSON.stringify({passed:s.numPassedTests,total:s.numTotalTests}));console.log("tests.json:",fs.readFileSync("tests.json","utf8"))'
+          npx tsx bin/tests-summary.ts vitest-summary.json tests.json
 
       - name: Upload the tests summary (the badge feed the pages job stages as _site/tests.json)
         uses: actions/upload-artifact@v4
@@ -87,6 +87,10 @@ jobs:
           name: tests-summary
           path: tests.json
           if-no-files-found: error
+          # One day: the artifact is only needed by the same run's pages job.
+          # A later pages-only re-run of an expired run fails at the download —
+          # a fresh main push (or a manual dispatch) regenerates and redeploys.
+          retention-days: 1
 
       - name: Fixture determinism gate — regenerate in place, the tree must be unchanged
         run: |
@@ -180,6 +184,14 @@ jobs:
           name: tests-summary
           path: _site
 
+      - name: Guard — the staged tests summary must be present
+        run: |
+          if ! test -f _site/tests.json; then
+            echo "::error::pages staging guard failed: the tests-summary artifact did not land as _site/tests.json — the badge feed would 404"
+            exit 1
+          fi
+          echo "staged badge feed: $(cat _site/tests.json)"
+
       - name: Guard — the staged site must not contain fail-demo
         run: |
           if [ -n "$(find _site -name '*fail-demo*' -print -quit)" ]; then
@@ -205,3 +217,9 @@ jobs:
           curl -fsS --retry 5 --retry-connrefused --retry-all-errors \
             "${{ steps.deployment.outputs.page_url }}corpus/example/report.json" \
             | jq -e '.schema == "report.v1"'
+
+      - name: Verify the deployed tests summary is live (badge feed — numbers, passed == total)
+        run: |
+          curl -fsS --retry 5 --retry-connrefused --retry-all-errors \
+            "${{ steps.deployment.outputs.page_url }}tests.json" \
+            | jq -e '(.passed | type) == "number" and (.total | type) == "number" and .passed == .total'
