@@ -50,10 +50,7 @@ export function unknownRunOutcome(
 
 /** The no-recorded-run outcome (the "No recorded run found" family): one
  * message naming the corpus dir, with caller-specific lines (usage) after. */
-export function noRecordedRunOutcome(
-  corpusDir: string,
-  ...errors: readonly string[]
-): CliOutcome {
+export function noRecordedRunOutcome(corpusDir: string, ...errors: readonly string[]): CliOutcome {
   return errorOutcome(
     `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
     ...errors,
@@ -203,11 +200,9 @@ function newestManifestRun(corpusDir: string): string | null {
   } catch {
     return null;
   }
-  const byName = (a: string, b: string): number =>
-    a < b ? -1 : a > b ? 1 : 0;
+  const byName = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
   const newest = (runs: readonly { entry: string; key: number }[]): string | null =>
-    [...runs].sort((a, b) => b.key - a.key || byName(a.entry, b.entry)).at(0)?.entry ??
-    null;
+    [...runs].sort((a, b) => b.key - a.key || byName(a.entry, b.entry)).at(0)?.entry ?? null;
   const candidates = entries
     .filter((entry) => !entry.startsWith("@") && !KIND_DIRS.has(entry))
     .flatMap((entry) => {
@@ -216,11 +211,8 @@ function newestManifestRun(corpusDir: string): string | null {
     });
   return (
     newest(
-      candidates.filter(
-        ({ entry }) => entry !== SAMPLE_RUN_ID && entry !== FAIL_DEMO_RUN_ID,
-      ),
-    ) ??
-    newest(candidates.filter(({ entry }) => entry !== FAIL_DEMO_RUN_ID))
+      candidates.filter(({ entry }) => entry !== SAMPLE_RUN_ID && entry !== FAIL_DEMO_RUN_ID),
+    ) ?? newest(candidates.filter(({ entry }) => entry !== FAIL_DEMO_RUN_ID))
   );
 }
 

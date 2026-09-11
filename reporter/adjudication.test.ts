@@ -23,8 +23,7 @@ function makeCorpusDir(): string {
   return dir;
 }
 
-const MODEL_VERSION =
-  "fab621435d1cbcad3cd10e730f56decf9fc62bc7e50648fb27b100b25348da7d";
+const MODEL_VERSION = "fab621435d1cbcad3cd10e730f56decf9fc62bc7e50648fb27b100b25348da7d";
 
 const plan: TestPlan = {
   planId: "smoke",
@@ -51,13 +50,14 @@ function passing(): ValidationResult {
 }
 
 function readRecord(corpusDir: string, runId: string): Record<string, unknown> {
-  return JSON.parse(
-    readFileSync(join(corpusDir, runId, "adjudication.json"), "utf8"),
-  );
+  return JSON.parse(readFileSync(join(corpusDir, runId, "adjudication.json"), "utf8"));
 }
 
 const APP_BUG_DECISION = { decision: "app-bug" as const, bugReportRef: "JIRA-1234" };
-const SPEC_DRIFT_DECISION = { decision: "spec-drift" as const, proposal: "Update portfolio-value-shown contract to allow zero values" };
+const SPEC_DRIFT_DECISION = {
+  decision: "spec-drift" as const,
+  proposal: "Update portfolio-value-shown contract to allow zero values",
+};
 
 const APPROVED_BY = "Jan";
 const APPROVED_AT = "2026-09-01T14:05:00Z";
@@ -109,9 +109,7 @@ describe("emitAdjudicationRecord", () => {
 
     const record = readRecord(corpusDir, runId);
     expect(record.decision).toBe("spec-drift");
-    expect(record.proposal).toBe(
-      "Update portfolio-value-shown contract to allow zero values",
-    );
+    expect(record.proposal).toBe("Update portfolio-value-shown contract to allow zero values");
     expect(record.bugReportRef).toBeUndefined();
     expect(record.updated).toBe(APPROVED_AT);
     expect(record.approvedBy).toBe(APPROVED_BY);
@@ -317,10 +315,7 @@ describe("emitAdjudicationRecord", () => {
       approvedBy: APPROVED_BY,
       approvedAt: APPROVED_AT,
     });
-    const first = readFileSync(
-      join(corpusDir, runId, "adjudication.json"),
-      "utf8",
-    );
+    const first = readFileSync(join(corpusDir, runId, "adjudication.json"), "utf8");
 
     emitAdjudicationRecord({
       corpusDir,
@@ -331,10 +326,7 @@ describe("emitAdjudicationRecord", () => {
       approvedBy: APPROVED_BY,
       approvedAt: APPROVED_AT,
     });
-    const second = readFileSync(
-      join(corpusDir, runId, "adjudication.json"),
-      "utf8",
-    );
+    const second = readFileSync(join(corpusDir, runId, "adjudication.json"), "utf8");
 
     expect(second).toBe(first);
   });
@@ -353,10 +345,7 @@ describe("emitAdjudicationRecord", () => {
       approvedBy: APPROVED_BY,
       approvedAt: APPROVED_AT,
     });
-    const first = readFileSync(
-      join(corpusDirA, runId, "adjudication.json"),
-      "utf8",
-    );
+    const first = readFileSync(join(corpusDirA, runId, "adjudication.json"), "utf8");
 
     emitAdjudicationRecord({
       corpusDir: corpusDirB,
@@ -367,10 +356,7 @@ describe("emitAdjudicationRecord", () => {
       approvedBy: APPROVED_BY,
       approvedAt: APPROVED_AT,
     });
-    const second = readFileSync(
-      join(corpusDirB, runId, "adjudication.json"),
-      "utf8",
-    );
+    const second = readFileSync(join(corpusDirB, runId, "adjudication.json"), "utf8");
 
     expect(second).toBe(first);
   });

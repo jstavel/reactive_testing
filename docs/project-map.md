@@ -1,14 +1,19 @@
 # Project map — every part of the tree
 
-Verified against the working tree, 2026-09-02. This is the **shipped** layout;
+Verified against the working tree, 2026-09-11. This is the **shipped** layout;
 where an earlier design doc named a different structure, this file names what
 exists.
 
 ```
 reactive-testing/
-├── package.json              # the three scripts: typecheck · test · run:smoke
+├── package.json              # scripts: typecheck · test · lint(+fix) · validate/report · corpus · generate:sample
+├── package-lock.json         # locked deps (incl. @biomejs/biome devDependency)
+├── biome.jsonc               # the Biome lint/format gate config (comment-rich)
 ├── tsconfig.json             # ES2023 / NodeNext / strict; include "**/*.ts"
 ├── vitest.config.ts          # vitest over **/*.test.ts
+├── LICENSE                   # MIT (SPDX-standard text)
+├── CONTRIBUTING.md           # contributor guide: BMad workflow, commands, policy
+├── .github/workflows/ci.yml  # the offline CI pipeline (lint + typecheck + tests + determinism gates) + Pages deploy
 ├── AGENTS.md                 # agent operating rules (branch policy, style)
 ├── README.md                 # this repo's landing page
 ├── model/                    # THE source of truth (SSOT) — executable spec
@@ -54,16 +59,27 @@ reactive-testing/
 ├── repro/                    # utility: bug path → standalone script
 │   └── repro-generator.ts    #   generateReproScript / writeReproScript (→ scripts/)
 │                            #   (+ repro-generator.test.ts)
-├── bin/                      # CLI entry points — exactly one today
-│   └── run-smoke.ts          #   record a corpus from the live browser (CDP)
+├── bin/                      # CLI entry points (thin arg-parsing shells over the library)
+│   ├── run-smoke.ts          #   record a corpus from the live browser (CDP)
+│   ├── run-smoke-finish.ts   #   run handoff: finish-run summary + exit code
+│   ├── cli-shared.ts         #   shared CLI plumbing: arg/flag parsing + usage printers
+│   ├── sample-run-id.ts      #   the deterministic sample run id ("example")
+│   ├── scenario-select.ts    #   plan scenario selection (`run:smoke -- <id>…`)
+│   ├── corpus-links.ts       #   @last-run / @last-fail handoff links (corpus:* scripts)
+│   ├── validate-smoke.ts     #   offline validation CLI (validate:smoke)
+│   ├── report-smoke.ts       #   offline report CLI (report:smoke)
+│   ├── generate-sample-report.ts  # deterministically mint the committed sample fixture
+│   └── screenshot-report.ts  #   dev-only headless-chromium rasterizer (screenshot:report)
+│                            #   (+ *.test.ts per entry, incl. screenshot-report.test.ts)
 ├── corpus/                   # recorded evidence (GITIGNORED — never committed)
 │   ├── <run-id>/run-manifest.json   # files · errors (collector gaps) · failures
 │   ├── snapshots/<run-id>/<i>.json   # + <i>.pre.json (per-step before-state)
 │   ├── probes/<run-id>/<i>.json
 │   ├── network/<run-id>/<i>.json
 │   └── screenshots/<run-id>/<i>.png (+ .json ref)
-└── scripts/                  # NOT present until a repro is generated
-                              # (writeReproScript creates scripts/repro-<slug>.ts)
+└── scripts/                  # generated + guard scripts
+                              # (writeReproScript creates scripts/repro-<slug>.ts;
+                              #  repo-hygiene.test.ts pins LICENSE/CONTRIBUTING promises)
 ```
 
 ## Corpus layout & evidence shapes

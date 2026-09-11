@@ -19,9 +19,8 @@
 // mirrors handlinks' RUN_ID_PATTERN.
 
 import { pathToFileURL } from "node:url";
-
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import {
@@ -41,9 +40,9 @@ export {
   type CorpusDirArgs,
   extractCorpusDir,
   isKnownRun,
+  planVersionRefusal,
   readPlanModelVersion,
   readRawRunManifest,
-  planVersionRefusal,
   resolveLatestRun,
 } from "./cli-shared.js";
 
@@ -86,9 +85,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 export function planContractIds(plan: TestPlan): readonly string[] {
   return [
     ...new Set(
-      plan.scenarios.flatMap((scenario) =>
-        scenario.steps.map(({ contractId }) => contractId),
-      ),
+      plan.scenarios.flatMap((scenario) => scenario.steps.map(({ contractId }) => contractId)),
     ),
   ];
 }
@@ -124,10 +121,7 @@ export function formatResult(result: ValidationResult): string {
 }
 
 /** The summary line: `X/Y checks passed in <runId>`. */
-export function formatSummary(
-  results: readonly ValidationResult[],
-  runId: string,
-): string {
+export function formatSummary(results: readonly ValidationResult[], runId: string): string {
   const passed = results.filter(({ passed }) => passed).length;
   return `${passed}/${results.length} checks passed in ${runId}`;
 }
@@ -144,10 +138,7 @@ export interface ValidateOptions {
   readonly plan?: TestPlan;
 }
 
-function summarizedOutcome(
-  results: readonly ValidationResult[],
-  runId: string,
-): ValidateOutcome {
+function summarizedOutcome(results: readonly ValidationResult[], runId: string): ValidateOutcome {
   // Zero results after a run was selected means validators ran over nothing —
   // an unreadable manifest or a stepless plan — never a pass.
   if (results.length === 0) {
@@ -197,7 +188,8 @@ export function validateSmoke(
   options: ValidateOptions = {},
 ): ValidateOutcome {
   const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
-  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
+  const corpusDir =
+    flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
   if (rest.some((arg) => arg.startsWith("-"))) {
@@ -209,7 +201,7 @@ export function validateSmoke(
 
   const { runId, contractIds } = parseArgs(rest);
 
-  let filter;
+  let filter: string[] | undefined;
   try {
     filter = resolveContractIds(plan, contractIds);
   } catch (error) {

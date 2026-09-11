@@ -61,11 +61,7 @@ export interface AdjudicationRecord {
  * full approval markers is a silent edit, which is forbidden.
  */
 function validateDecision(input: EmitAdjudicationRecordInput): void {
-  if (
-    !input.decision ||
-    typeof input.decision !== "object" ||
-    !("decision" in input.decision)
-  ) {
+  if (!input.decision || typeof input.decision !== "object" || !("decision" in input.decision)) {
     throw new Error(
       "Adjudication requires a complete decision (spec-drift or app-bug). " +
         "A half-decision is not allowed.",
@@ -84,18 +80,14 @@ function validateDecision(input: EmitAdjudicationRecordInput): void {
   if (d.decision === "spec-drift") {
     const p = (d as { proposal?: unknown }).proposal;
     if (typeof p !== "string" || p.trim() === "") {
-      throw new Error(
-        'Decision "spec-drift" requires a non-empty "proposal" field.',
-      );
+      throw new Error('Decision "spec-drift" requires a non-empty "proposal" field.');
     }
   }
 
   if (d.decision === "app-bug") {
     const r = (d as { bugReportRef?: unknown }).bugReportRef;
     if (typeof r !== "string" || r.trim() === "") {
-      throw new Error(
-        'Decision "app-bug" requires a non-empty "bugReportRef" field.',
-      );
+      throw new Error('Decision "app-bug" requires a non-empty "bugReportRef" field.');
     }
   }
 
@@ -127,7 +119,7 @@ function renderRecord(record: AdjudicationRecord): string {
       ordered[key] = val;
     }
   }
-  return JSON.stringify(ordered, null, 2) + "\n";
+  return `${JSON.stringify(ordered, null, 2)}\n`;
 }
 
 /**
@@ -148,9 +140,7 @@ function renderRecord(record: AdjudicationRecord): string {
  * @returns the corpus-relative paths written (always at most one entry) or `[]`
  *   when nothing was written.
  */
-export function emitAdjudicationRecord(
-  input: EmitAdjudicationRecordInput,
-): string[] {
+export function emitAdjudicationRecord(input: EmitAdjudicationRecordInput): string[] {
   const failures = input.results.filter((r) => !r.passed);
   if (failures.length === 0) {
     return [];

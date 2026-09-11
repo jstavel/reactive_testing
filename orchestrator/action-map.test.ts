@@ -1,8 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
 import type { Page } from "playwright";
-
-import { actionMap } from "./action-map.js";
+import { describe, expect, it, vi } from "vitest";
 import { allContracts } from "../model/contracts.js";
+import { actionMap } from "./action-map.js";
 
 interface RoleCall {
   role: string;
@@ -49,12 +48,42 @@ function makePage() {
 // clickPortfolioMenuEarn left this pattern (gh-22): Earn is a dedicated sidebar
 // button — pinned separately below.
 const NAV_CONTRACTS = [
-  { contractId: "clickHistoryMenuMain", menu: "History", item: "Main", url: "**/app/history/main/ledger" },
-  { contractId: "clickHistoryMenuFutures", menu: "History", item: "Futures", url: "**/app/history/derivatives/ledger" },
-  { contractId: "clickPortfolioMenuOverview", menu: "Portfolio", item: "Overview", url: "**/app/portfolio/overview" },
-  { contractId: "clickPortfolioMenuMain", menu: "Portfolio", item: "Main", url: "**/app/portfolio/main" },
-  { contractId: "clickPortfolioMenuFutures", menu: "Portfolio", item: "Futures", url: "**/app/portfolio/derivatives" },
-  { contractId: "clickPortfolioMenuLoans", menu: "Portfolio", item: "Loans", url: "**/app/portfolio/loans" },
+  {
+    contractId: "clickHistoryMenuMain",
+    menu: "History",
+    item: "Main",
+    url: "**/app/history/main/ledger",
+  },
+  {
+    contractId: "clickHistoryMenuFutures",
+    menu: "History",
+    item: "Futures",
+    url: "**/app/history/derivatives/ledger",
+  },
+  {
+    contractId: "clickPortfolioMenuOverview",
+    menu: "Portfolio",
+    item: "Overview",
+    url: "**/app/portfolio/overview",
+  },
+  {
+    contractId: "clickPortfolioMenuMain",
+    menu: "Portfolio",
+    item: "Main",
+    url: "**/app/portfolio/main",
+  },
+  {
+    contractId: "clickPortfolioMenuFutures",
+    menu: "Portfolio",
+    item: "Futures",
+    url: "**/app/portfolio/derivatives",
+  },
+  {
+    contractId: "clickPortfolioMenuLoans",
+    menu: "Portfolio",
+    item: "Loans",
+    url: "**/app/portfolio/loans",
+  },
 ] as const;
 
 describe("actionMap navigation entries", () => {
@@ -100,7 +129,10 @@ describe("actionMap drifted entries (gh-22)", () => {
 
     expect(page.getByRole).toHaveBeenCalledTimes(2);
     expect(page.getByRole).toHaveBeenNthCalledWith(1, "combobox", { name: "Assets" });
-    expect(page.getByRole).toHaveBeenNthCalledWith(2, "checkbox", { name: "Bitcoin (BTC)", exact: true });
+    expect(page.getByRole).toHaveBeenNthCalledWith(2, "checkbox", {
+      name: "Bitcoin (BTC)",
+      exact: true,
+    });
     expect(page.locatorSelectors).toEqual(["xpath=..", '[data-testid="checkbox-box"]']);
     expect(page.click).toHaveBeenCalledTimes(2);
     expect(page.check).not.toHaveBeenCalled();
@@ -145,9 +177,9 @@ describe("actionMap drifted entries (gh-22)", () => {
     const count = vi.fn(async () => 0);
     page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
 
-    await expect(
-      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
-    ).rejects.toThrow(/Order Book tab not found/);
+    await expect(actionMap.selectOrderBookTab!({ page: page as unknown as Page })).rejects.toThrow(
+      /Order Book tab not found/,
+    );
   });
 
   it("selectOrderBookTab throws when multiple Order Book tabs match (duplicate precondition)", async () => {
@@ -155,9 +187,9 @@ describe("actionMap drifted entries (gh-22)", () => {
     const count = vi.fn(async () => 2);
     page.locator = vi.fn(() => ({ count, first: () => ({ click: vi.fn() }) })) as never;
 
-    await expect(
-      actionMap.selectOrderBookTab!({ page: page as unknown as Page }),
-    ).rejects.toThrow(/Found 2 tabs matching "Order book"/);
+    await expect(actionMap.selectOrderBookTab!({ page: page as unknown as Page })).rejects.toThrow(
+      /Found 2 tabs matching "Order book"/,
+    );
   });
 });
 

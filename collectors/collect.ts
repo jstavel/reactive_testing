@@ -10,10 +10,10 @@ import { collectSnapshot } from "./collect-snapshot.js";
  * page-input shape. Each collector pins its exact options tuple and return type
  * through the type parameters rather than erasing them to unknown.
  */
-export type CollectorFn<
-  TResult = unknown,
-  TArgs extends readonly unknown[] = [],
-> = (page: Page, ...args: TArgs) => Promise<TResult>;
+export type CollectorFn<TResult = unknown, TArgs extends readonly unknown[] = []> = (
+  page: Page,
+  ...args: TArgs
+) => Promise<TResult>;
 
 /** All collectors keyed by concern, for future orchestrator wiring (Story 2.3). */
 export const collectors = {

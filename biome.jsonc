@@ -1,0 +1,93 @@
+{
+  // Biome configuration — the repo's single static-analysis/style gate.
+  //
+  // Governing principle: the config MIRRORS the style the codebase already
+  // uses, so `npm run lint` starts green and the formatter only normalizes
+  // real deviations. Every non-default or rule-disabling choice below carries
+  // a rationale; do not mass-edit source to satisfy a rule — disarm the rule
+  // here instead (see the story spec's "disproportionate churn" escape hatch).
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+  "files": {
+    // Gate everything, then exclude only what is not project source. This way
+    // any NEW root-level source file (or a stray *.ts anywhere) is covered by
+    // default — an allowlist of directories would let new trees silently
+    // escape the gate. Excluded: dependencies, build/coverage output, the
+    // committed corpus fixtures, and the BMad/tooling planning trees. Docs
+    // (*.md prose) are excluded too — the gate is for code.
+    "includes": [
+      "**",
+      "!node_modules",
+      "!corpus",
+      "!coverage",
+      "!dist",
+      "!_bmad*",
+      "!.agents",
+      "!.opencode",
+      "!docs"
+    ]
+  },
+  "assist": {
+    // Import organization is a configured contract, not a default detail:
+    // `biome check --write` reorders imports (type imports first, then by
+    // source), and `biome check` (the CI/local gate) flags unorganized files.
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    // Repo layout convention: 2-space indentation.
+    "indentStyle": "space",
+    "indentWidth": 2,
+    // ~100-column convention. Biome's 80 default would rewrap long (but
+    // intentional) template-literal-heavy lines in reporter/ and orchestrator/
+    // for no benefit; 100 matches how the code is actually written.
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      // Rationale (deviation from the story spec's enumerated "single"):
+      // the spec froze `quoteStyle: single` on the belief the repo is
+      // single-quoted, but the measured tree is uniformly double-quoted
+      // (355/355 import statements, ~250:4 assignments use `"`). Setting
+      // `single` would force a quote flip across all ~60 project TS files —
+      // exactly the "disproportionate churn / mass-editing" the same frozen
+      // block forbids ("no formatting churn beyond what the config forces";
+      // non-goal: "enforcing a style the codebase does not already follow").
+      // The spec's own design note — "bring the formatter into alignment
+      // [with the repo] so the initial check --write only touches real
+      // deviations" — decides this: the repo is double-quoted, so the
+      // mirroring value is `double`.
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      // The recommended rule set (the spec's "lint recommended"), expressed
+      // via the `preset` key.
+      "preset": "recommended",
+      // Rule-specific disarms, each with a rationale. Kept minimal: add one
+      // only when a rule is demonstrably noisy on this codebase.
+      "suspicious": {
+        // 22 hits, all in repro/repro-generator.ts and its test: string
+        // literals that EMIT code, whose text legitimately contains `${…}`
+        // placeholders (and one assertion checking emitted source). Rewriting
+        // them as real template literals would change the generated output —
+        // not a mechanical fix.
+        "noTemplateCurlyInString": "off"
+      },
+      "style": {
+        // 171 hits across collectors/orchestrator/tests. Removing `!`
+        // assertions is not mechanical — each needs a null-guard or a design
+        // change and can alter runtime behavior (throw earlier/elsewhere).
+        // Mass-editing them is exactly the disproportionate churn the story
+        // forbids; the assertion sites stay idiomatic.
+        "noNonNullAssertion": "off"
+      }
+    }
+  }
+}

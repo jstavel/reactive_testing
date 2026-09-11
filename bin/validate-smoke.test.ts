@@ -1,26 +1,34 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan } from "../model/schemas.js";
-import { generateSampleReport } from "./generate-sample-report.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import {
   extractCorpusDir,
   planVersionRefusal,
   readPlanModelVersion,
   resolveLatestRun,
 } from "./cli-shared.js";
+import { generateSampleReport } from "./generate-sample-report.js";
 import {
+  formatSummary,
   parseArgs,
   planContractIds,
-  formatSummary,
-  validateSmoke,
   USAGE,
+  validateSmoke,
 } from "./validate-smoke.js";
 
 // A minimal two-contract plan (both contracts have real validators in
@@ -30,7 +38,10 @@ const testPlan: TestPlan = {
   modelVersion: "test-hash",
   scenarios: [
     { id: "nav-history", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-    { id: "filter-assets", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+    {
+      id: "filter-assets",
+      steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+    },
   ],
 };
 
@@ -38,7 +49,10 @@ const filterOnlyPlan: TestPlan = {
   planId: "smoke",
   modelVersion: "test-hash",
   scenarios: [
-    { id: "filter-assets", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+    {
+      id: "filter-assets",
+      steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+    },
   ],
 };
 
@@ -50,10 +64,19 @@ function snapshot(stateId: string, url: string): unknown {
   return { stateId, url, snapshot: "", capturedAt: CAPTURED_AT };
 }
 
-function writeSnapshot(corpusDir: string, runId: string, stepIndex: number, phase: "pre" | "post", record: unknown): void {
+function writeSnapshot(
+  corpusDir: string,
+  runId: string,
+  stepIndex: number,
+  phase: "pre" | "post",
+  record: unknown,
+): void {
   const dir = join(corpusDir, "snapshots", runId);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, phase === "pre" ? `${stepIndex}.pre.json` : `${stepIndex}.json`), JSON.stringify(record));
+  writeFileSync(
+    join(dir, phase === "pre" ? `${stepIndex}.pre.json` : `${stepIndex}.json`),
+    JSON.stringify(record),
+  );
 }
 
 function writeProbe(corpusDir: string, runId: string, stepIndex: number, value: string): void {
@@ -94,18 +117,48 @@ function writeAllPassRun(
   timestamp: string = CAPTURED_AT,
   planModelVersion: string | null = testPlan.modelVersion,
 ): void {
-  writeSnapshot(corpusDir, runId, 0, "pre", snapshot("homePage", "https://pro.kraken.com/app/home"));
-  writeSnapshot(corpusDir, runId, 0, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+  writeSnapshot(
+    corpusDir,
+    runId,
+    0,
+    "pre",
+    snapshot("homePage", "https://pro.kraken.com/app/home"),
+  );
+  writeSnapshot(
+    corpusDir,
+    runId,
+    0,
+    "post",
+    snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+  );
   writeProbe(corpusDir, runId, 0, "Ledger");
-  writeSnapshot(corpusDir, runId, 1, "pre", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
-  writeSnapshot(corpusDir, runId, 1, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
-  writeRunManifest(corpusDir, runId, [
-    `snapshots/${runId}/0.pre.json`,
-    `snapshots/${runId}/0.json`,
-    `probes/${runId}/0.json`,
-    `snapshots/${runId}/1.pre.json`,
-    `snapshots/${runId}/1.json`,
-  ], timestamp, planModelVersion);
+  writeSnapshot(
+    corpusDir,
+    runId,
+    1,
+    "pre",
+    snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+  );
+  writeSnapshot(
+    corpusDir,
+    runId,
+    1,
+    "post",
+    snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+  );
+  writeRunManifest(
+    corpusDir,
+    runId,
+    [
+      `snapshots/${runId}/0.pre.json`,
+      `snapshots/${runId}/0.json`,
+      `probes/${runId}/0.json`,
+      `snapshots/${runId}/1.pre.json`,
+      `snapshots/${runId}/1.json`,
+    ],
+    timestamp,
+    planModelVersion,
+  );
 }
 
 function setMtime(corpusDir: string, runId: string, when: Date): void {
@@ -132,7 +185,10 @@ function listFiles(dir: string, prefix = ""): string[] {
     if (!entry.isFile()) {
       return [];
     }
-    const digest = createHash("sha256").update(readFileSync(join(dir, entry.name))).digest("hex").slice(0, 16);
+    const digest = createHash("sha256")
+      .update(readFileSync(join(dir, entry.name)))
+      .digest("hex")
+      .slice(0, 16);
     return [`${prefix}${entry.name} ${digest}`];
   });
 }
@@ -191,7 +247,12 @@ describe("resolveLatestRun", () => {
     writeAllPassRun(corpusDir, "r-older", "2026-09-08T00:00:00.000Z");
     writeAllPassRun(corpusDir, "r-newest", "2026-09-09T00:00:00.000Z");
     writeRunManifest(join(corpusDir, "@ghost", "x"), "decoy-fan", [], "2026-09-10T00:00:00.000Z");
-    writeRunManifest(join(corpusDir, "snapshots", "decoy"), "decoy-kind", [], "2026-09-10T00:00:00.000Z");
+    writeRunManifest(
+      join(corpusDir, "snapshots", "decoy"),
+      "decoy-kind",
+      [],
+      "2026-09-10T00:00:00.000Z",
+    );
 
     expect(resolveLatestRun(corpusDir)).toBe("r-newest");
   });
@@ -339,7 +400,9 @@ describe("validateSmoke", () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
     expect(outcome.err[0]).toBe(
-      'Unknown run "missing-run" — no run-manifest.json in ' + join(corpusDir, "missing-run") + "/.",
+      'Unknown run "missing-run" — no run-manifest.json in ' +
+        join(corpusDir, "missing-run") +
+        "/.",
     );
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
@@ -350,7 +413,9 @@ describe("validateSmoke", () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
     expect(outcome.err[0]).toBe(
-      'Unknown run "filterHistoryByAsset" — no run-manifest.json in ' + join(corpusDir, "filterHistoryByAsset") + "/.",
+      'Unknown run "filterHistoryByAsset" — no run-manifest.json in ' +
+        join(corpusDir, "filterHistoryByAsset") +
+        "/.",
     );
     expect(outcome.err).toContainEqual(
       expect.stringContaining("the first argument is the runId; contract filters come after it"),
@@ -375,7 +440,9 @@ describe("validateSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err[0]).toBe(`No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`);
+    expect(outcome.err[0]).toBe(
+      `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
+    );
   });
 
   it("exits 1 with usage guidance on a usage error (flags are not positional args)", () => {
@@ -389,14 +456,28 @@ describe("validateSmoke", () => {
 
   it("exits 1 printing the failing check's details", () => {
     writeRunManifest(corpusDir, "run-1", [`snapshots/run-1/0.pre.json`, `snapshots/run-1/0.json`]);
-    writeSnapshot(corpusDir, "run-1", 0, "pre", snapshot("homePage", "https://pro.kraken.com/app/home"));
-    writeSnapshot(corpusDir, "run-1", 0, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+    writeSnapshot(
+      corpusDir,
+      "run-1",
+      0,
+      "pre",
+      snapshot("homePage", "https://pro.kraken.com/app/home"),
+    );
+    writeSnapshot(
+      corpusDir,
+      "run-1",
+      0,
+      "post",
+      snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+    );
 
     const outcome = validateSmoke(["run-1"], { corpusDir, plan: filterOnlyPlan });
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([
-      expect.stringMatching(/^\[FAIL\] filterHistoryByAsset — \[precondition\] state-is "historyMain" but snapshot stateId is "homePage"$/),
+      expect.stringMatching(
+        /^\[FAIL\] filterHistoryByAsset — \[precondition\] state-is "historyMain" but snapshot stateId is "homePage"$/,
+      ),
       "0/1 checks passed in run-1",
     ]);
     expect(outcome.err).toEqual([]);
@@ -417,12 +498,20 @@ describe("validateSmoke", () => {
 
   it("reports missing snapshot evidence (exit 1) on a legacy corpus without pre snapshots", () => {
     writeRunManifest(corpusDir, "run-1", [`snapshots/run-1/0.json`]);
-    writeSnapshot(corpusDir, "run-1", 0, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+    writeSnapshot(
+      corpusDir,
+      "run-1",
+      0,
+      "post",
+      snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+    );
 
     const outcome = validateSmoke(["run-1"], { corpusDir, plan: filterOnlyPlan });
 
     expect(outcome.exitCode).toBe(1);
-    expect(outcome.out[0]).toBe("[FAIL] filterHistoryByAsset — [precondition] missing snapshot evidence");
+    expect(outcome.out[0]).toBe(
+      "[FAIL] filterHistoryByAsset — [precondition] missing snapshot evidence",
+    );
     expect(outcome.out.at(-1)).toBe("0/1 checks passed in run-1");
   });
 
@@ -665,7 +754,8 @@ describe("plan-version guard (story 6 — validate side)", () => {
   });
 
   it("planVersionRefusal — a blank recorded version is LEGACY, never a mismatch", () => {
-    const legacy = "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)";
+    const legacy =
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)";
 
     expect(planVersionRefusal("", "test-hash")).toBe(legacy);
     expect(planVersionRefusal("   ", "test-hash")).toBe(legacy);
@@ -817,13 +907,31 @@ describe("npm validate:smoke (process-level operator surface)", () => {
       .flatMap((scenario) => scenario.steps)
       .flatMap((step, index) => (step.contractId === "filterHistoryByAsset" ? [index] : []));
     for (const index of filterIndexes) {
-      writeSnapshot(corpusDir, runId, index, "pre", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
-      writeSnapshot(corpusDir, runId, index, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+      writeSnapshot(
+        corpusDir,
+        runId,
+        index,
+        "pre",
+        snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+      );
+      writeSnapshot(
+        corpusDir,
+        runId,
+        index,
+        "post",
+        snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+      );
     }
-    writeRunManifest(corpusDir, runId, filterIndexes.flatMap((index) => [
-      `snapshots/${runId}/${index}.pre.json`,
-      `snapshots/${runId}/${index}.json`,
-    ]), CAPTURED_AT, smokeTestPlan.modelVersion);
+    writeRunManifest(
+      corpusDir,
+      runId,
+      filterIndexes.flatMap((index) => [
+        `snapshots/${runId}/${index}.pre.json`,
+        `snapshots/${runId}/${index}.json`,
+      ]),
+      CAPTURED_AT,
+      smokeTestPlan.modelVersion,
+    );
 
     const out = execFileSync(
       npm,
@@ -850,13 +958,31 @@ describe("npm validate:smoke (process-level operator surface)", () => {
       .flatMap((scenario) => scenario.steps)
       .flatMap((step, index) => (step.contractId === "filterHistoryByAsset" ? [index] : []));
     for (const index of filterIndexes) {
-      writeSnapshot(corpusDir, runId, index, "pre", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
-      writeSnapshot(corpusDir, runId, index, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+      writeSnapshot(
+        corpusDir,
+        runId,
+        index,
+        "pre",
+        snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+      );
+      writeSnapshot(
+        corpusDir,
+        runId,
+        index,
+        "post",
+        snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"),
+      );
     }
-    writeRunManifest(corpusDir, runId, filterIndexes.flatMap((index) => [
-      `snapshots/${runId}/${index}.pre.json`,
-      `snapshots/${runId}/${index}.json`,
-    ]), CAPTURED_AT, smokeTestPlan.modelVersion);
+    writeRunManifest(
+      corpusDir,
+      runId,
+      filterIndexes.flatMap((index) => [
+        `snapshots/${runId}/${index}.pre.json`,
+        `snapshots/${runId}/${index}.json`,
+      ]),
+      CAPTURED_AT,
+      smokeTestPlan.modelVersion,
+    );
 
     const out = execFileSync(
       npm,

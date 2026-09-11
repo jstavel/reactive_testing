@@ -10,9 +10,7 @@ const corpusDir = process.env.CORPUS_DIR ?? "corpus";
 const [mode] = process.argv.slice(2);
 
 if (mode !== "last-run" && mode !== "last-fail" && mode !== "list") {
-  console.error(
-    "Usage: npm run corpus:last-run | npm run corpus:last-fail | npm run corpus:list",
-  );
+  console.error("Usage: npm run corpus:last-run | npm run corpus:last-fail | npm run corpus:list");
   process.exit(1);
 }
 

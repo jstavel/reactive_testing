@@ -1,13 +1,11 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
-import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
 import type { ScenarioRelation } from "../model/relations.js";
-import { emitJsonReport, renderJsonReport, REPORT_SCHEMA } from "./json-report.js";
+import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
+import { emitJsonReport, REPORT_SCHEMA, renderJsonReport } from "./json-report.js";
 
 let tempDirs: string[] = [];
 
@@ -24,8 +22,7 @@ function makeCorpusDir(): string {
   return dir;
 }
 
-const MODEL_VERSION =
-  "832c258f35e4e6806e2d1fd731b3df2ca0f3f44d8ffd96b8c8c6315ccaee0c6c";
+const MODEL_VERSION = "832c258f35e4e6806e2d1fd731b3df2ca0f3f44d8ffd96b8c8c6315ccaee0c6c";
 
 const run: RunMetadata = {
   runId: "run-abc123",
@@ -129,9 +126,9 @@ describe("renderJsonReport", () => {
     const results = [result("related", true), result("unrelated", true)];
     const relations = [relation({ scenarioId: "related" })];
 
-    const parsed = JSON.parse(
-      renderJsonReport({ run, plan, results, relations }),
-    ) as { scenarios: Array<Record<string, unknown>> };
+    const parsed = JSON.parse(renderJsonReport({ run, plan, results, relations })) as {
+      scenarios: Array<Record<string, unknown>>;
+    };
 
     expect(parsed.scenarios[0]).toMatchObject({
       id: "related",
@@ -158,9 +155,7 @@ describe("renderJsonReport", () => {
       broken: [fullStep],
     };
 
-    const parsed = JSON.parse(
-      renderJsonReport({ run, plan, results, stepEvidence }),
-    ) as {
+    const parsed = JSON.parse(renderJsonReport({ run, plan, results, stepEvidence })) as {
       summary: { total: number; passed: number; failed: number };
       scenarios: Array<Record<string, unknown>>;
     };
@@ -182,15 +177,16 @@ describe("renderJsonReport", () => {
         snapshotPost: "snapshots/run-abc123/0.json",
         probes: "probes/run-abc123/0.json",
         network: "network/run-abc123/0.json",
-        screenshot: { filePath: "screenshots/run-abc123/0.png", capturedAt: "2026-09-11T09:00:00.412Z" },
+        screenshot: {
+          filePath: "screenshots/run-abc123/0.png",
+          capturedAt: "2026-09-11T09:00:00.412Z",
+        },
       },
     ]);
   });
 
   it("MISSING_KIND — a ref kind absent from the evidence is omitted from the step entry", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
     const { network: _absent, screenshot: _noShot, ...partial } = fullStep;
 
@@ -209,17 +205,15 @@ describe("renderJsonReport", () => {
   });
 
   it("NO_STEP_EVIDENCE — steps list only stateId+contractId when stepEvidence is omitted or empty", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
 
-    const without = JSON.parse(
-      renderJsonReport({ run, plan, results }),
-    ) as { scenarios: Array<{ steps: Array<Record<string, unknown>> }> };
-    const withEmpty = JSON.parse(
-      renderJsonReport({ run, plan, results, stepEvidence: {} }),
-    ) as { scenarios: Array<{ steps: Array<Record<string, unknown>> }> };
+    const without = JSON.parse(renderJsonReport({ run, plan, results })) as {
+      scenarios: Array<{ steps: Array<Record<string, unknown>> }>;
+    };
+    const withEmpty = JSON.parse(renderJsonReport({ run, plan, results, stepEvidence: {} })) as {
+      scenarios: Array<{ steps: Array<Record<string, unknown>> }>;
+    };
 
     expect(without.scenarios[0].steps).toEqual([{ stateId: "home", contractId: "openLogin" }]);
     expect(withEmpty.scenarios[0].steps).toEqual([{ stateId: "home", contractId: "openLogin" }]);
@@ -236,14 +230,18 @@ describe("renderJsonReport", () => {
   });
 
   it("BYTE_DETERMINISM — two renders of the same inputs are byte-identical (NFR-1)", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", false, "boom")];
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullStep] };
 
     const first = renderJsonReport({ run, plan, results, relations: [relation({})], stepEvidence });
-    const second = renderJsonReport({ run, plan, results, relations: [relation({})], stepEvidence });
+    const second = renderJsonReport({
+      run,
+      plan,
+      results,
+      relations: [relation({})],
+      stepEvidence,
+    });
 
     expect(second).toBe(first);
     expect(second.endsWith("\n")).toBe(false);
@@ -264,9 +262,7 @@ describe("renderJsonReport", () => {
 describe("emitJsonReport", () => {
   it("writes report.json beside report.html under the run dir and returns the corpus-relative path", () => {
     const corpusDir = makeCorpusDir();
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
 
     const relPath = emitJsonReport({
       corpusDir,
@@ -285,9 +281,7 @@ describe("emitJsonReport", () => {
   });
 
   it("DETERMINISTIC_EMIT — same inputs in a fresh dir produce byte-identical files", () => {
-    const plan = makePlan([
-      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
-    ]);
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const input = {
       run,
       plan,

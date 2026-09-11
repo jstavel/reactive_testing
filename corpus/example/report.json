@@ -3,7 +3,7 @@
   "runId": "example",
   "timestamp": "2026-09-11T00:00:00.000Z",
   "planId": "smoke",
-  "modelVersion": "320bed0cf074a40e59dbda1a55e0f7b389d358aa45376042cb8c6514888380b1",
+  "modelVersion": "eace0d6f677c2ba81698d931123d96f03bf5415777ba4e0249a5bfe4fe86d13e",
   "summary": {
     "total": 14,
     "passed": 14,

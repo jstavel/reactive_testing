@@ -3,11 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
-import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
 import type { CorpusRun, TestPlan } from "../model/schemas.js";
 import { validationResultSchema } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
+import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
 import { runValidatorsOffline } from "./offline-runner.js";
 import { validatorMap } from "./validator-map.js";
 
@@ -70,13 +69,31 @@ describe("runValidatorsOffline", () => {
     const run = startCorpusRun();
 
     // Step 0: clickHistoryMenuMain — satisfied (pre state + post url/view match).
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger" }]);
 
     // Step 1: clickHistoryMenuFutures — violated (wrong post url pathname).
-    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "1.pre");
-    writeSnapshot(corpusDir, run, 1, { stateId: "derivatives", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      1,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "1.pre",
+    );
+    writeSnapshot(corpusDir, run, 1, {
+      stateId: "derivatives",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 1, [{ name: "selected-view", value: "Ledger" }]);
 
     finish(corpusDir, run);
@@ -111,22 +128,37 @@ describe("runValidatorsOffline", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger" }]);
 
-    writeSnapshot(corpusDir, run, 2, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "2.pre");
-    writeSnapshot(corpusDir, run, 2, { stateId: "portfolioOverview", url: "https://pro.kraken.com/app/portfolio/overview" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      2,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "2.pre",
+    );
+    writeSnapshot(corpusDir, run, 2, {
+      stateId: "portfolioOverview",
+      url: "https://pro.kraken.com/app/portfolio/overview",
+    });
     writeProbes(corpusDir, run, 2, [{ name: "selected-view", value: "overview" }]);
 
     finish(corpusDir, run);
 
-    const filtered = runValidatorsOffline(
-      corpusDir,
-      run.runId,
-      smokeTestPlan,
-      ["clickHistoryMenuMain"],
-    );
+    const filtered = runValidatorsOffline(corpusDir, run.runId, smokeTestPlan, [
+      "clickHistoryMenuMain",
+    ]);
 
     expect(filtered.length).toBeGreaterThan(0);
     for (const result of filtered) {
@@ -140,8 +172,17 @@ describe("runValidatorsOffline", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger" }]);
     finish(corpusDir, run);
 
@@ -157,8 +198,17 @@ describe("runValidatorsOffline", () => {
 
     // A run recorded earlier, before the "new rule" existed. Only its evidence
     // is on disk — nothing here launches a browser or re-navigates.
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger" }]);
     finish(corpusDir, run);
 
@@ -176,9 +226,7 @@ describe("runValidatorsOffline", () => {
       const plan: TestPlan = {
         planId: "smoke",
         modelVersion: "x",
-        scenarios: [
-          { id: "s1", steps: [{ stateId: "homePage", contractId: NEW_CONTRACT }] },
-        ],
+        scenarios: [{ id: "s1", steps: [{ stateId: "homePage", contractId: NEW_CONTRACT }] }],
       };
 
       const results = runValidatorsOffline(corpusDir, run.runId, plan);
@@ -198,13 +246,31 @@ describe("runValidatorsOffline", () => {
     const run = startCorpusRun();
 
     // Thrower fails for the whole run.
-    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "0.pre");
-    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+    });
     writeProbes(corpusDir, run, 0, [{ name: "selected-view", value: "Ledger" }]);
 
     // A well-behaved contract that still validates.
-    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "https://pro.kraken.com/app/home" }, "1.pre");
-    writeSnapshot(corpusDir, run, 1, { stateId: "portfolioOverview", url: "https://pro.kraken.com/app/portfolio/overview" });
+    writeSnapshot(
+      corpusDir,
+      run,
+      1,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "1.pre",
+    );
+    writeSnapshot(corpusDir, run, 1, {
+      stateId: "portfolioOverview",
+      url: "https://pro.kraken.com/app/portfolio/overview",
+    });
     writeProbes(corpusDir, run, 1, [{ name: "selected-view", value: "overview" }]);
 
     finish(corpusDir, run);
@@ -227,9 +293,7 @@ describe("runValidatorsOffline", () => {
         ],
       };
 
-      expect(() =>
-        runValidatorsOffline(corpusDir, run.runId, plan),
-      ).not.toThrow();
+      expect(() => runValidatorsOffline(corpusDir, run.runId, plan)).not.toThrow();
 
       const results = runValidatorsOffline(corpusDir, run.runId, plan);
       // The throwing validator's step yields no result; the non-throwing one does.

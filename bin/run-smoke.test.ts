@@ -47,7 +47,9 @@ describe("finishRun (npm run run:smoke completion surface)", () => {
 
     expect(finish.exitCode).toBe(1);
     expect(finish.err).toEqual([
-      expect.stringContaining('Run produced zero scenarios (plan "smoke", modelVersion "test-hash").'),
+      expect.stringContaining(
+        'Run produced zero scenarios (plan "smoke", modelVersion "test-hash").',
+      ),
     ]);
     expect(finish.err[0]).toContain("modelVersion mismatch");
     expect(finish.out.at(-1)).toMatch(/^Corpus: .*@last-run → .*\(runId run-1\)$/);
@@ -63,11 +65,7 @@ describe("finishRun (npm run run:smoke completion surface)", () => {
   });
 
   it("all scenarios failed → exit 1, handoff printed last", () => {
-    const finish = finishRun(
-      baseResult({ scenarios: [FAILED] }),
-      corpusDir,
-      12.5,
-    );
+    const finish = finishRun(baseResult({ scenarios: [FAILED] }), corpusDir, 12.5);
 
     expect(finish.exitCode).toBe(1);
     expect(finish.err[0]).toBe(
@@ -80,11 +78,7 @@ describe("finishRun (npm run run:smoke completion surface)", () => {
   });
 
   it("scenarios pass → exit 0, handoff printed last", () => {
-    const finish = finishRun(
-      baseResult({ scenarios: [PASSED, FAILED] }),
-      corpusDir,
-      12.5,
-    );
+    const finish = finishRun(baseResult({ scenarios: [PASSED, FAILED] }), corpusDir, 12.5);
 
     expect(finish.exitCode).toBe(0);
     expect(finish.err).toEqual([]);
@@ -108,7 +102,9 @@ describe("finishRun (npm run run:smoke completion surface)", () => {
 
     expect(finish.exitCode).toBe(0);
     expect(finish.err).toEqual(["[SETUP FAIL] nav-home — bootstrap failed"]);
-    expect(finish.out[0]).toContain("Run complete: 1/1 scenarios passed in 3.2s (1 bootstrapped, 1 setup failures)");
+    expect(finish.out[0]).toContain(
+      "Run complete: 1/1 scenarios passed in 3.2s (1 bootstrapped, 1 setup failures)",
+    );
   });
 
   it("omits the handoff when the fan does not resolve (default handoffLine honesty)", () => {

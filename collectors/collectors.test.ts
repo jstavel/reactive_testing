@@ -1,18 +1,11 @@
 import { rmSync } from "node:fs";
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { Page, Request, Response } from "playwright";
-
-import {
-  networkEventSchema,
-  probeResultSchema,
-  snapshotRecordSchema,
-} from "../model/schemas.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Probe } from "../model/schemas.js";
+import { networkEventSchema, probeResultSchema, snapshotRecordSchema } from "../model/schemas.js";
 import { collectors } from "./collect.js";
 import { collectNetwork, startNetworkCapture } from "./collect-network.js";
-import { ProbePartialError, collectProbe } from "./collect-probe.js";
+import { collectProbe, ProbePartialError } from "./collect-probe.js";
 import { collectScreenshot } from "./collect-screenshot.js";
 import { collectSnapshot } from "./collect-snapshot.js";
 
@@ -43,11 +36,7 @@ function makeResponse(url: string, method: string, status: number): Response {
  * Build a Request-like handle as emitted by Playwright's `requestfailed`. A
  * `null` errorText stands in for `failure()` returning null (error absent).
  */
-function makeRequest(
-  url: string,
-  method: string,
-  errorText: string | null,
-): Request {
+function makeRequest(url: string, method: string, errorText: string | null): Request {
   return {
     url: () => url,
     method: () => method,
@@ -58,7 +47,16 @@ function makeRequest(
 function createPageMock(): {
   page: Page & { emit: (event: string, ...args: unknown[]) => boolean };
   mocks: Record<
-    "locator" | "innerHTML" | "first" | "textContent" | "screenshot" | "waitForLoadState" | "on" | "off" | "url" | "count",
+    | "locator"
+    | "innerHTML"
+    | "first"
+    | "textContent"
+    | "screenshot"
+    | "waitForLoadState"
+    | "on"
+    | "off"
+    | "url"
+    | "count",
     ReturnType<typeof vi.fn>
   >;
 } {
@@ -104,7 +102,18 @@ function createPageMock(): {
 
   return {
     page,
-    mocks: { locator, innerHTML, first, textContent, screenshot, waitForLoadState, on, off, url, count },
+    mocks: {
+      locator,
+      innerHTML,
+      first,
+      textContent,
+      screenshot,
+      waitForLoadState,
+      on,
+      off,
+      url,
+      count,
+    },
   };
 }
 
@@ -202,9 +211,7 @@ describe("collectNetwork", () => {
 
   it("returns partial observations and still detaches when networkidle never settles", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const eventsPromise = collectNetwork(page);
     page.emit("response", makeResponse("https://app.test/api", "GET", 200));
@@ -246,15 +253,10 @@ describe("collectNetwork", () => {
 
   it("captures a failed/aborted request as an error event without a status", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const eventsPromise = collectNetwork(page);
-    page.emit(
-      "requestfailed",
-      makeRequest("https://app.test/broken", "GET", "net::ERR_ABORTED"),
-    );
+    page.emit("requestfailed", makeRequest("https://app.test/broken", "GET", "net::ERR_ABORTED"));
 
     const events = await eventsPromise;
 
@@ -272,9 +274,7 @@ describe("collectNetwork", () => {
 
   it("falls back to 'Request failed' when the failure errorText is empty or absent", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const eventsPromise = collectNetwork(page);
     page.emit("requestfailed", makeRequest("https://app.test/empty", "GET", ""));
@@ -310,9 +310,7 @@ describe("collectNetwork", () => {
 
   it("quarantines a throwing response listener and retains the other events", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const throwingResponse = {
       url: () => {
@@ -342,9 +340,7 @@ describe("collectNetwork", () => {
 
   it("quarantines a throwing requestfailed listener and retains the other failure events", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const throwingRequest = {
       url: () => {
@@ -371,9 +367,7 @@ describe("collectNetwork", () => {
 
   it("records exactly one event when a request fires both response and requestfailed", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const sharedRequest = makeRequest("https://app.test/both", "GET", "net::ERR_ABORTED");
     const bothResponse = {
@@ -404,18 +398,12 @@ describe("collectNetwork", () => {
       .mockReturnValueOnce(secondWindow.promise);
 
     const firstCollect = collectNetwork(page);
-    page.emit(
-      "requestfailed",
-      makeRequest("https://app.test/fail-one", "GET", "net::ERR_FAILED"),
-    );
+    page.emit("requestfailed", makeRequest("https://app.test/fail-one", "GET", "net::ERR_FAILED"));
     firstWindow.resolve();
     expect(await firstCollect).toHaveLength(1);
 
     const secondCollect = collectNetwork(page);
-    page.emit(
-      "requestfailed",
-      makeRequest("https://app.test/fail-two", "GET", "net::ERR_FAILED"),
-    );
+    page.emit("requestfailed", makeRequest("https://app.test/fail-two", "GET", "net::ERR_FAILED"));
     secondWindow.resolve();
     const secondEvents = await secondCollect;
 
@@ -455,9 +443,7 @@ describe("startNetworkCapture", () => {
 
   it("records exactly one event when a request fires both response and requestfailed", async () => {
     const { page, mocks } = createPageMock();
-    mocks.waitForLoadState.mockRejectedValueOnce(
-      new Error("Timeout 5000ms exceeded"),
-    );
+    mocks.waitForLoadState.mockRejectedValueOnce(new Error("Timeout 5000ms exceeded"));
 
     const handle = startNetworkCapture(page);
     const sharedRequest = makeRequest("https://app.test/both", "GET", "net::ERR_ABORTED");
@@ -597,9 +583,7 @@ describe("collectProbe", () => {
     mocks.locator.mockImplementation((selector: string) => ({
       innerHTML: vi.fn(async () => ""),
       first: vi.fn(() => ({
-        textContent: vi.fn(async () =>
-          selector === "h1" ? "Portfolio" : "12,450.00",
-        ),
+        textContent: vi.fn(async () => (selector === "h1" ? "Portfolio" : "12,450.00")),
       })),
     }));
 
@@ -651,9 +635,9 @@ describe("collectProbe", () => {
       })),
     }));
 
-    await expect(
-      collectProbe(page, [{ name: "ghost", selector: ".nope" }]),
-    ).rejects.toThrow(/ghost/);
+    await expect(collectProbe(page, [{ name: "ghost", selector: ".nope" }])).rejects.toThrow(
+      /ghost/,
+    );
   });
 
   it("carries already-collected results in a ProbePartialError when a selector is missing", async () => {
@@ -691,9 +675,7 @@ describe("collectProbe", () => {
   it("rejects a null/broken entry in the probes array", async () => {
     const { page } = createPageMock();
 
-    await expect(
-      collectProbe(page, [null as unknown as Probe]),
-    ).rejects.toThrow();
+    await expect(collectProbe(page, [null as unknown as Probe])).rejects.toThrow();
   });
 
   it("records an empty value for an optional probe whose selector is absent", async () => {
@@ -709,19 +691,18 @@ describe("collectProbe", () => {
     ]);
 
     expect(results).toEqual([
-      { name: "selected-view", value: "", capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) },
+      {
+        name: "selected-view",
+        value: "",
+        capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      },
     ]);
   });
 });
 
 describe("collectors record", () => {
   it("keys the four concerns and forwards each to its collector", async () => {
-    expect(Object.keys(collectors).sort()).toEqual([
-      "network",
-      "probe",
-      "screenshot",
-      "snapshot",
-    ]);
+    expect(Object.keys(collectors).sort()).toEqual(["network", "probe", "screenshot", "snapshot"]);
     for (const collector of Object.values(collectors)) {
       expect(typeof collector).toBe("function");
     }
@@ -734,9 +715,9 @@ describe("networkEventSchema", () => {
     // Blank: neither status nor error.
     expect(networkEventSchema.safeParse(base).success).toBe(false);
     // Contradictory: both present.
-    expect(
-      networkEventSchema.safeParse({ ...base, status: 200, error: "boom" }).success,
-    ).toBe(false);
+    expect(networkEventSchema.safeParse({ ...base, status: 200, error: "boom" }).success).toBe(
+      false,
+    );
     // Wrong-typed fields can never form a valid event.
     expect(networkEventSchema.safeParse({ ...base, status: null }).success).toBe(false);
     expect(networkEventSchema.safeParse({ ...base, status: "200" }).success).toBe(false);

@@ -15,18 +15,14 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
-import {
-  probeResultSchema,
-  runManifestSchema,
-  snapshotRecordSchema,
-} from "../model/schemas.js";
 import type {
   ContractEvidence,
   ProbeResult,
+  RunManifest,
   SnapshotRecord,
   TestPlan,
 } from "../model/schemas.js";
+import { probeResultSchema, runManifestSchema, snapshotRecordSchema } from "../model/schemas.js";
 
 /** One step's rebuilt evidence, tagged with the contract it executed. Tagging by
  * stepIndex (not contractId) preserves a contract repeated across steps. */
@@ -48,11 +44,7 @@ export interface StepEvidence {
  * collector gaped (file absent from the manifest) yields undefined evidence,
  * mirroring 3.1's missing-evidence path.
  */
-export function loadCorpusSteps(
-  corpusDir: string,
-  runId: string,
-  plan: TestPlan,
-): StepEvidence[] {
+export function loadCorpusSteps(corpusDir: string, runId: string, plan: TestPlan): StepEvidence[] {
   // --- Read the manifest (source of what exists). Absent run → empty. ---
   // Note: since the planModelVersion provenance field became required on
   // runManifestSchema (story 6), a LEGACY manifest lacking it fails this
@@ -60,7 +52,7 @@ export function loadCorpusSteps(
   // plan-version guard. The operator CLIs guard earlier and refuse with a
   // clear re-record message; this comment documents the loader-side behavior.
   const manifestPath = join(corpusDir, runId, "run-manifest.json");
-  let manifest;
+  let manifest: RunManifest;
   try {
     const raw = readFileSync(manifestPath, "utf8");
     const parsed = JSON.parse(raw);
@@ -87,9 +79,7 @@ export function loadCorpusSteps(
  * the loader never throws: a missing or non-array `plan.scenarios`, a scenario
  * without an iterable `steps`, or a step without a string `contractId` is
  * skipped (an absent plan yields `[]`). A well-formed plan walks unchanged. */
-function planSteps(
-  plan: unknown,
-): Array<{ stepIndex: number; contractId: string }> {
+function planSteps(plan: unknown): Array<{ stepIndex: number; contractId: string }> {
   const steps: Array<{ stepIndex: number; contractId: string }> = [];
   if (typeof plan !== "object" || plan === null) {
     return steps;
@@ -126,21 +116,9 @@ function loadStepEvidence(
   stepIndex: number,
   files: Set<string>,
 ): ContractEvidence {
-  const pre = readSnapshotIfListed(
-    corpusDir,
-    `snapshots/${runId}/${stepIndex}.pre.json`,
-    files,
-  );
-  const post = readSnapshotIfListed(
-    corpusDir,
-    `snapshots/${runId}/${stepIndex}.json`,
-    files,
-  );
-  const probes = readProbesIfListed(
-    corpusDir,
-    `probes/${runId}/${stepIndex}.json`,
-    files,
-  );
+  const pre = readSnapshotIfListed(corpusDir, `snapshots/${runId}/${stepIndex}.pre.json`, files);
+  const post = readSnapshotIfListed(corpusDir, `snapshots/${runId}/${stepIndex}.json`, files);
+  const probes = readProbesIfListed(corpusDir, `probes/${runId}/${stepIndex}.json`, files);
 
   return {
     ...(pre !== undefined ? { pre } : {}),

@@ -51,12 +51,22 @@ vi.mock("playwright", () => ({
 const mockCorpusRun: { runId: string; files: string[] } = { runId: "mock-run-id", files: [] };
 vi.mock("./corpus.js", () => ({
   startCorpusRun: vi.fn(() => mockCorpusRun),
-  writeCorpusFile: vi.fn((_corpusDir: string, run: { runId: string; files: string[] }, kind: string, stepIndex: number, ext: string, _data: unknown, stem?: string) => {
-    const name = stem ?? String(stepIndex);
-    const path = `${kind}/${run.runId}/${name}.${ext}`;
-    run.files.push(path);
-    return path;
-  }),
+  writeCorpusFile: vi.fn(
+    (
+      _corpusDir: string,
+      run: { runId: string; files: string[] },
+      kind: string,
+      stepIndex: number,
+      ext: string,
+      _data: unknown,
+      stem?: string,
+    ) => {
+      const name = stem ?? String(stepIndex);
+      const path = `${kind}/${run.runId}/${name}.${ext}`;
+      run.files.push(path);
+      return path;
+    },
+  ),
   finishRun: vi.fn(),
 }));
 
@@ -69,8 +79,8 @@ vi.mock("../collectors/collect.js", () => ({
   },
 }));
 
-import { runTestPlan, validatePlan } from "./orchestrator.js";
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
+import { runTestPlan, validatePlan } from "./orchestrator.js";
 
 const baseConfig: OrchestratorConfig = {
   baseUrl: "http://localhost:3000",
@@ -123,9 +133,7 @@ describe("runTestPlan", () => {
       },
       {
         id: "click-history-futures",
-        steps: [
-          { stateId: "homePage", contractId: "clickHistoryMenuFutures" },
-        ],
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
 
@@ -145,9 +153,7 @@ describe("runTestPlan", () => {
       },
       {
         id: "click-history-futures",
-        steps: [
-          { stateId: "homePage", contractId: "clickHistoryMenuFutures" },
-        ],
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
 
@@ -160,9 +166,7 @@ describe("runTestPlan", () => {
       { id: "click-history-main", passed: true },
       { id: "click-history-futures", passed: true },
     ]);
-    expect(seen.map((s) => s.id)).toEqual(
-      result.scenarios.map((s) => s.id),
-    );
+    expect(seen.map((s) => s.id)).toEqual(result.scenarios.map((s) => s.id));
   });
 
   it("aborts immediately on modelVersion mismatch", async () => {
@@ -203,9 +207,7 @@ describe("runTestPlan", () => {
       },
       {
         id: "fast-step",
-        steps: [
-          { stateId: "homePage", contractId: "clickHistoryMenuFutures" },
-        ],
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
 
@@ -241,9 +243,7 @@ describe("runTestPlan", () => {
       },
       {
         id: "second",
-        steps: [
-          { stateId: "homePage", contractId: "clickHistoryMenuFutures" },
-        ],
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
       },
     ]);
 
@@ -284,7 +284,10 @@ describe("runTestPlan", () => {
 
     const plan = makePlan([
       { id: "broken", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "after-failure", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+      {
+        id: "after-failure",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      },
     ]);
 
     try {
@@ -323,9 +326,7 @@ describe("runTestPlan", () => {
       },
     ]);
 
-    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow(
-      'unknown stateId "nonexistent"',
-    );
+    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow('unknown stateId "nonexistent"');
   });
 
   it("throws on invalid contractId", async () => {
@@ -336,9 +337,7 @@ describe("runTestPlan", () => {
       },
     ]);
 
-    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow(
-      'unknown contractId "nonexistent"',
-    );
+    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow('unknown contractId "nonexistent"');
   });
 
   it("throws on unreachable path", async () => {
@@ -352,9 +351,7 @@ describe("runTestPlan", () => {
       },
     ]);
 
-    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow(
-      "leads to",
-    );
+    await expect(runTestPlan(plan, baseConfig)).rejects.toThrow("leads to");
   });
 
   it("rejects a plan whose scenario has no steps (validatePlan admission)", () => {
@@ -365,9 +362,7 @@ describe("runTestPlan", () => {
       },
     ]);
 
-    expect(() => validatePlan(plan)).toThrow(
-      'Scenario "stepless" has no steps.',
-    );
+    expect(() => validatePlan(plan)).toThrow('Scenario "stepless" has no steps.');
   });
 
   it("rejects a scenario whose givenStateId does not match its first step stateId", () => {
@@ -446,7 +441,10 @@ describe("runTestPlan", () => {
 
     // waitForSelector called once during bootstrap + once after each of 2 steps = 3 total
     expect(mockWaitForSelector).toHaveBeenCalledTimes(3);
-    expect(mockWaitForSelector).toHaveBeenCalledWith("#app", expect.objectContaining({ timeout: expect.any(Number) }));
+    expect(mockWaitForSelector).toHaveBeenCalledWith(
+      "#app",
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
   });
 
   it("settles on settleSelector when provided instead of readySelector", async () => {
@@ -490,9 +488,7 @@ describe("runTestPlan", () => {
 
     // (a) attached via connectOverCDP, not launch
     expect(mockConnectOverCDP).toHaveBeenCalledWith("http://127.0.0.1:9222");
-    expect(
-      (await import("playwright")).chromium.launch,
-    ).not.toHaveBeenCalled();
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
     // (b) scenario passes and a corpus is written + finalized
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0]!.passed).toBe(true);
@@ -615,7 +611,9 @@ describe("corpus wiring", () => {
     // click succeeds but its settle wait fails, aborting scenario 2's bootstrap.
     let clicks = 0;
     mockGetByRole.mockImplementation(() => ({
-      click: vi.fn(() => (++clicks === 1 ? Promise.reject(new Error("locator boom")) : Promise.resolve())),
+      click: vi.fn(() =>
+        ++clicks === 1 ? Promise.reject(new Error("locator boom")) : Promise.resolve(),
+      ),
       first: vi.fn(() => ({ click: vi.fn() })),
     }));
     mockWaitForSelector
@@ -624,7 +622,10 @@ describe("corpus wiring", () => {
 
     const plan = makePlan([
       { id: "broken", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "needs-recovery", steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }] },
+      {
+        id: "needs-recovery",
+        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+      },
     ]);
 
     try {
@@ -645,13 +646,18 @@ describe("corpus wiring", () => {
     const savedImpl = mockGetByRole.getMockImplementation();
     let clicks = 0;
     mockGetByRole.mockImplementation(() => ({
-      click: vi.fn(() => (++clicks === 3 ? Promise.reject(new Error("bootstrap locator boom")) : Promise.resolve())),
+      click: vi.fn(() =>
+        ++clicks === 3 ? Promise.reject(new Error("bootstrap locator boom")) : Promise.resolve(),
+      ),
       first: vi.fn(() => ({ click: vi.fn() })),
     }));
 
     const plan = makePlan([
       { id: "reach-history", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "bootstrap-to-dialog", steps: [{ stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" }] },
+      {
+        id: "bootstrap-to-dialog",
+        steps: [{ stateId: "portfolioSummaryDialog", contractId: "toggleEyeIcon" }],
+      },
     ]);
 
     try {
@@ -717,9 +723,9 @@ describe("corpus wiring", () => {
 
     await runTestPlan(plan, baseConfig);
 
-    const snapshotCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c) => c[2] === "snapshots",
-    );
+    const snapshotCalls = (
+      writeCorpusFile as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls.filter((c) => c[2] === "snapshots");
     const stepIndexes = snapshotCalls.map((c) => c[3]);
     // pre + post snapshots per step; the step index stays global across scenarios.
     expect(stepIndexes).toEqual([0, 0, 1, 1, 3, 3, 2, 2]);
@@ -739,12 +745,7 @@ describe("corpus wiring", () => {
 
     await runTestPlan(plan, baseConfig);
 
-    expect(Object.keys(collectors).sort()).toEqual([
-      "network",
-      "probe",
-      "screenshot",
-      "snapshot",
-    ]);
+    expect(Object.keys(collectors).sort()).toEqual(["network", "probe", "screenshot", "snapshot"]);
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
     const kinds = writeCalls.map((c) => c[2]);
     expect(new Set(kinds)).toEqual(new Set(["probes", "snapshots"]));
@@ -776,9 +777,7 @@ describe("corpus wiring", () => {
     const writeCalls = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(writeCalls.some((c) => c[2] === "probes")).toBe(false);
     // The sibling snapshots were still written at the same stepIndex.
-    const kindsAtStepZero = writeCalls
-      .filter((c) => c[3] === 0)
-      .map((c) => c[2]);
+    const kindsAtStepZero = writeCalls.filter((c) => c[3] === 0).map((c) => c[2]);
     expect(kindsAtStepZero).toEqual(["snapshots", "snapshots"]);
     expect(finishRun).toHaveBeenCalledWith(
       baseConfig.corpusDir,
@@ -926,11 +925,9 @@ describe("corpus wiring", () => {
 
   it("does not isolate a corpus-write IO failure: the scenario fails and no gap is recorded", async () => {
     const { finishRun, writeCorpusFile } = await import("./corpus.js");
-    (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      () => {
-        throw new Error("disk full");
-      },
-    );
+    (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
 
     const plan = makePlan([
       {
@@ -1053,7 +1050,10 @@ describe("corpus wiring", () => {
 
     const plan = makePlan([
       { id: "fails-first", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "fails-second", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }] },
+      {
+        id: "fails-second",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
+      },
     ]);
 
     try {
@@ -1202,8 +1202,8 @@ describe("corpus wiring", () => {
       },
     ]);
 
-    await expect(
-      runTestPlan(plan, { ...baseConfig, probes: [] }),
-    ).rejects.toThrow(/not configured: selected-view/);
+    await expect(runTestPlan(plan, { ...baseConfig, probes: [] })).rejects.toThrow(
+      /not configured: selected-view/,
+    );
   });
 });

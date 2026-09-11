@@ -18,13 +18,13 @@
 // / `playwright`; vi.mock intercepts those resolved modules for the emitted
 // file just as for this test (vitest mocks are keyed by resolved URL).
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { writeReproScript, type ReproPath } from "./repro-generator.js";
+import { type ReproPath, writeReproScript } from "./repro-generator.js";
 
 const execFileAsync = promisify(execFile);
 const SCRIPTS_DIR = "scripts";
@@ -61,13 +61,16 @@ vi.mock("playwright", () => ({
       contexts: () => [
         {
           newPage: async () => {
-            const page: FakePage & { goto: Function; waitForSelector: Function; close: Function } =
-              {
-                calls: [],
-                goto: async () => ({ ok: () => true }),
-                waitForSelector: async () => null,
-                close: async () => {},
-              };
+            const page: FakePage & {
+              goto: (url: string, options?: { timeout: number }) => Promise<{ ok: () => boolean }>;
+              waitForSelector: (selector: string, options?: { timeout: number }) => Promise<null>;
+              close: () => Promise<void>;
+            } = {
+              calls: [],
+              goto: async () => ({ ok: () => true }),
+              waitForSelector: async () => null,
+              close: async () => {},
+            };
             mock.pages.push(page);
             return page;
           },
@@ -191,11 +194,13 @@ describe("emitted-repro verification gate (item-4)", () => {
         { from: "historyMain", contractId: "filterHistoryByAsset", to: "historyMain" },
       ];
 
-      await writeReproScript(validPath({
-        slug: "verify-offhome",
-        givenStateId: "historyMain",
-        steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
-      }));
+      await writeReproScript(
+        validPath({
+          slug: "verify-offhome",
+          givenStateId: "historyMain",
+          steps: [{ stateId: "historyMain", contractId: "filterHistoryByAsset" }],
+        }),
+      );
       mock.actions.length = 0;
       await import(`../scripts/repro-verify-${"offhome"}.js`);
 
@@ -206,13 +211,15 @@ describe("emitted-repro verification gate (item-4)", () => {
 
     it("the runtime continuity guard catches a path a later model edit made disjoint", async () => {
       // Generate a path that is valid at GENERATION time...
-      await writeReproScript(validPath({
-        slug: "verify-runtime",
-        steps: [
-          { stateId: "homePage", contractId: "openPortfolioSummary" },
-          { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
-        ],
-      }));
+      await writeReproScript(
+        validPath({
+          slug: "verify-runtime",
+          steps: [
+            { stateId: "homePage", contractId: "openPortfolioSummary" },
+            { stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" },
+          ],
+        }),
+      );
 
       // ...then "edit the spec": openPortfolioSummary now lands on historyMain,
       // so step 1's transition no longer matches step 2's start. The emitted

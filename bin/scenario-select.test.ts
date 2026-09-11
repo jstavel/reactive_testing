@@ -9,7 +9,9 @@ describe("selectScenarios", () => {
       "clicking-earn-navigates-to-the-standalone-earn-page",
     ]);
 
-    expect(selected.scenarios.map(({ id }) => id)).toEqual(["clicking-earn-navigates-to-the-standalone-earn-page"]);
+    expect(selected.scenarios.map(({ id }) => id)).toEqual([
+      "clicking-earn-navigates-to-the-standalone-earn-page",
+    ]);
   });
 
   it("selects multiple scenarios in plan order", () => {
@@ -50,7 +52,9 @@ describe("selectScenarios", () => {
   });
 
   it("preserves plan metadata when selecting scenarios", () => {
-    const selected = selectScenarios(smokeTestPlan, ["clicking-earn-navigates-to-the-standalone-earn-page"]);
+    const selected = selectScenarios(smokeTestPlan, [
+      "clicking-earn-navigates-to-the-standalone-earn-page",
+    ]);
 
     expect(selected.planId).toBe(smokeTestPlan.planId);
     expect(selected.modelVersion).toBe(smokeTestPlan.modelVersion);

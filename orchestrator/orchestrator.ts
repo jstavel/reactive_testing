@@ -1,13 +1,12 @@
 import type { Page } from "playwright";
-
-import { ProbePartialError } from "../collectors/collect-probe.js";
 import { collectors } from "../collectors/collect.js";
-import { homePageModel } from "../model/fsm.js";
+import { ProbePartialError } from "../collectors/collect-probe.js";
 import type { FsmTransition } from "../model/fsm.js";
+import { homePageModel } from "../model/fsm.js";
 import { computeModelVersion } from "../model/model-version.js";
 import type {
-  CollectorError,
   BootstrapRecord,
+  CollectorError,
   CollectorName,
   CorpusRun,
   OrchestratorConfig,
@@ -20,15 +19,12 @@ import type {
   TestPlan,
 } from "../model/schemas.js";
 import { testPlanSchema } from "../model/schemas.js";
-import { actionMap } from "./action-map.js";
-import { closeBrowser, launchBrowser } from "./browser.js";
-import {
-  startCorpusRun,
-  writeCorpusFile,
-  finishRun,
-} from "./corpus.js";
 import { corpusDependenciesFor, requiredProbeNames } from "../validators/dependencies.js";
+import { actionMap } from "./action-map.js";
 import { resolveBootstrapPath } from "./bootstrap.js";
+import type { BrowserSession } from "./browser.js";
+import { closeBrowser, launchBrowser } from "./browser.js";
+import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
 
 const DEFAULT_STEP_TIMEOUT = 30_000;
 const DEFAULT_RUN_TIMEOUT = 300_000;
@@ -64,7 +60,7 @@ export async function runTestPlan(
   validateProbeDependencies(parsed, config.probes);
 
   // --- Launch browser ---
-  let session;
+  let session: BrowserSession;
   try {
     session = await launchBrowser({
       baseUrl: config.baseUrl,
@@ -94,7 +90,10 @@ export async function runTestPlan(
   const runStart = Date.now();
   const runTimestamp = new Date().toISOString();
   const corpus = startCorpusRun();
-  const scenarioStepCount = parsed.scenarios.reduce((count, scenario) => count + scenario.steps.length, 0);
+  const scenarioStepCount = parsed.scenarios.reduce(
+    (count, scenario) => count + scenario.steps.length,
+    0,
+  );
   let bootstrapStepIndex = scenarioStepCount;
   let currentStateId: string | null = homePageModel.initialStateId;
 
@@ -226,9 +225,7 @@ export async function runTestPlan(
         plannedCollectors,
       );
       stepIndex += scenario.steps.length;
-      currentStateId = result.passed
-        ? resolveTargetState(scenario.steps.at(-1)!)
-        : null;
+      currentStateId = result.passed ? resolveTargetState(scenario.steps.at(-1)!) : null;
       scenarioResults.push(result);
       notify(onScenario, result);
     }
@@ -322,9 +319,7 @@ function validateProbeDependencies(plan: TestPlan, probes: Probe[]): void {
   const configured = new Set(probes.map((p) => p.name));
   const missing = [...required].filter((n) => !configured.has(n));
   if (missing.length > 0) {
-    throw new Error(
-      `Plan requires probe(s) not configured: ${missing.join(", ")}.`,
-    );
+    throw new Error(`Plan requires probe(s) not configured: ${missing.join(", ")}.`);
   }
 }
 
@@ -507,20 +502,21 @@ async function executeScenario(
       // Pre-step snapshot — the "before" state (Story 2.7). Captured under the
       // same AD-16 isolation boundary as the post-action collectors: a throw
       // becomes a gap in `errors`, a timeout still fails the scenario.
-      const pre = await isolateCollector(
-        "snapshot",
-        stepIndex,
-        stepTimeout,
-        errors,
-        () => collectors.snapshot(page, { stateId: step.stateId }),
+      const pre = await isolateCollector("snapshot", stepIndex, stepTimeout, errors, () =>
+        collectors.snapshot(page, { stateId: step.stateId }),
       );
       if (pre.status === "ok") {
         // Phase-tag the pre-step snapshot per step (`0.pre.json`, `1.pre.json`…)
         // so each step keeps its own before-state evidence and the corpus loader
         // (`{stepIndex}.pre.json`, Story 3.3) can reconstruct it (retro F1).
         writeCorpusFile(
-          config.corpusDir, corpus, "snapshots", stepIndex, "json",
-          JSON.stringify(pre.value), corpusStem(phase, scenario.id, stepIndex, "pre"),
+          config.corpusDir,
+          corpus,
+          "snapshots",
+          stepIndex,
+          "json",
+          JSON.stringify(pre.value),
+          corpusStem(phase, scenario.id, stepIndex, "pre"),
         );
       }
 
@@ -536,7 +532,16 @@ async function executeScenario(
         await page.waitForSelector(settleSelector, { timeout: stepTimeout });
       } catch (err) {
         await recordStepFailure(
-          config, corpus, page, stepIndex, step, stepTimeout, err, failures, phase, scenario.id,
+          config,
+          corpus,
+          page,
+          stepIndex,
+          step,
+          stepTimeout,
+          err,
+          failures,
+          phase,
+          scenario.id,
         );
         throw err;
       }
@@ -547,16 +552,16 @@ async function executeScenario(
       // still run; a collector exceeding stepTimeout rethrows and fails the
       // scenario exactly as it did before isolation.
       if (planned.has("snapshot")) {
-        const snapshot = await isolateCollector(
-          "snapshot",
-          stepIndex,
-          stepTimeout,
-          errors,
-          () => collectors.snapshot(page, { stateId: targetStateId }),
+        const snapshot = await isolateCollector("snapshot", stepIndex, stepTimeout, errors, () =>
+          collectors.snapshot(page, { stateId: targetStateId }),
         );
         if (snapshot.status === "ok") {
           writeCorpusFile(
-            config.corpusDir, corpus, "snapshots", stepIndex, "json",
+            config.corpusDir,
+            corpus,
+            "snapshots",
+            stepIndex,
+            "json",
             JSON.stringify(snapshot.value),
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -564,16 +569,16 @@ async function executeScenario(
       }
 
       if (planned.has("network")) {
-        const network = await isolateCollector(
-          "network",
-          stepIndex,
-          stepTimeout,
-          errors,
-          () => collectors.network(page),
+        const network = await isolateCollector("network", stepIndex, stepTimeout, errors, () =>
+          collectors.network(page),
         );
         if (network.status === "ok") {
           writeCorpusFile(
-            config.corpusDir, corpus, "network", stepIndex, "json",
+            config.corpusDir,
+            corpus,
+            "network",
+            stepIndex,
+            "json",
             JSON.stringify(network.value),
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -581,16 +586,16 @@ async function executeScenario(
       }
 
       if (planned.has("screenshot")) {
-        const capture = await isolateCollector(
-          "screenshot",
-          stepIndex,
-          stepTimeout,
-          errors,
-          () => collectors.screenshot(page),
+        const capture = await isolateCollector("screenshot", stepIndex, stepTimeout, errors, () =>
+          collectors.screenshot(page),
         );
         if (capture.status === "ok") {
           const pngPath = writeCorpusFile(
-            config.corpusDir, corpus, "screenshots", stepIndex, "png",
+            config.corpusDir,
+            corpus,
+            "screenshots",
+            stepIndex,
+            "png",
             capture.value.buffer,
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -599,7 +604,11 @@ async function executeScenario(
             capturedAt: capture.value.capturedAt,
           };
           writeCorpusFile(
-            config.corpusDir, corpus, "screenshots", stepIndex, "json",
+            config.corpusDir,
+            corpus,
+            "screenshots",
+            stepIndex,
+            "json",
             JSON.stringify(screenshotRef),
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -607,16 +616,16 @@ async function executeScenario(
       }
 
       if (planned.has("probe")) {
-        const probes = await isolateCollector(
-          "probe",
-          stepIndex,
-          stepTimeout,
-          errors,
-          () => collectors.probe(page, config.probes),
+        const probes = await isolateCollector("probe", stepIndex, stepTimeout, errors, () =>
+          collectors.probe(page, config.probes),
         );
         if (probes.status === "ok") {
           writeCorpusFile(
-            config.corpusDir, corpus, "probes", stepIndex, "json",
+            config.corpusDir,
+            corpus,
+            "probes",
+            stepIndex,
+            "json",
             JSON.stringify(probes.value),
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -624,7 +633,11 @@ async function executeScenario(
           // A probe batch failed partway: persist the results already collected
           // as partial corpus instead of discarding them.
           writeCorpusFile(
-            config.corpusDir, corpus, "probes", stepIndex, "json",
+            config.corpusDir,
+            corpus,
+            "probes",
+            stepIndex,
+            "json",
             JSON.stringify(probes.partialProbes),
             corpusStem(phase, scenario.id, stepIndex),
           );
@@ -663,9 +676,7 @@ function resolveTargetState(step: { stateId: string; contractId: string }): stri
     (t) => t.from === step.stateId && t.contractId === step.contractId,
   );
   if (!transition) {
-    throw new Error(
-      `No transition from "${step.stateId}" via "${step.contractId}".`,
-    );
+    throw new Error(`No transition from "${step.stateId}" via "${step.contractId}".`);
   }
   return transition.to;
 }
@@ -696,8 +707,13 @@ async function recordStepFailure(
       stepTimeout,
     );
     writeCorpusFile(
-      config.corpusDir, corpus, "snapshots", stepIndex, "json",
-      JSON.stringify(snap), failureStem,
+      config.corpusDir,
+      corpus,
+      "snapshots",
+      stepIndex,
+      "json",
+      JSON.stringify(snap),
+      failureStem,
     );
   } catch {
     // swallowed — best-effort
@@ -706,16 +722,26 @@ async function recordStepFailure(
   try {
     const shot = await withTimeout(collectors.screenshot(page), stepTimeout);
     const pngPath = writeCorpusFile(
-      config.corpusDir, corpus, "screenshots", stepIndex, "png",
-      shot.buffer, failureStem,
+      config.corpusDir,
+      corpus,
+      "screenshots",
+      stepIndex,
+      "png",
+      shot.buffer,
+      failureStem,
     );
     const ref: ScreenshotRef = {
       filePath: pngPath,
       capturedAt: shot.capturedAt,
     };
     writeCorpusFile(
-      config.corpusDir, corpus, "screenshots", stepIndex, "json",
-      JSON.stringify(ref), failureStem,
+      config.corpusDir,
+      corpus,
+      "screenshots",
+      stepIndex,
+      "json",
+      JSON.stringify(ref),
+      failureStem,
     );
   } catch {
     // swallowed — best-effort

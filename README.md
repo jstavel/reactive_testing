@@ -4,9 +4,9 @@
 [![tests passed](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fjstavel.github.io%2Freactive_testing%2Fcorpus%2Fexample%2Freport.json&query=summary.passed&label=tests%20passed)](https://jstavel.github.io/reactive_testing/corpus/example/report.html)
 [![checks](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fjstavel.github.io%2Freactive_testing%2Fcorpus%2Fexample%2Freport.json&query=summary.total&label=checks)](https://jstavel.github.io/reactive_testing/corpus/example/report.html)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey.svg)](https://github.com/jstavel/reactive_testing)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This repository does not yet carry a license file.
+MIT licensed — see [LICENSE](LICENSE).
 
 **CI & live sample.** Every push to `main` and every pull request runs the full
 offline pipeline — typecheck, vitest, the fixture-determinism diff, the offline

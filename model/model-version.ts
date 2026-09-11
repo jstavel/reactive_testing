@@ -12,10 +12,7 @@ const MODEL_FILES = ["contracts.ts", "fsm.ts", "schemas.ts"].sort();
 export function computeModelVersion(): string {
   const hash = createHash("sha256");
   for (const file of MODEL_FILES) {
-    const content = readFileSync(join(MODEL_DIR, file), "utf-8").replace(
-      /\r\n/g,
-      "\n",
-    );
+    const content = readFileSync(join(MODEL_DIR, file), "utf-8").replace(/\r\n/g, "\n");
     hash.update(content);
   }
   return hash.digest("hex");

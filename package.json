@@ -4,12 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Spec-first testware: the application described as a formal model (FSM + contracts + schemas).",
+  "license": "MIT",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "biome check --error-on-warnings .",
+    "lint:fix": "biome check --write .",
+    "lint:fix:unsafe": "biome check --write --unsafe .",
     "run:smoke": "tsx bin/run-smoke.ts",
     "validate:smoke": "tsx bin/validate-smoke.ts",
     "report:smoke": "tsx bin/report-smoke.ts",
@@ -23,6 +27,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.13",
     "@types/node": "^24.0.0",
     "playwright": "^1.62.1",
     "tsx": "^4.23.12",

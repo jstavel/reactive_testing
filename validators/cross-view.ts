@@ -26,8 +26,8 @@
 
 import { homePageModel } from "../model/fsm.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
-import { loadCorpusSteps } from "./corpus-loader.js";
 import type { StepEvidence } from "./corpus-loader.js";
+import { loadCorpusSteps } from "./corpus-loader.js";
 
 /** A fact declared once, with every modeled surface that shows it and the
  * agreement semantics that reconcile legitimate divergence (formatting,
@@ -80,9 +80,7 @@ export function runCrossViewInvariants(
 ): ValidationResult[] {
   assertRegistryEntryGaps();
   const steps = loadCorpusSteps(corpusDir, runId, plan);
-  return crossViewInvariants.map((invariant) =>
-    checkInvariant(invariant, steps),
-  );
+  return crossViewInvariants.map((invariant) => checkInvariant(invariant, steps));
 }
 
 /** Entry-time declaration gaps (never silently skipped; mirrors validator-map's
@@ -144,10 +142,7 @@ interface SurfaceObservation {
   capturedAt: string;
 }
 
-function checkInvariant(
-  invariant: CrossViewInvariant,
-  steps: StepEvidence[],
-): ValidationResult {
+function checkInvariant(invariant: CrossViewInvariant, steps: StepEvidence[]): ValidationResult {
   const observed = new Map<string, SurfaceObservation>();
   const missing = new Map<string, string>();
 
@@ -220,9 +215,7 @@ function checkInvariant(
     bySurface.set(surface, { raw: observation.value, normalized });
   }
   const normalizedValues = [...bySurface.values()].map((entry) => entry.normalized);
-  const allAgree = normalizedValues.every(
-    (normalized) => normalized === normalizedValues[0],
-  );
+  const allAgree = normalizedValues.every((normalized) => normalized === normalizedValues[0]);
   if (!allAgree) {
     return {
       contractId: invariant.invariantId,
@@ -270,14 +263,8 @@ function latestObservation(
  * distinguishes "no step landed here" from "landed but the probe was never
  * recorded". (An empty-valued probe record is a third distinct missing-evidence
  * reason, reported by the caller from the latest observation.) */
-function missingEvidenceReason(
-  probeName: string,
-  surface: string,
-  steps: StepEvidence[],
-): string {
-  const landingSteps = steps.filter(
-    (step) => step.evidence.post?.stateId === surface,
-  );
+function missingEvidenceReason(probeName: string, surface: string, steps: StepEvidence[]): string {
+  const landingSteps = steps.filter((step) => step.evidence.post?.stateId === surface);
   if (landingSteps.length === 0) {
     return "no recorded step lands on this surface (no post snapshot)";
   }

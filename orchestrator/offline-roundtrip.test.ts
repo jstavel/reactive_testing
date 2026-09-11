@@ -12,17 +12,16 @@
 // resulting corpus through the real loader and asserts the pre-step evidence
 // survives the round trip.
 
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { runTestPlan } from "./orchestrator.js";
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
-import { LAST_FAIL, LAST_RUN, resolveFanRunId } from "./handlinks.js";
 import { loadCorpusSteps } from "../validators/corpus-loader.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
+import { LAST_FAIL, LAST_RUN, resolveFanRunId } from "./handlinks.js";
+import { runTestPlan } from "./orchestrator.js";
 
 const MODEL_VERSION = "test-hash-abc123";
 
@@ -69,14 +68,19 @@ vi.mock("../collectors/collect.js", () => ({
       const { stateId } = options;
       return {
         stateId,
-        url: stateId === "homePage" ? "https://pro.kraken.com/app/home" : "https://pro.kraken.com/app/history/main/ledger",
+        url:
+          stateId === "homePage"
+            ? "https://pro.kraken.com/app/home"
+            : "https://pro.kraken.com/app/history/main/ledger",
         snapshot: "",
         capturedAt: "2026-09-01T00:00:00.000Z",
       };
     }),
     network: vi.fn(async () => []),
     screenshot: vi.fn(async () => ({ buffer: Buffer.from("png"), capturedAt: "" })),
-    probe: vi.fn(async () => [{ name: "selected-view", value: "Ledger", capturedAt: "2026-09-01T00:00:00.000Z" }]),
+    probe: vi.fn(async () => [
+      { name: "selected-view", value: "Ledger", capturedAt: "2026-09-01T00:00:00.000Z" },
+    ]),
   },
 }));
 
@@ -127,7 +131,10 @@ describe("orchestrator → corpus-loader round trip (retro F1)", () => {
     // `@last-fail` handoff fans are convenience links at the corpus root, not runs).
     const runIds = readdirSync(corpusDir).filter(
       (entry) =>
-        entry !== "snapshots" && entry !== "network" && entry !== "screenshots" && entry !== "probes" &&
+        entry !== "snapshots" &&
+        entry !== "network" &&
+        entry !== "screenshots" &&
+        entry !== "probes" &&
         !entry.startsWith("@"),
     );
     expect(runIds).toHaveLength(1);
@@ -148,7 +155,9 @@ describe("orchestrator → corpus-loader round trip (retro F1)", () => {
     // story 6) — the provenance the offline CLIs' guard checks. Asserted
     // against the plan's own field (== the mocked MODEL_VERSION), end to end
     // through the real runner, without a browser.
-    const manifest = JSON.parse(readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8")) as {
+    const manifest = JSON.parse(
+      readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"),
+    ) as {
       planModelVersion?: unknown;
     };
     expect(manifest.planModelVersion).toBe(homePageNavigationPlan.modelVersion);

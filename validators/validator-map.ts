@@ -6,8 +6,8 @@
 // editing how a predicate is evaluated never bumps modelVersion (AD-17). A
 // failing validator is a result, never an exception (FR-5 determinism).
 
-import { allContracts } from "../model/contracts.js";
 import type { DialogContract } from "../model/contracts.js";
+import { allContracts } from "../model/contracts.js";
 import type {
   ContractEvidence,
   ContractPredicate,
@@ -74,7 +74,7 @@ function evaluate(
       }
       return {
         passed: false,
-        detail: `${predicate.assert} expected ${expected ? marker : "no " + marker} but ${found ? marker + " found" : "marker absent"} in snapshot`,
+        detail: `${predicate.assert} expected ${expected ? marker : `no ${marker}`} but ${found ? `${marker} found` : "marker absent"} in snapshot`,
       };
     }
   }

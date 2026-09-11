@@ -4,8 +4,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   readlinkSync,
   rmSync,
   symlinkSync,
@@ -15,9 +15,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { RunManifest, TestPlan } from "../model/schemas.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { resolveLatestRun } from "./cli-shared.js";
 import { GENERATE_USAGE, generateSampleReport } from "./generate-sample-report.js";
 
@@ -115,7 +114,10 @@ describe("generateSampleReport", () => {
 
     // Stale leftovers an older recipe could leave behind: retired evidence,
     // a stray file in the run dir, and a stale report pair.
-    writeFileSync(join(corpusRoot, "snapshots", "example", "99.pre.json"), '{"stateId":"ghostState"}');
+    writeFileSync(
+      join(corpusRoot, "snapshots", "example", "99.pre.json"),
+      '{"stateId":"ghostState"}',
+    );
     writeFileSync(join(corpusRoot, "probes", "example", "99.json"), "[]");
     writeFileSync(join(corpusRoot, "example", "stale-extra.txt"), "older recipe leftover");
     writeFileSync(join(corpusRoot, "example", "report.html"), "<h1>STALE</h1>");
@@ -171,9 +173,7 @@ describe("generateSampleReport", () => {
   it("report.json carries schema report.v1 with the all-pass scenario summary", () => {
     generateSampleReport(corpusRoot);
 
-    const report = JSON.parse(
-      readFileSync(join(corpusRoot, "example", "report.json"), "utf8"),
-    ) as {
+    const report = JSON.parse(readFileSync(join(corpusRoot, "example", "report.json"), "utf8")) as {
       schema: string;
       runId: string;
       summary: { total: number; passed: number; failed: number };
@@ -365,7 +365,9 @@ describe("generateSampleReport", () => {
 const defectlessPlan: TestPlan = {
   planId: "smoke",
   modelVersion: "test-hash",
-  scenarios: [{ id: "plain", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] }],
+  scenarios: [
+    { id: "plain", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+  ],
 };
 
 /** A plan where the defect contract's step carries an orderBook pre state:
@@ -374,7 +376,9 @@ const defectlessPlan: TestPlan = {
 const wrongDetailPlan: TestPlan = {
   planId: "smoke",
   modelVersion: "test-hash",
-  scenarios: [{ id: "defect", steps: [{ stateId: "orderBook", contractId: "clickPortfolioMenuMain" }] }],
+  scenarios: [
+    { id: "defect", steps: [{ stateId: "orderBook", contractId: "clickPortfolioMenuMain" }] },
+  ],
 };
 
 /** A plan producing two failing checks (a broken extra step + the defect):
@@ -491,7 +495,10 @@ describe("generateSampleReport --fail (failure demo)", () => {
     const before = listWithHashes(corpusRoot);
 
     // Stale leftovers an older recipe could leave behind.
-    writeFileSync(join(corpusRoot, "snapshots", "fail-demo", "99.pre.json"), '{"stateId":"ghostState"}');
+    writeFileSync(
+      join(corpusRoot, "snapshots", "fail-demo", "99.pre.json"),
+      '{"stateId":"ghostState"}',
+    );
     writeFileSync(join(corpusRoot, "probes", "fail-demo", "99.json"), "[]");
     writeFileSync(join(corpusRoot, "fail-demo", "stale-extra.txt"), "older demo leftover");
 
@@ -676,7 +683,9 @@ describe("generateSampleReport --fail (failure demo)", () => {
       added.every((line) => /^(fail-demo\/|snapshots\/fail-demo\/|probes\/fail-demo\/)/.test(line)),
     ).toBe(true);
     // The example fixture still carries the all-pass report.
-    expect(readFileSync(join(corpusRoot, "example", "report.html"), "utf8")).toContain("<h1>PASS</h1>");
+    expect(readFileSync(join(corpusRoot, "example", "report.html"), "utf8")).toContain(
+      "<h1>PASS</h1>",
+    );
   });
 
   it("MUTUAL_ISOLATION — a pass-mode regeneration never touches the fail-demo subtrees", () => {
@@ -691,7 +700,9 @@ describe("generateSampleReport --fail (failure demo)", () => {
     expect(after.filter((line) => line.includes("fail-demo"))).toEqual(
       before.filter((line) => line.includes("fail-demo")),
     );
-    expect(readFileSync(join(corpusRoot, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+    expect(readFileSync(join(corpusRoot, "fail-demo", "report.html"), "utf8")).toContain(
+      "<h1>FAIL</h1>",
+    );
   });
 });
 
@@ -703,7 +714,11 @@ describe("npm generate:sample (process-level operator surface)", () => {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   let corpusDir: string;
 
-  function spawnGenerateSample(args: readonly string[]): { status: number; out: string; err: string } {
+  function spawnGenerateSample(args: readonly string[]): {
+    status: number;
+    out: string;
+    err: string;
+  } {
     try {
       const out = execFileSync(
         npm,
@@ -749,7 +764,9 @@ describe("npm generate:sample (process-level operator surface)", () => {
     expect(out).toContain("committed only when copied manually");
     expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
     expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);
-    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain("<h1>FAIL</h1>");
+    expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain(
+      "<h1>FAIL</h1>",
+    );
   });
 
   it("UNKNOWN_FLAG — --bogus still exits 1 with the invalid-argument error (--fail is the only new flag)", () => {
@@ -830,9 +847,7 @@ describe("committed fixture shape + prohibited content", () => {
       ...readdirSync(join(corpusRoot, "snapshots", "example")).map(
         (name) => `snapshots/example/${name}`,
       ),
-      ...readdirSync(join(corpusRoot, "probes", "example")).map(
-        (name) => `probes/example/${name}`,
-      ),
+      ...readdirSync(join(corpusRoot, "probes", "example")).map((name) => `probes/example/${name}`),
     ].sort();
     // Every evidence file is listed, and the list names nothing else.
     expect([...manifest.files].sort()).toEqual(onDisk);
@@ -873,10 +888,9 @@ describe("committed fixture byte-equality (fresh generation vs corpus/example)",
       for (const rel of ["example", join("snapshots", "example"), join("probes", "example")]) {
         const committed = listWithHashes(join(committedRoot, rel));
         const fresh = listWithHashes(join(freshRoot, rel));
-        expect(
-          `${rel}: ${fresh.length} files`,
-          `subtree ${rel} must exist on both sides`,
-        ).toBe(`${rel}: ${committed.length} files`);
+        expect(`${rel}: ${fresh.length} files`, `subtree ${rel} must exist on both sides`).toBe(
+          `${rel}: ${committed.length} files`,
+        );
         expect(fresh).toEqual(committed);
       }
       // 57 = 3 (manifest + both reports) + 36 snapshots + 18 probe batches.

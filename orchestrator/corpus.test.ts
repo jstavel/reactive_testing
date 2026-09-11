@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-
+import type { CollectorError, CorpusRun, StepFailure } from "../model/schemas.js";
 import {
   collectorErrorSchema,
   networkEventSchema,
@@ -14,12 +14,7 @@ import {
   snapshotRecordSchema,
   stepFailureSchema,
 } from "../model/schemas.js";
-import type { CollectorError, CorpusRun, StepFailure } from "../model/schemas.js";
-import {
-  startCorpusRun,
-  writeCorpusFile,
-  finishRun,
-} from "./corpus.js";
+import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
 
 // Wrap (don't replace) the real handoff module so the try/catch failure path
 // in finishRun can be driven deterministically.
@@ -27,6 +22,7 @@ vi.mock("./handlinks.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./handlinks.js")>();
   return { ...actual, writeHandoff: vi.fn(actual.writeHandoff) };
 });
+
 import { LAST_FAIL, LAST_RUN, linkRun, resolveFanRunId } from "./handlinks.js";
 
 let tempDirs: string[] = [];
@@ -111,7 +107,13 @@ describe("writeCorpusFile", () => {
     const pre = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.pre");
     const failure = writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}", "0.failure");
     const bootstrapFailure = writeCorpusFile(
-      corpusDir, run, "snapshots", 5, "json", "{}", "b.history-nav.5.failure",
+      corpusDir,
+      run,
+      "snapshots",
+      5,
+      "json",
+      "{}",
+      "b.history-nav.5.failure",
     );
 
     expect(pre).toBe(`snapshots/${run.runId}/0.pre.json`);
@@ -199,7 +201,12 @@ describe("finishRun", () => {
     const run = startCorpusRun();
 
     const failures: StepFailure[] = [
-      { stepIndex: 1, contractId: "clickHistoryMenuMain", stateId: "homePage", error: "locator.click: Timeout" },
+      {
+        stepIndex: 1,
+        contractId: "clickHistoryMenuMain",
+        stateId: "homePage",
+        error: "locator.click: Timeout",
+      },
     ];
 
     finishRun(corpusDir, run, "t", PLAN_VERSION, [], failures, []);
@@ -216,13 +223,9 @@ describe("finishRun", () => {
 
   it("rejects a malformed collector gap against collectorErrorSchema", () => {
     expect(
-      collectorErrorSchema.safeParse({ collector: "nope", stepIndex: 0, error: "x" })
-        .success,
+      collectorErrorSchema.safeParse({ collector: "nope", stepIndex: 0, error: "x" }).success,
     ).toBe(false);
-    expect(
-      collectorErrorSchema.safeParse({ collector: "probe", error: "x" })
-        .success,
-    ).toBe(false);
+    expect(collectorErrorSchema.safeParse({ collector: "probe", error: "x" }).success).toBe(false);
   });
 
   it("records the executed plan's modelVersion in the manifest (record-path field, story 6)", () => {
@@ -238,9 +241,9 @@ describe("finishRun", () => {
     // recording the offline guard refuses.
     expect(manifest.planModelVersion).toBe(PLAN_VERSION);
     expect(runManifestSchema.safeParse(manifest).success).toBe(true);
-    expect(
-      runManifestSchema.safeParse({ ...manifest, planModelVersion: undefined }).success,
-    ).toBe(false);
+    expect(runManifestSchema.safeParse({ ...manifest, planModelVersion: undefined }).success).toBe(
+      false,
+    );
   });
 
   it("cannot record an empty planModelVersion — the schema refuses a blank provenance (story 6 review)", () => {
@@ -325,7 +328,12 @@ describe("persisted values validate against their schemas", () => {
     const corpusDir = makeCorpusDir();
     const run: CorpusRun = { runId: "seed", files: [] };
 
-    const snapshot = { stateId: "homePage", url: "https://app.test/home", snapshot: "<div/>", capturedAt: "t" };
+    const snapshot = {
+      stateId: "homePage",
+      url: "https://app.test/home",
+      snapshot: "<div/>",
+      capturedAt: "t",
+    };
     const network = [{ url: "https://a", method: "GET", status: 200, capturedAt: "t" }];
     const probe = [{ name: "title", value: "x", capturedAt: "t" }];
     const screenshot = { filePath: "screenshots/seed/0.png", capturedAt: "t" };
@@ -337,9 +345,7 @@ describe("persisted values validate against their schemas", () => {
       ["screenshots", screenshot, screenshotRefSchema],
     ] as const) {
       writeCorpusFile(corpusDir, run, kind, 0, "json", JSON.stringify(data));
-      const written = JSON.parse(
-        readFileSync(join(corpusDir, kind, run.runId, "0.json"), "utf8"),
-      );
+      const written = JSON.parse(readFileSync(join(corpusDir, kind, run.runId, "0.json"), "utf8"));
       const parsed = schema.safeParse(written);
       expect(parsed.success).toBe(true);
     }
@@ -349,12 +355,10 @@ describe("persisted values validate against their schemas", () => {
 describe("screenshotRefSchema", () => {
   it("rejects absolute paths — refs must be corpus-relative", () => {
     expect(
-      screenshotRefSchema.safeParse({ filePath: "/tmp/run/0.png", capturedAt: "t" })
-        .success,
+      screenshotRefSchema.safeParse({ filePath: "/tmp/run/0.png", capturedAt: "t" }).success,
     ).toBe(false);
     expect(
-      screenshotRefSchema.safeParse({ filePath: "C:\\secrets\\0.png", capturedAt: "t" })
-        .success,
+      screenshotRefSchema.safeParse({ filePath: "C:\\secrets\\0.png", capturedAt: "t" }).success,
     ).toBe(false);
   });
 });

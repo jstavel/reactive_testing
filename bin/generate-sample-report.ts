@@ -55,7 +55,6 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { relations } from "../model/relations.js";
-import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type {
   ProbeResult,
   RunManifest,
@@ -63,13 +62,14 @@ import type {
   SnapshotRecord,
   TestPlan,
 } from "../model/schemas.js";
+import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { emitHtmlReport } from "../reporter/html-report.js";
-import { REPORT_SCHEMA, emitJsonReport } from "../reporter/json-report.js";
+import { emitJsonReport, REPORT_SCHEMA } from "../reporter/json-report.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import { buildStepEvidence, deriveScenarioResults } from "./report-smoke.js";
-import { formatResult, formatSummary } from "./validate-smoke.js";
 import { FAIL_DEMO_RUN_ID, SAMPLE_RUN_ID } from "./sample-run-id.js";
+import { formatResult, formatSummary } from "./validate-smoke.js";
 
 export { FAIL_DEMO_RUN_ID, SAMPLE_RUN_ID };
 
@@ -421,10 +421,7 @@ export function generateSampleReport(
       plan.modelVersion,
     );
     mkdirSync(join(corpusRoot, runId), { recursive: true });
-    writeFileSync(
-      join(corpusRoot, runId, "run-manifest.json"),
-      JSON.stringify(manifest, null, 2),
-    );
+    writeFileSync(join(corpusRoot, runId, "run-manifest.json"), JSON.stringify(manifest, null, 2));
 
     // --- 2. Self-check through the real offline pipeline (never a silent
     // pass: zero results and any failing check both exit 1). In fail mode

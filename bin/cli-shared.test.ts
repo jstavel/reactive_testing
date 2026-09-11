@@ -35,8 +35,7 @@ const definitionLine = (name: string): RegExp =>
   new RegExp(`^export (?:function|const) ${name}\\b`, "m");
 
 /** A local (non-re-export) function definition: `function NAME`. */
-const localFunctionLine = (name: string): RegExp =>
-  new RegExp(`^function ${name}\\b`, "m");
+const localFunctionLine = (name: string): RegExp => new RegExp(`^function ${name}\\b`, "m");
 
 describe("cli-shared single-home topology", () => {
   it("defines each shared member exactly once — only in cli-shared.ts", () => {

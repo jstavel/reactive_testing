@@ -4,10 +4,7 @@ import { corpusDependenciesFor, requiredProbeNames } from "./dependencies.js";
 
 describe("corpusDependenciesFor", () => {
   it("derives snapshot + probe for a nav contract (state-is/url-is + view-selected)", () => {
-    expect(corpusDependenciesFor("clickHistoryMenuMain")).toEqual([
-      "snapshot",
-      "probe",
-    ]);
+    expect(corpusDependenciesFor("clickHistoryMenuMain")).toEqual(["snapshot", "probe"]);
   });
 
   it("derives snapshot-only for a url-is-only contract", () => {

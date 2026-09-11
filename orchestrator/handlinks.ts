@@ -7,14 +7,7 @@
 // Targets are corpus-relative (`../<kind>/<runId>`), so a `cp -a`/`rsync`
 // mirror of the corpus stays resolvable without rewriting links.
 
-import {
-  existsSync,
-  mkdirSync,
-  readlinkSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readlinkSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 
 /** A runId is always a UUID/kebab token; anything else (path separators, `..`)
@@ -27,13 +20,7 @@ export const RUN_ID_PATTERN = /^[A-Za-z0-9-]+$/;
  * itself, every collector kind lives at `corpus/<kind>/<runId>`. Fixed fan
  * shape (spec: manifest/snapshots/network/probes/screenshots).
  */
-export const HANDOFF_KINDS = [
-  "manifest",
-  "snapshots",
-  "network",
-  "probes",
-  "screenshots",
-] as const;
+export const HANDOFF_KINDS = ["manifest", "snapshots", "network", "probes", "screenshots"] as const;
 export type HandoffKind = (typeof HANDOFF_KINDS)[number];
 
 /** The latest completed run's fan — always present after a run completes. */
@@ -43,16 +30,12 @@ export const LAST_FAIL = "@last-fail";
 
 /** Corpus-relative target for one fan entry. */
 function targetFor(kind: HandoffKind, runId: string): string {
-  return kind === "manifest"
-    ? join("..", runId)
-    : join("..", kind, runId);
+  return kind === "manifest" ? join("..", runId) : join("..", kind, runId);
 }
 
 /** The kind dir a fan entry points at. */
 function targetDir(corpusDir: string, kind: HandoffKind, runId: string): string {
-  return kind === "manifest"
-    ? join(corpusDir, runId)
-    : join(corpusDir, kind, runId);
+  return kind === "manifest" ? join(corpusDir, runId) : join(corpusDir, kind, runId);
 }
 
 /**
@@ -94,11 +77,7 @@ export function unlinkLastFail(corpusDir: string): void {
  * run; `@last-fail` re-pointed when the run failed, removed when it passed
  * (a passing run clears the debugger state).
  */
-export function writeHandoff(
-  corpusDir: string,
-  runId: string,
-  failed: boolean,
-): void {
+export function writeHandoff(corpusDir: string, runId: string, failed: boolean): void {
   linkRun(corpusDir, runId, LAST_RUN);
   if (failed) {
     linkRun(corpusDir, runId, LAST_FAIL);
@@ -116,10 +95,7 @@ export function writeHandoff(
  * throwing. Never returns the fan dir itself; the run dir is the durable
  * corpus location the fan is a view over.
  */
-export function resolveFan(
-  corpusDir: string,
-  linkName: string = LAST_RUN,
-): string | null {
+export function resolveFan(corpusDir: string, linkName: string = LAST_RUN): string | null {
   try {
     const runDir = realpathSync(join(corpusDir, linkName, "manifest"));
     if (!existsSync(join(runDir, "run-manifest.json"))) {
@@ -133,10 +109,7 @@ export function resolveFan(
 
 /** The runId a fan currently points at (parsed from its manifest link), or
  * `null` when the fan is absent or malformed. */
-export function resolveFanRunId(
-  corpusDir: string,
-  linkName: string = LAST_RUN,
-): string | null {
+export function resolveFanRunId(corpusDir: string, linkName: string = LAST_RUN): string | null {
   try {
     const target = readlinkSync(join(corpusDir, linkName, "manifest"));
     return basename(target);
