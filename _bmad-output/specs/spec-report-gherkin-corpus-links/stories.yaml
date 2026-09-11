@@ -59,3 +59,19 @@
     --exit-code` against committed (empty = pass); upload Pages artifact; badge
     wiring: CI status badge + 'Tests' badge counting from `report.json` of the
     fixture; Pages publish from artifact (or gh-pages); job stays green-only
+
+- id: "5"
+  title: "README failure showcase"
+  description: >-
+    A dev-only Playwright rasterizer (bin/screenshot-report.ts, screenshot:report)
+    renders a fail-demo report to a committed docs/report-failure.png; the README
+    gains an "Error report showcase" block (image + regenerate commands +
+    not-committed / not-CI-guarded frame) and docs/usage.md documents the tool,
+    completing the S3 failure-demo split (CAP-6).
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Rasterizer is dev-only, never CI-guarded, no core-pipeline browser; the PNG
+    is a one-off human-reviewed committed artifact; industry-standards framing
+    (expected-vs-actual diagnostics), no outreach language; fail-demo stays
+    gitignored and uncommitted.

@@ -180,6 +180,37 @@ npm run generate:sample              # writes corpus/example + evidence + report
 npm run generate:sample -- /tmp/x    # optional corpus root (e.g. a CI temp dir)
 ```
 
+### The fail-demo red report — a one-off PNG (dev-only)
+
+`npm run generate:sample -- --fail` mints the throwaway red demo into the
+gitignored `corpus/fail-demo` subtrees — the same deterministic recipe with
+exactly one hand-placed defect (17/18 checks, 13/14 scenarios). The CI gate
+(§7) asserts it stays untracked — never commit anything under
+`corpus/fail-demo/`, including after a regeneration. The README's
+[Error report showcase](../README.md#error-report-showcase) embeds a PNG of it,
+produced once by hand with the dev-only screenshot tool. Both commands run from
+the repository root (the paths are cwd-relative), and the first use of
+`screenshot:report` needs the repo's Playwright chromium installed
+(`npx playwright install chromium`):
+
+```bash
+npm run generate:sample -- --fail
+npm run screenshot:report corpus/fail-demo/report.html docs/report-failure.png
+```
+
+`screenshot:report` takes exactly two positional arguments — the report `.html`
+to render and the PNG path to write (its parent directory is created when
+missing) — renders it in headless chromium over a local `file://` URL, and
+writes a `fullPage` screenshot. Anything else exits `1` with a usage or error
+message, and no PNG is produced on any error path: missing or extra arguments,
+a `-`-prefixed flag, a nonexistent report path, or a PNG path that is an
+existing directory. (Argument validation may create the output directory for
+valid arguments whose render later fails — the PNG itself appears only on
+success.) It is a manual aid, not a pipeline step — no CI job runs it, and the
+validators and report CLIs never launch a browser (§3). The output is a
+rendered snapshot, allowed to differ between runs and machines — if you
+regenerate `docs/report-failure.png`, re-review it before committing.
+
 ## 4. Adjudicate a failure (spec drift vs app bug)
 
 Every failing check is a fork — one of two things is true. Deciding which one
