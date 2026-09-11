@@ -271,3 +271,14 @@
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
   summary: Document `report:smoke` in the operator CLI doc set (`docs/usage.md`) alongside `validate:smoke`/`run:smoke` — the new script ships with no operator-facing documentation.
   evidence: Blind-hunter review noted the diff adds the script and tests but no docs entry; the repo maintains a documented CLI walkthrough (docs/usage.md) as the canonical operator surface.
+## Deferred from: S1 reporter review (2026-09-11)
+
+- source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/1-reporter-report-json-sibling-and-corpus-evidence-links.md`
+  summary: Failed-step `.failure` evidence (`snapshots|screenshots/<runId>/<i>.failure(.json|.png)`) is not cited by `buildStepEvidence` — normal-stem refs only(per the story spec's candidate list; the committed fixture is all-pass, so the Pages demo never needs it.) 
+  evidence: Edge-case-hunter review of the S1 diff: pre/post-post captures don't run for a failed step (orchestrator rethrows before them,, so a failed step's report entry cites at most its pre-step snapshot plus any normal probes/network — the story-2.7 failure captures stay invisible in both reports.
+
+- source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/1-reporter-report-json-sibling-and-corpus-evidence-links.md`
+  summary: Offline `validate:smoke`/`report:smoke` CLIs have no run↔plan modelVersion guard — plan drift since recording misaligns offline validation and step-indexed evidence refs (`buildStepEvidence` inherits the risk);the run manifest doesn't record the plan version it ran. Pre-existing;, surfaced by the S1 review。
+
+  evidence: Edge-case-hunter review of the S1 diff: step refs cite files by plan-order step index;if the plan changed since the corpus run was recorded, refs silently cite wrong steps' evidence — same misalignment already affects `runValidatorsOffline`, so the fix is repo-wide, not story-local（store plan modelVersion in run-manifest + guard in both CLIs.
+

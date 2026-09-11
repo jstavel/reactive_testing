@@ -1,0 +1,61 @@
+- id: "1"
+  title: "Reporter — report.json sibling and per-step corpus evidence links"
+  description: >-
+    Extend the report pipeline so every completed run emits a deterministic
+    machine-readable `report.json` beside the HTML (CAP-1) and each step links to
+    all its captured corpus evidence — snapshot pre/post, probe, network, screenshot
+    (CAP-2), with explicit evidence refs on `StepEvidence` (no manifest name-inference.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    `StepEvidence` (model/schemas.ts) gains explicit refs for pre/post snapshot,
+    probes, network, and screenshots besides the existing screenshot; the same pure
+    builders that emit `report.html` also emit `report.json` (byte-stable: sorted arrays,
+    top-level `"schema": "report.v1"` tag, NFR-1 determinism); `report:smoke` emits
+    both; demo against an existing recorded run.
+- id: "2"
+  title: "Sample-report generator — committed mock fixture corpus/example"
+  description: >-
+    Add a deterministic generator (no live browser, no CDP) that produces an
+    all-passing mock fixture under `corpus/example/` (CAP-3, CAP-4) and wire
+    `--corpus-dir` on the validate/report CLIs so CI and the sample flow target it
+    explicitly (CAP-5. The fixture and its reports) are committed so they
+    are browsable directly in the repo.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Fixture lays out exactly like a real run (`<runId>/` with run-manifest.json,
+    report.html, evidence under collocated snapshot/probe/network/screenshot dirs);
+    un-ignore via `corpus/*` + `!corpus/example`; mock data only, all-pass, trimmed
+    (~a few step snapshots + all probes + present screenshots, ~1-2 MB; no
+    `@last-run`/`@last-fail` symlinks in the fixture; commit the generated output
+    plus the report.
+- id: "3"
+  title: "Failure demo — red report showcase, zero committed footprint"
+  description: >-
+    Produce a throwaway red sample report (on-demand generator flag) and a README
+    screenshot of the FAIL report (CAP-6), with no failing corpus committed and nothing
+    CI-guarded, so the green CI signal can never be poisoned by the demo (constraints.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Add `generate-sample-report --fail` (or equivalent) that writes a failing
+    variant somewhere outside `corpus/example`, plus a README 'Error report'
+    screenshot approved visually; do not alter the committed fixture or any CI gate;
+    failure rendering must never redden the CI badge.
+- id: "4"
+  title: "CI/CD — green gate, badges, GitHub Pages"
+  description: >-
+    A GitHub Actions workflow runs the offline pipeline over the committed fixture
+    (validate + report; CAP-5) with a determinism diff gate (CAP-4), and publishes
+    a green status, README badges (CI status + Tests from report.json), and the
+    sample report to GitHub Pages (CAP-5.
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Workflow: checkout, setup-node (v24, cache npm), npm ci, npm run
+    typecheck, npm test, `validate:smoke --corpus-dir corpus/example`, then the
+    determinism gate: regenerate the sample report into a temp dir → `git diff
+    --exit-code` against committed (empty = pass); upload Pages artifact; badge
+    wiring: CI status badge + 'Tests' badge counting from `report.json` of the
+    fixture; Pages publish from artifact (or gh-pages); job stays green-only

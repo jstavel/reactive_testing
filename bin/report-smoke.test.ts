@@ -16,9 +16,9 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
-import type { TestPlan, ValidationResult } from "../model/schemas.js";
+import type { StepEvidence, TestPlan, ValidationResult } from "../model/schemas.js";
 import { resolveLatestRun } from "./validate-smoke.js";
-import { deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
+import { buildStepEvidence, deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
 
 // Ghost-result injection: the offline runner is wrapped so one test can append
 // a failing result for a contract no scenario references — proving the exit
@@ -328,7 +328,7 @@ describe("reportSmoke", () => {
     expect(outcome).toEqual({
       exitCode: 0,
       out: [
-        `Report written: ${join(corpusDir, "run-1", "report.html")}`,
+        `Report written: ${join(corpusDir, "run-1", "report.html")}, ${join(corpusDir, "run-1", "report.json")}`,
         "14/14 scenarios passed (18 checks)",
       ],
       err: [],
@@ -337,6 +337,17 @@ describe("reportSmoke", () => {
     expect(report).toContain("<h1>PASS</h1>");
     expect(report).toContain("14 passed, 0 failed, 14 total");
     expect(report).toContain("Clicking Main opens the History page for the Main account");
+    // The CLI wiring reached the renderers: step 0 cites its fixture evidence…
+    const reportJson = JSON.parse(readFileSync(join(corpusDir, "run-1", "report.json"), "utf8")) as {
+      scenarios: Array<{ steps: Array<Record<string, string>> }>;
+    };
+    expect(reportJson.scenarios[0]?.steps[0]).toMatchObject({
+      snapshotPre: "snapshots/run-1/0.pre.json",
+      snapshotPost: "snapshots/run-1/0.json",
+      probes: "probes/run-1/0.json",
+    });
+    // …and the html renders those refs as links.
+    expect(report).toContain('class="step-link"');
   });
 
   it("defaults to the @last-run fan's run and writes its report", () => {
@@ -347,7 +358,9 @@ describe("reportSmoke", () => {
     const outcome = reportSmoke([], { corpusDir });
 
     expect(outcome.exitCode).toBe(0);
-    expect(outcome.out).toContain(`Report written: ${join(corpusDir, "r-older", "report.html")}`);
+    expect(outcome.out).toContain(
+      `Report written: ${join(corpusDir, "r-older", "report.html")}, ${join(corpusDir, "r-older", "report.json")}`,
+    );
     expect(existsSync(join(corpusDir, "r-older", "report.html"))).toBe(true);
     expect(existsSync(join(corpusDir, "r-newer", "report.html"))).toBe(false);
   });
@@ -379,6 +392,22 @@ describe("reportSmoke", () => {
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
 
+  it("removes the half-written pair when report.json cannot be written (nothing left behind)", () => {
+    writeAllPassRun(corpusDir, "run-1");
+    // A directory where report.json must go makes the json write throw EISDIR
+    // after the html half was already written.
+    mkdirSync(join(corpusDir, "run-1", "report.json"));
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toMatch(/^report could not be written: EISDIR/);
+    expect(outcome.err.at(-1)).toBe(USAGE);
+    // The pair is atomic: the just-written report.html is rolled back.
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+  });
+
   it("exits 1 when a check failed for a contract no scenario references (ghost result)", () => {
     writeAllPassRun(corpusDir, "run-1");
     ghostState.appendGhostFailure = true;
@@ -390,7 +419,7 @@ describe("reportSmoke", () => {
       expect(outcome.exitCode).toBe(1);
       expect(outcome.err).toEqual([]);
       expect(outcome.out).toEqual([
-        `Report written: ${join(corpusDir, "run-1", "report.html")}`,
+        `Report written: ${join(corpusDir, "run-1", "report.html")}, ${join(corpusDir, "run-1", "report.json")}`,
         "14/14 scenarios passed (19 checks)",
       ]);
       expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(true);
@@ -495,18 +524,168 @@ describe("reportSmoke", () => {
     expect(outcome.err[0]).toBe("Invalid argument(s): run-1, extra — only positional [<runId>] is accepted.");
   });
 
-  it("mutates the corpus only by writing report.html", () => {
+  it("mutates the corpus only by writing report.html and report.json", () => {
     writeAllPassRun(corpusDir, "run-1");
     linkLastRun(corpusDir, "run-1");
     const before = listFiles(corpusDir);
 
     const outcome = reportSmoke([], { corpusDir });
 
-    // A silently-failing write must not pass the "only report.html is written"
-    // assertion vacuously: the run must have succeeded and the file must exist.
+    // A silently-failing write must not pass the "only the reports are written"
+    // assertion vacuously: the run must have succeeded and both files must exist.
     expect(outcome.exitCode).toBe(0);
     expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(true);
-    expect(listFiles(corpusDir).filter((entry) => !entry.includes("report.html"))).toEqual(before);
+    expect(existsSync(join(corpusDir, "run-1", "report.json"))).toBe(true);
+    expect(
+      listFiles(corpusDir).filter(
+        (entry) => !entry.includes("report.html") && !entry.includes("report.json"),
+      ),
+    ).toEqual(before);
+  });
+});
+
+// ---- buildStepEvidence (the CLI-side existence filter; I/O matrix) ----
+
+describe("buildStepEvidence", () => {
+  let corpusDir: string;
+
+  beforeEach(() => {
+    corpusDir = mkdtempSync(join(tmpdir(), "report-smoke-ev-"));
+  });
+
+  afterEach(() => {
+    rmSync(corpusDir, { recursive: true, force: true });
+  });
+
+  /** A two-step plan so the global step index (0, 1) is observable. */
+  const evidencePlan: TestPlan = {
+    planId: "smoke",
+    modelVersion: "test-hash",
+    scenarios: [
+      { id: "a", steps: [{ stateId: "s1", contractId: "c1" }, { stateId: "s2", contractId: "c2" }] },
+    ],
+  };
+
+  function writeCorpusJson(relPath: string, content: unknown): void {
+    const abs = join(corpusDir, relPath);
+    mkdirSync(join(abs, ".."), { recursive: true });
+    writeFileSync(abs, typeof content === "string" ? content : JSON.stringify(content));
+  }
+
+  it("FULL_EVIDENCE — every present kind becomes a ref, timing from the snapshots' capturedAt", () => {
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
+    writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.412Z" });
+    writeCorpusJson(`probes/run-1/0.json`, [{ name: "selected-view", value: "Main", capturedAt: "2026-09-11T09:00:00.412Z" }]);
+    writeCorpusJson(`network/run-1/0.json`, [{ url: "https://x", method: "GET", status: 200, capturedAt: "2026-09-11T09:00:00.412Z" }]);
+    writeCorpusJson(`screenshots/run-1/0.json`, { filePath: "screenshots/run-1/0.png", capturedAt: "2026-09-11T09:00:00.412Z" });
+    // The ref's target PNG must exist (regular file) for the ref to be cited.
+    writeCorpusJson(`screenshots/run-1/0.png`, "png-bytes");
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    expect(evidence.a).toEqual([
+      {
+        timingMs: 412,
+        snapshotPre: "snapshots/run-1/0.pre.json",
+        snapshotPost: "snapshots/run-1/0.json",
+        probes: "probes/run-1/0.json",
+        network: "network/run-1/0.json",
+        screenshot: { filePath: "screenshots/run-1/0.png", capturedAt: "2026-09-11T09:00:00.412Z" },
+      } satisfies StepEvidence,
+      { timingMs: 0 },
+    ]);
+  });
+
+  it("MISSING_KIND — absent kinds are omitted; remaining refs are unaffected", () => {
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
+    writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.100Z" });
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    expect(evidence.a?.[0]).toEqual({
+      timingMs: 100,
+      snapshotPre: "snapshots/run-1/0.pre.json",
+      snapshotPost: "snapshots/run-1/0.json",
+    });
+  });
+
+  it("NEGATIVE_TIMING — a post snapshot captured before the pre snapshot clamps to 0", () => {
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:05.000Z" });
+    writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    // Nonsense delta clamps to 0; the refs themselves stay.
+    expect(evidence.a?.[0]).toEqual({
+      timingMs: 0,
+      snapshotPre: "snapshots/run-1/0.pre.json",
+      snapshotPost: "snapshots/run-1/0.json",
+    });
+  });
+
+  it("DANGLING_SCREENSHOT — a sidecar whose target PNG is missing cites no screenshot ref", () => {
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
+    writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.100Z" });
+    writeCorpusJson(`screenshots/run-1/0.json`, { filePath: "screenshots/run-1/0.png", capturedAt: "2026-09-11T09:00:00.100Z" });
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    expect(evidence.a?.[0]).toEqual({
+      timingMs: 100,
+      snapshotPre: "snapshots/run-1/0.pre.json",
+      snapshotPost: "snapshots/run-1/0.json",
+    });
+  });
+
+  it("NON_REGULAR_REF — a directory sitting at a ref path is never cited", () => {
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, { capturedAt: "2026-09-11T09:00:00.000Z" });
+    writeCorpusJson(`snapshots/run-1/0.json`, { capturedAt: "2026-09-11T09:00:00.100Z" });
+    mkdirSync(join(corpusDir, "network/run-1/0.json"), { recursive: true });
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    expect(evidence.a?.[0]).toEqual({
+      timingMs: 100,
+      snapshotPre: "snapshots/run-1/0.pre.json",
+      snapshotPost: "snapshots/run-1/0.json",
+    });
+  });
+
+  it("TIMING_FALLBACK — missing or unparseable snapshots yield timingMs 0 while refs stay", () => {
+    // Step 0: pre exists but is unparseable; post is absent entirely.
+    writeCorpusJson(`snapshots/run-1/0.pre.json`, "{not json");
+    // Step 1: both parse but carry no usable capturedAt.
+    writeCorpusJson(`snapshots/run-1/1.pre.json`, { stateId: "s1" });
+    writeCorpusJson(`snapshots/run-1/1.json`, { capturedAt: "not-a-date" });
+
+    const evidence = buildStepEvidence(evidencePlan, corpusDir, "run-1");
+
+    // Existing (unparseable / untimed) snapshot files still cite as refs —
+    // only timing degrades to 0.
+    expect(evidence.a?.[0]).toEqual({ timingMs: 0, snapshotPre: "snapshots/run-1/0.pre.json" });
+    expect(evidence.a?.[1]).toEqual({
+      timingMs: 0,
+      snapshotPre: "snapshots/run-1/1.pre.json",
+      snapshotPost: "snapshots/run-1/1.json",
+    });
+  });
+
+  it("aligns refs by the plan's global step index across scenarios", () => {
+    const twoScenarioPlan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "test-hash",
+      scenarios: [
+        { id: "a", steps: [{ stateId: "s1", contractId: "c1" }] },
+        { id: "b", steps: [{ stateId: "s1", contractId: "c1" }] },
+      ],
+    };
+    writeCorpusJson(`network/run-1/1.json`, []);
+
+    const evidence = buildStepEvidence(twoScenarioPlan, corpusDir, "run-1");
+
+    // Scenario b's step is global step 1, not 0 — no per-scenario restart.
+    expect(evidence.a).toEqual([{ timingMs: 0 }]);
+    expect(evidence.b).toEqual([{ timingMs: 0, network: "network/run-1/1.json" }]);
   });
 });
 

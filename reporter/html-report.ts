@@ -46,8 +46,12 @@ export interface EmitHtmlReportInput {
    * Per-step evidence: `scenarioId → StepEvidence[]`, aligned by index to
    * `plan.scenarios[id].steps`. When provided, each step is rendered inside a
    * closed `<details>` with timing text and, when a screenshot ref is present,
-   * an `<img>` referencing the corpus-relative path. When omitted (or a step
-   * has no entry), the step renders as it did in Story 2.
+   * an `<img>` referencing the corpus-relative path, plus a link for each
+   * present corpus ref (snapshot pre/post, probes, network — refs only, never
+   * content). Presentation hrefs/srcs are prefixed with `../` because the
+   * report lives one level below the corpus root; the stored ref values stay
+   * corpus-root-relative. When omitted (or a step has no entry — or nothing
+   * renderable), the step renders as it did in Story 2.
    */
   stepEvidence?: Readonly<Record<string, StepEvidence[]>>;
 }
@@ -110,17 +114,24 @@ export function renderHtmlReport({
         (step, idx) => {
           const ev = evidence?.[idx];
           if (!ev) {
-            return `<li><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></li>`;
+            return plainStepRow(step);
+          }
+          const linksHtml = renderEvidenceLinks(ev);
+          // Timing-only evidence renders nothing visible — fall back to the
+          // plain Story-2 row instead of a details block reading "0 ms".
+          if (ev.screenshot === undefined && linksHtml.length === 0) {
+            return plainStepRow(step);
           }
           const hasScreenshot = ev.screenshot !== undefined && ev.screenshot.filePath.trim().length > 0;
           const imgHtml = hasScreenshot
-            ? `<div class="step-screenshot"><img src="${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
+            ? `<div class="step-screenshot"><img src="../${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
             : "";
           return `<li>
             <details>
               <summary><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></summary>
               <div class="step-evidence">
                 <span class="step-timing">${escapeHtml(String(ev.timingMs))} ms</span>
+                ${linksHtml}
                 ${imgHtml}
               </div>
             </details>
@@ -224,6 +235,9 @@ export function renderHtmlReport({
     .gherkin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8em; background: #f4f6f8; border-left: 3px solid #ced4da; padding: 8px 12px; border-radius: 0 4px 4px 0; margin-top: 6px; white-space: pre-wrap; color: #495057; }
     .step-evidence { margin-top: 6px; padding: 8px 12px; background: #f4f6f8; border-radius: 4px; }
     .step-timing { font-size: 0.85em; color: #495057; font-weight: 500; }
+    .step-links { margin-top: 6px; }
+    .step-link { display: inline-block; font-size: 0.8em; color: #0d6efd; text-decoration: none; padding: 2px 8px; margin-right: 6px; background: #eef4fd; border: 1px solid #d6e4fb; border-radius: 4px; }
+    .step-link:hover { background: #e2edfc; }
     .step-screenshot { margin-top: 6px; }
     .step-screenshot img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; }
   </style>
@@ -249,4 +263,36 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** The Story-2 plain step row — used for steps without evidence or with
+ * nothing renderable (timing only). */
+function plainStepRow(step: { stateId: string; contractId: string }): string {
+  return `<li><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></li>`;
+}
+
+/** A ref is rendered as a link only when it is a plain corpus-relative path —
+ * no scheme (`:`), no spaces/quotes/backticks — so a hostile ref value can
+ * never become a `javascript:` (or other) URL. */
+const SAFE_HREF_PATTERN = /^[A-Za-z0-9_.\-/]+$/;
+
+/** The corpus-ref link cluster for one step: a labeled link per present ref
+ * field, in the fixed evidence order. Hrefs are `../`-prefixed because the
+ * report lives one level below the corpus root (the stored refs stay
+ * corpus-root-relative); `rel="noopener noreferrer"` accompanies
+ * `target="_blank"`. Absent (or unsafe) refs render nothing — no dangling
+ * links, no injection. */
+function renderEvidenceLinks(ev: StepEvidence): string {
+  const links: string[] = [];
+  for (const [label, ref] of [
+    ["snapshot pre", ev.snapshotPre],
+    ["snapshot post", ev.snapshotPost],
+    ["probes", ev.probes],
+    ["network", ev.network],
+  ] as const) {
+    if (ref !== undefined && SAFE_HREF_PATTERN.test(ref)) {
+      links.push(`<a class="step-link" href="../${escapeHtml(ref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`);
+    }
+  }
+  return links.length > 0 ? `<div class="step-links">${links.join("")}</div>` : "";
 }

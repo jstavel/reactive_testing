@@ -3,11 +3,16 @@
 // per-scenario results through the offline validator runner — never re-running
 // scenarios, never launching a browser, no CDP, no AI (NFR-1) — and writes the
 // self-contained HTML report to `{corpusDir}/{runId}/report.html` via
-// `emitHtmlReport`. The report is written regardless of check outcomes (a
-// failing report is the most valuable one) while the exit code carries
-// pass/fail to CI: exit 1 when any check failed, 0 only when all passed. A
-// known run that yields zero results is an error that writes nothing —
-// validators ran over nothing, which is never a reportable pass.
+// `emitHtmlReport` plus its machine-readable sibling `report.json` via
+// `emitJsonReport`, from the same inputs in the same invocation. Both reports
+// carry per-step evidence built by `buildStepEvidence` — the one CLI-side spot
+// that existence-filters corpus refs (the renderers stay pure); it cites
+// corpus-relative ref paths only, never evidence payloads. The reports are
+// written regardless of check outcomes (a failing report is the most valuable
+// one) while the exit code carries pass/fail to CI: exit 1 when any check
+// failed, 0 only when all passed. A known run that yields zero results is an
+// error that writes nothing — validators ran over nothing, which is never a
+// reportable pass.
 //
 // The argument/error surface mirrors bin/validate-smoke.ts: positional-only
 // `[<runId>]` defaulting to the latest recorded run (`resolveLatestRun` — the
@@ -16,29 +21,32 @@
 // same error-message families (unknown run, no recorded run, zero checks).
 // The report embeds the Gherkin snapshot built from features/ (CAP-4: the
 // source that was run, not an authored copy) plus the scenario↔model
-// relations; per-step evidence stays out of v1.
+// relations.
 //
 // Derivation (demo-verified on corpus efcb749d, 18/18 checks → 14/14
 // scenarios): validation results arrive in plan-step order, so a contract's
 // results are consumed whole by the first scenario — in plan order — that
 // references the contract in a step; every result lands in exactly one
 // scenario. A scenario passes iff no consumed check failed. An fs failure
-// while writing the report (or building its Gherkin snapshot) is an error
+// while writing the reports (or building the Gherkin snapshot) is an error
 // outcome with usage — never a raw stack trace.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { relations } from "../model/relations.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
+import { screenshotRefSchema } from "../model/schemas.js";
 import type {
   RunMetadata,
   ScenarioResult,
+  StepEvidence,
   TestPlan,
   ValidationResult,
 } from "../model/schemas.js";
 import { emitHtmlReport } from "../reporter/html-report.js";
+import { emitJsonReport } from "../reporter/json-report.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
@@ -126,9 +134,115 @@ function readRunMetadata(corpusDir: string, runId: string): RunMetadata | undefi
   }
 }
 
+/** Per-step evidence for the report emitters, existence-filtered from the
+ * corpus run. This is the one CLI-side spot that touches the filesystem — the
+ * HTML/JSON renderers stay pure (NFR-1). Candidate refs use the corpus
+ * writer's deterministic naming (`orchestrator/corpus.ts` `writeCorpusFile`,
+ * keyed by the plan's global step index): `snapshots/{runId}/{i}.pre.json`,
+ * `snapshots/{runId}/{i}.json`, `probes/{runId}/{i}.json`,
+ * `network/{runId}/{i}.json`, and the screenshot ref JSON
+ * `screenshots/{runId}/{i}.json` (parsed for its `ScreenshotRef`). A ref is
+ * included only when its file exists — path-or-absent: no manifest walking,
+ * no name inference. `timingMs` is the post-minus-pre snapshot `capturedAt`
+ * when both exist and parse, else 0. */
+export function buildStepEvidence(
+  plan: TestPlan,
+  corpusDir: string,
+  runId: string,
+): Record<string, StepEvidence[]> {
+  let stepIndex = 0;
+  return Object.fromEntries(
+    plan.scenarios.map((scenario) => [
+      scenario.id,
+      scenario.steps.map(() => stepEvidenceFor(corpusDir, runId, stepIndex++)),
+    ]),
+  );
+}
+
+/** One step's evidence: refs for the corpus files that exist, plus the timing
+ * derived from the pre/post snapshots' `capturedAt` (0 when either is absent
+ * or unparseable — a silent fallback, never a throw). */
+function stepEvidenceFor(corpusDir: string, runId: string, stepIndex: number): StepEvidence {
+  const snapshotPre = `snapshots/${runId}/${stepIndex}.pre.json`;
+  const snapshotPost = `snapshots/${runId}/${stepIndex}.json`;
+  const probes = `probes/${runId}/${stepIndex}.json`;
+  const network = `network/${runId}/${stepIndex}.json`;
+
+  const preMs = toEpochMs(readCapturedAt(corpusDir, snapshotPre));
+  const postMs = toEpochMs(readCapturedAt(corpusDir, snapshotPost));
+  const screenshot = readScreenshotRef(corpusDir, `screenshots/${runId}/${stepIndex}.json`);
+
+  return {
+    // A reversed delta (post before pre) is nonsense timing — clamp to 0.
+    timingMs:
+      preMs !== undefined && postMs !== undefined && postMs >= preMs
+        ? postMs - preMs
+        : 0,
+    ...(corpusRef(corpusDir, snapshotPre) !== undefined ? { snapshotPre } : {}),
+    ...(corpusRef(corpusDir, snapshotPost) !== undefined ? { snapshotPost } : {}),
+    ...(corpusRef(corpusDir, probes) !== undefined ? { probes } : {}),
+    ...(corpusRef(corpusDir, network) !== undefined ? { network } : {}),
+    ...(screenshot !== undefined ? { screenshot } : {}),
+  };
+}
+
+/** The corpus-relative ref when its target is a regular file — path-or-absent.
+ * `statSync` (not `existsSync`) so directories, FIFOs, and other non-regular
+ * entries are never cited as evidence. */
+function corpusRef(corpusDir: string, relPath: string): string | undefined {
+  try {
+    return statSync(join(corpusDir, relPath)).isFile() ? relPath : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A snapshot file's `capturedAt`, or undefined when the file is absent,
+ * unparseable, or carries no timestamp (the timing fallback, never a throw). */
+function readCapturedAt(corpusDir: string, relPath: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(corpusDir, relPath), "utf8"));
+    const capturedAt = (parsed as { capturedAt?: unknown } | null)?.capturedAt;
+    return typeof capturedAt === "string" ? capturedAt : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The epoch ms of an ISO timestamp, or undefined when absent or unparseable. */
+function toEpochMs(iso: string | undefined): number | undefined {
+  if (iso === undefined) {
+    return undefined;
+  }
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/** The `ScreenshotRef` stored beside a step's PNG (`screenshots/{runId}/{i}.json`),
+ * or undefined when absent, unparseable, or its target PNG is missing/not a
+ * regular file — a dangling ref would render a broken link, so it is cited
+ * only while the file it points at exists. */
+function readScreenshotRef(corpusDir: string, relPath: string): StepEvidence["screenshot"] {
+  try {
+    const parsed = screenshotRefSchema.safeParse(
+      JSON.parse(readFileSync(join(corpusDir, relPath), "utf8")),
+    );
+    if (!parsed.success) {
+      return undefined;
+    }
+    try {
+      return statSync(join(corpusDir, parsed.data.filePath)).isFile() ? parsed.data : undefined;
+    } catch {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+}
+
 /** The whole CLI as a pure function over argv + corpus state: resolve the run,
- * re-derive per-scenario results offline, write the report, and decide the
- * exit code. The report is written for any run with checks (pass or fail);
+ * re-derive per-scenario results offline, write both reports, and decide the
+ * exit code. The reports are written for any run with checks (pass or fail);
  * exit `0` only when every check passed. Exit `1` on any failing check, zero
  * checks ran for a selected run, an unknown run, no recorded run, or a usage
  * error — in the error cases nothing is written. */
@@ -182,19 +296,42 @@ export function reportSmoke(
   }
 
   const scenarioResults = deriveScenarioResults(plan, results);
+  const stepEvidence = buildStepEvidence(plan, corpusDir, runId);
 
-  let relPath: string;
+  // The html rel path doubles as the "html written" flag: it is set only after
+  // emitHtmlReport returned (the file is on disk), so the catch can roll a
+  // half-written pair back to the nothing-written contract.
+  let htmlWritten: string | undefined;
+  let jsonRelPath: string | undefined;
   try {
-    relPath = emitHtmlReport({
+    htmlWritten = emitHtmlReport({
       corpusDir,
       run,
       plan,
       results: scenarioResults,
       relations,
       gherkinSource: buildGherkinSnapshot("features", relations),
+      stepEvidence,
+    });
+    jsonRelPath = emitJsonReport({
+      corpusDir,
+      run,
+      plan,
+      results: scenarioResults,
+      relations,
+      stepEvidence,
     });
   } catch (error) {
-    // A write failure is an error outcome with usage — never a raw stack trace.
+    // A write failure is an error outcome with usage — never a raw stack
+    // trace. When the html half of the pair was already written, remove it:
+    // a failed report run must leave nothing behind.
+    if (htmlWritten !== undefined) {
+      try {
+        rmSync(join(corpusDir, htmlWritten), { force: true });
+      } catch {
+        // Rollback is best-effort; the outcome below carries the real error.
+      }
+    }
     return errorOutcome(
       `report could not be written: ${error instanceof Error ? error.message : String(error)}`,
       USAGE,
@@ -207,7 +344,7 @@ export function reportSmoke(
     // failed check can never be dropped by the derivation.
     exitCode: results.some(({ passed }) => !passed) ? 1 : 0,
     out: [
-      `Report written: ${join(corpusDir, relPath)}`,
+      `Report written: ${join(corpusDir, htmlWritten)}, ${join(corpusDir, jsonRelPath)}`,
       `${passedScenarios}/${scenarioResults.length} scenarios passed (${results.length} checks)`,
     ],
     err: [],
