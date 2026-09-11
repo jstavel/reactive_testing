@@ -76,6 +76,18 @@ jobs:
       - name: Unit tests (vitest run — offline, no browser)
         run: npm test
 
+      - name: Vitest JSON summary → tests.json (live badge feed; fails loudly when the counts are missing)
+        run: |
+          npx vitest run --reporter=json --outputFile=vitest-summary.json
+          node -e 'const fs=require("node:fs");const s=JSON.parse(fs.readFileSync("vitest-summary.json","utf8"));if(typeof s.numPassedTests!=="number"||typeof s.numTotalTests!=="number"){console.error("::error::vitest JSON summary lacks numPassedTests/numTotalTests — refusing to write a bogus tests.json");process.exit(1)}fs.writeFileSync("tests.json",JSON.stringify({passed:s.numPassedTests,total:s.numTotalTests}));console.log("tests.json:",fs.readFileSync("tests.json","utf8"))'
+
+      - name: Upload the tests summary (the badge feed the pages job stages as _site/tests.json)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-summary
+          path: tests.json
+          if-no-files-found: error
+
       - name: Fixture determinism gate — regenerate in place, the tree must be unchanged
         run: |
           npm run generate:sample
@@ -124,7 +136,8 @@ jobs:
   # The live sample: only after ci is green, only on a push to main (never on
   # a pull request) or a manual dispatch on main (the way to redo the deploy
   # right after enabling Pages). Stages the committed sample fixture — never
-  # fail-demo — and publishes it through the official Pages actions.
+  # fail-demo — plus the ci job's tests.json badge feed, and publishes them
+  # through the official Pages actions.
   pages:
     needs: ci
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
@@ -160,6 +173,12 @@ jobs:
           <meta http-equiv="refresh" content="0; url=corpus/example/report.html">
           <p>Redirecting to the <a href="corpus/example/report.html">sample report</a>.</p>
           HTML
+
+      - name: Download the ci job's tests summary into _site/ (staged beside the corpus dirs)
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-summary
+          path: _site
 
       - name: Guard — the staged site must not contain fail-demo
         run: |
