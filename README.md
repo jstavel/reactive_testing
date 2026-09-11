@@ -55,12 +55,13 @@ Two phases, deliberately separated (see [docs/architecture.md](docs/architecture
 
 ## Error report showcase
 
-![Error report: red summary bar, one red scenario exposing the expected-vs-actual url-is line, 13 green](docs/report-failure.png)
+[<img src="docs/report-failure.png" width="380" alt="Error report showcase thumbnail — click to open the full-resolution report">](docs/report-failure.png)
 
-What a failing run looks like: the red summary bar, and the single red scenario
-carrying the expected-vs-actual diagnostic — `url-is "/app/portfolio/main" but
-url pathname is "/app/portfolio/futures"` — while the 13 other scenarios stay
-green around it. The fixture behind it is throwaway: `generate:sample -- --fail`
+Click the thumbnail to open the full-resolution report. What a failing run
+looks like: the red summary bar, and the single red scenario carrying the
+expected-vs-actual diagnostic — `url-is "/app/portfolio/main" but url pathname
+is "/app/portfolio/futures"` — while the 13 other scenarios stay green around
+it. The fixture behind it is throwaway: `generate:sample -- --fail`
 mints it on demand into the gitignored `corpus/fail-demo/` subtrees — never
 committed, never CI-guarded, and never committed after a regeneration. Only
 this rendered snapshot is committed, produced once by hand; regenerating it is
