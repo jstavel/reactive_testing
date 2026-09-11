@@ -1,8 +1,6 @@
 # Reactive Testing — Spec-First Testware
 
 [![CI](https://github.com/jstavel/reactive_testing/actions/workflows/ci.yml/badge.svg)](https://github.com/jstavel/reactive_testing/actions/workflows/ci.yml)
-[![tests passed](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fjstavel.github.io%2Freactive_testing%2Fcorpus%2Fexample%2Freport.json&query=summary.passed&label=tests%20passed)](https://jstavel.github.io/reactive_testing/corpus/example/report.html)
-[![checks](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fjstavel.github.io%2Freactive_testing%2Fcorpus%2Fexample%2Freport.json&query=summary.total&label=checks)](https://jstavel.github.io/reactive_testing/corpus/example/report.html)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -15,8 +13,7 @@ git-ignore gate (see [docs/usage.md — CI & GitHub Pages](docs/usage.md#ci--git
 Pushes to `main` also publish the committed sample report to GitHub Pages —
 <https://jstavel.github.io/reactive_testing/corpus/example/report.html> — after
 a one-time enable: repo **Settings → Pages → Source: GitHub Actions** (the
-workflow cannot flip it). Until the first successful deploy the dynamic badges
-render shields's red "resource not found" state — expected and documented.
+workflow cannot flip it).
 
 > Describe the app **once** as a formal model (FSM + contracts + schemas). A
 > deterministic orchestrator records **evidence** (a corpus) from a live
