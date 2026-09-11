@@ -1,0 +1,270 @@
+{
+  "schema": "report.v1",
+  "runId": "example",
+  "timestamp": "2026-09-11T00:00:00.000Z",
+  "planId": "smoke",
+  "modelVersion": "e1acb826cdfbede1b0d8d9b31c8efd49bea5d3b8a04b742707adb9427d92c1c2",
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "scenarios": [
+    {
+      "id": "clicking-main-opens-the-history-page-for-the-main-account",
+      "title": "Clicking Main opens the History page for the Main account",
+      "feature": "Home page History menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickHistoryMenuMain",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/0.pre.json",
+          "snapshotPost": "snapshots/example/0.json",
+          "probes": "probes/example/0.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-futures-opens-the-history-page-for-the-futures-account",
+      "title": "Clicking Futures opens the History page for the Futures account",
+      "feature": "Home page History menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickHistoryMenuFutures",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/1.pre.json",
+          "snapshotPost": "snapshots/example/1.json",
+          "probes": "probes/example/1.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-overview-opens-the-portfolio-page-with-the-overview-view",
+      "title": "Clicking Overview opens the Portfolio page with the Overview view",
+      "feature": "Home page Portfolio menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickPortfolioMenuOverview",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/2.pre.json",
+          "snapshotPost": "snapshots/example/2.json",
+          "probes": "probes/example/2.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-main-opens-the-portfolio-page-with-the-main-view",
+      "title": "Clicking Main opens the Portfolio page with the Main view",
+      "feature": "Home page Portfolio menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickPortfolioMenuMain",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/3.pre.json",
+          "snapshotPost": "snapshots/example/3.json",
+          "probes": "probes/example/3.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-futures-opens-the-portfolio-page-with-the-futures-view",
+      "title": "Clicking Futures opens the Portfolio page with the Futures view",
+      "feature": "Home page Portfolio menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickPortfolioMenuFutures",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/4.pre.json",
+          "snapshotPost": "snapshots/example/4.json",
+          "probes": "probes/example/4.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-loans-opens-the-portfolio-page-with-the-loans-view",
+      "title": "Clicking Loans opens the Portfolio page with the Loans view",
+      "feature": "Home page Portfolio menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickPortfolioMenuLoans",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/5.pre.json",
+          "snapshotPost": "snapshots/example/5.json",
+          "probes": "probes/example/5.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-earn-navigates-to-the-standalone-earn-page",
+      "title": "Clicking Earn navigates to the standalone Earn page",
+      "feature": "Home page Portfolio menu",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "clickPortfolioMenuEarn",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/6.pre.json",
+          "snapshotPost": "snapshots/example/6.json",
+          "probes": "probes/example/6.json"
+        }
+      ]
+    },
+    {
+      "id": "clicking-the-portfolio-value-opens-the-portfolio-summary-dialog",
+      "title": "Clicking the portfolio value opens the Portfolio Summary dialog",
+      "feature": "Home page Portfolio Summary dialog",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "openPortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/7.pre.json",
+          "snapshotPost": "snapshots/example/7.json",
+          "probes": "probes/example/7.json"
+        },
+        {
+          "stateId": "portfolioSummaryDialog",
+          "contractId": "closePortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/8.pre.json",
+          "snapshotPost": "snapshots/example/8.json",
+          "probes": "probes/example/8.json"
+        }
+      ]
+    },
+    {
+      "id": "pressing-escape-closes-the-portfolio-summary-dialog",
+      "title": "Pressing Escape closes the Portfolio Summary dialog",
+      "feature": "Home page Portfolio Summary dialog",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "openPortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/9.pre.json",
+          "snapshotPost": "snapshots/example/9.json",
+          "probes": "probes/example/9.json"
+        },
+        {
+          "stateId": "portfolioSummaryDialog",
+          "contractId": "closePortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/10.pre.json",
+          "snapshotPost": "snapshots/example/10.json",
+          "probes": "probes/example/10.json"
+        }
+      ]
+    },
+    {
+      "id": "the-eye-icon-toggles-value-visibility-immediately",
+      "title": "The eye icon toggles value visibility immediately",
+      "feature": "Home page Portfolio Summary dialog",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "homePage",
+          "contractId": "openPortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/11.pre.json",
+          "snapshotPost": "snapshots/example/11.json",
+          "probes": "probes/example/11.json"
+        },
+        {
+          "stateId": "portfolioSummaryDialog",
+          "contractId": "toggleEyeIcon",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/12.pre.json",
+          "snapshotPost": "snapshots/example/12.json",
+          "probes": "probes/example/12.json"
+        },
+        {
+          "stateId": "portfolioSummaryDialog",
+          "contractId": "closePortfolioSummary",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/13.pre.json",
+          "snapshotPost": "snapshots/example/13.json",
+          "probes": "probes/example/13.json"
+        }
+      ]
+    },
+    {
+      "id": "open-the-assets-filter",
+      "title": "Open the assets filter",
+      "feature": "History ledger filter",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "historyMain",
+          "contractId": "filterHistoryByAsset",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/14.pre.json",
+          "snapshotPost": "snapshots/example/14.json",
+          "probes": "probes/example/14.json"
+        }
+      ]
+    },
+    {
+      "id": "checking-a-filter-asset-narrows-the-ledger",
+      "title": "Checking a filter asset narrows the ledger",
+      "feature": "History ledger filter",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "historyMain",
+          "contractId": "filterHistoryByAsset",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/15.pre.json",
+          "snapshotPost": "snapshots/example/15.json",
+          "probes": "probes/example/15.json"
+        }
+      ]
+    },
+    {
+      "id": "paginating-to-the-next-ledger-page",
+      "title": "Paginating to the next ledger page",
+      "feature": "History ledger filter",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "historyMain",
+          "contractId": "paginateHistoryNext",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/16.pre.json",
+          "snapshotPost": "snapshots/example/16.json",
+          "probes": "probes/example/16.json"
+        }
+      ]
+    },
+    {
+      "id": "selecting-the-order-book-tab-shows-the-btc-usd-board",
+      "title": "Selecting the Order Book tab shows the BTC/USD board",
+      "feature": "Trade order book — selected view",
+      "passed": true,
+      "steps": [
+        {
+          "stateId": "orderBook",
+          "contractId": "selectOrderBookTab",
+          "timingMs": 400,
+          "snapshotPre": "snapshots/example/17.pre.json",
+          "snapshotPost": "snapshots/example/17.json",
+          "probes": "probes/example/17.json"
+        }
+      ]
+    }
+  ]
+}

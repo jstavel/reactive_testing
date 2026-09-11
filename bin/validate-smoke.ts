@@ -10,7 +10,10 @@
 // corpus.
 //
 // Mirrors the print-only conventions of bin/corpus-links.ts; the corpus dir is
-// `corpus`, overridable via CORPUS_DIR exactly like corpus-links. The
+// `corpus`, overridable via the `--corpus-dir <path>` flag (flag > CORPUS_DIR,
+// spec-report-gherkin-corpus-links story 2) or the CORPUS_DIR env exactly like
+// corpus-links. The flag is extracted before the positional guard, and unknown
+// flags keep the existing Invalid-argument(s) + usage error. The
 // unknown-ids error pattern follows bin/scenario-select.ts
 // (UnknownScenarioIdError), applied to contract filters; the runId shape guard
 // mirrors handlinks' RUN_ID_PATTERN.
@@ -23,9 +26,11 @@ import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
 import { LAST_RUN, RUN_ID_PATTERN, resolveFan } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
+import { SAMPLE_RUN_ID } from "./sample-run-id.js";
 
 const CORPUS_DIR = "corpus";
-export const USAGE = "Usage: npm run validate:smoke -- [<runId>] [<contractId>…]";
+export const USAGE =
+  "Usage: npm run validate:smoke -- [--corpus-dir <path>] [<runId>] [<contractId>…]";
 const RUNID_FILTER_HINT =
   "the first argument is the runId; contract filters come after it " +
   "(e.g. npm run validate:smoke -- <runId> <contractId>)";
@@ -63,6 +68,36 @@ export interface ParsedArgs {
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const [runId, ...contractIds] = argv;
   return { runId, contractIds };
+}
+
+/** Extracted `--corpus-dir <path>`: the flag's value plus the remaining
+ * arguments (the two flag tokens removed, wherever they appeared). */
+export interface CorpusDirArgs {
+  readonly corpusDir: string | undefined;
+  readonly rest: readonly string[];
+}
+
+/** Extract `--corpus-dir <path>` (two tokens, position-free) from argv BEFORE
+ * the positional guard — the operator CLIs' shared flag surface (SPEC
+ * Constraints: both CLIs gain `--corpus-dir`). Precedence is decided by the
+ * caller: flag > options.corpusDir > CORPUS_DIR env > default. A dangling
+ * flag (no `<path>` value, an empty value, or a value that is itself a flag)
+ * and any repeated flag stay in `rest`, so the positional guard rejects them
+ * with the usual Invalid-argument(s) + usage error — never a
+ * silently-swallowed token and never an empty corpus dir. */
+export function extractCorpusDir(argv: readonly string[]): CorpusDirArgs {
+  const index = argv.indexOf("--corpus-dir");
+  if (index === -1) {
+    return { corpusDir: undefined, rest: [...argv] };
+  }
+  const value = argv[index + 1];
+  if (value === undefined || value === "" || value.startsWith("-")) {
+    return { corpusDir: undefined, rest: [...argv] };
+  }
+  return {
+    corpusDir: value,
+    rest: [...argv.slice(0, index), ...argv.slice(index + 2)],
+  };
 }
 
 /** The distinct contract ids the plan steps through, in plan order. */
@@ -131,7 +166,14 @@ function newestKey(corpusDir: string, entry: string): number | undefined {
  * `timestamp` (mtime fallback for unparseable manifests), ties broken by entry
  * name lexicographically. `@`-prefixed fans and the kind dirs never
  * participate. Absent corpus or no runs → `null`. Per-entry read/stat failures
- * skip that entry; they never collapse the whole scan. */
+ * skip that entry; they never collapse the whole scan.
+ *
+ * Implicit resolution prefers real recorded runs: the committed mock
+ * fixture's runId (SAMPLE_RUN_ID) never wins the default while a real
+ * recorded run exists — its fixed future timestamp would otherwise silently
+ * shadow every real run. With no real run (fresh checkout) the fixture stays
+ * the implicit default; an explicit `example` positional bypasses this
+ * resolution entirely. */
 function newestManifestRun(corpusDir: string): string | null {
   let entries: string[];
   try {
@@ -141,15 +183,18 @@ function newestManifestRun(corpusDir: string): string | null {
   }
   const byName = (a: string, b: string): number =>
     a < b ? -1 : a > b ? 1 : 0;
+  const newest = (runs: readonly { entry: string; key: number }[]): string | null =>
+    [...runs].sort((a, b) => b.key - a.key || byName(a.entry, b.entry)).at(0)?.entry ??
+    null;
+  const candidates = entries
+    .filter((entry) => !entry.startsWith("@") && !KIND_DIRS.has(entry))
+    .flatMap((entry) => {
+      const key = newestKey(corpusDir, entry);
+      return key === undefined ? [] : [{ entry, key }];
+    });
   return (
-    entries
-      .filter((entry) => !entry.startsWith("@") && !KIND_DIRS.has(entry))
-      .flatMap((entry) => {
-        const key = newestKey(corpusDir, entry);
-        return key === undefined ? [] : [{ entry, key }];
-      })
-      .sort((a, b) => b.key - a.key || byName(a.entry, b.entry))
-      .at(0)?.entry ?? null
+    newest(candidates.filter(({ entry }) => entry !== SAMPLE_RUN_ID)) ??
+    newest(candidates)
   );
 }
 
@@ -237,25 +282,28 @@ function unknownRunOutcome(
   return errorOutcome(...errors, USAGE);
 }
 
-/** The whole CLI as a pure function over argv + corpus state: resolve the run,
- * validate offline, format the summary, and decide the exit code. Exit `0`
- * when every check passed; exit `1` on any failing check, zero checks ran for
- * a selected run, an unknown run, no recorded run, or a usage error. */
+/** The whole CLI as a pure function over argv + corpus state: resolve the
+ * corpus dir (`--corpus-dir` flag > options > CORPUS_DIR env > `corpus`),
+ * resolve the run, validate offline, format the summary, and decide the exit
+ * code. Exit `0` when every check passed; exit `1` on any failing check, zero
+ * checks ran for a selected run, an unknown run, no recorded run, or a usage
+ * error (any remaining flag — only `--corpus-dir <path>` is accepted). */
 export function validateSmoke(
   argv: readonly string[],
   options: ValidateOptions = {},
 ): ValidateOutcome {
-  const corpusDir = options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
+  const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
+  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
-  if (argv.some((arg) => arg.startsWith("-"))) {
+  if (rest.some((arg) => arg.startsWith("-"))) {
     return errorOutcome(
-      `Invalid argument(s): ${argv.join(", ")} — only positional [<runId>] [<contractId>…] are accepted.`,
+      `Invalid argument(s): ${rest.join(", ")} — only positional [<runId>] [<contractId>…] are accepted.`,
       USAGE,
     );
   }
 
-  const { runId, contractIds } = parseArgs(argv);
+  const { runId, contractIds } = parseArgs(rest);
 
   let filter;
   try {

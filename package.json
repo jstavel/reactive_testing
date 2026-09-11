@@ -13,6 +13,7 @@
     "run:smoke": "tsx bin/run-smoke.ts",
     "validate:smoke": "tsx bin/validate-smoke.ts",
     "report:smoke": "tsx bin/report-smoke.ts",
+    "generate:sample": "tsx bin/generate-sample-report.ts",
     "corpus:last-run": "tsx bin/corpus-links.ts last-run",
     "corpus:last-fail": "tsx bin/corpus-links.ts last-fail",
     "corpus:list": "tsx bin/corpus-links.ts list"

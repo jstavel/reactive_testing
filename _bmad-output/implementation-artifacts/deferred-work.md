@@ -282,3 +282,9 @@
 
   evidence: Edge-case-hunter review of the S1 diff: step refs cite files by plan-order step index;if the plan changed since the corpus run was recorded, refs silently cite wrong steps' evidence — same misalignment already affects `runValidatorsOffline`, so the fix is repo-wide, not story-local（store plan modelVersion in run-manifest + guard in both CLIs.
 
+## Deferred from: S2 sample-report generator review (2026-09-11)
+
+- source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/2-sample-report-generator-committed-mock-fixture-corpus-example.md`
+  summary: Automated .gitignore trackability checks — assert the 57 fixture paths are addable while representative real-run/network/screenshot paths stay ignored (`git check-ignore`/`git add`-derived test). Manual check covers it today.
+  evidence: Verification-gap review of the S2 diff: no test invokes git; a changed negation/guard line could silently un-track the fixture or expose private evidence. Git-in-unit-tests doesn't fit the repo's offline-pure test suite; the S4 CI determinism gate (regenerate → git diff --exit-code) will exercise the same surface end-to-end.
+

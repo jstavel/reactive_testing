@@ -150,6 +150,36 @@ step + validator: `{ contractId, passed, details?, corpusRefs }`.
 Derived reports (the `failure.feature` gherkin, adjudication records) are a
 separate step over the same results — see §4.
 
+### The committed sample fixture — validate and report with zero recording
+
+`corpus/example/` is a committed, all-passing **mock** corpus (no real account
+data, no screenshots/network in v1): a run manifest, 18 pre/post snapshots +
+18 probe batches produced by the deterministic sample generator, plus its
+`report.html`/`report.json`. It is the only git-tracked subtree under
+`corpus/` — real recorded runs stay ignored.
+
+Both offline CLIs accept `--corpus-dir <path>` (precedence: flag >
+`CORPUS_DIR` env > the `corpus` default), so CI and readers target the
+fixture explicitly without touching local recorded runs. The examples pass
+the explicit runId (`example`) so a local `@last-run` fan can never redirect
+them: without a runId, the newest recorded run is used — the committed
+fixture only when no real run exists on the machine.
+
+```bash
+npm run validate:smoke -- example --corpus-dir corpus   # 18/18 checks passed in example
+npm run report:smoke   -- example --corpus-dir corpus   # 14/14 scenarios + both reports in corpus/example/
+```
+
+Regenerate the fixture (and its reports) with the sample generator — two runs
+are byte-identical, and the generator self-checks the freshly written fixture
+through the real offline pipeline, exiting 1 with the failing check detail on
+any violation (never a silent pass):
+
+```bash
+npm run generate:sample              # writes corpus/example + evidence + reports
+npm run generate:sample -- /tmp/x    # optional corpus root (e.g. a CI temp dir)
+```
+
 ## 4. Adjudicate a failure (spec drift vs app bug)
 
 Every failing check is a fork — one of two things is true. Deciding which one
