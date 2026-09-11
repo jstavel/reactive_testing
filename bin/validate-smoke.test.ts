@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan } from "../model/schemas.js";
 import {
+  extractCorpusDir,
   parseArgs,
   planContractIds,
   formatSummary,
@@ -196,6 +197,21 @@ describe("resolveLatestRun", () => {
     expect(resolveLatestRun(corpusDir)).toBe("r-newest");
   });
 
+  it("SAMPLE_RUN_DEFAULT — prefers a real recorded run over the mock fixture when no fan exists", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    // The committed fixture's manifest carries a fixed future timestamp that
+    // would otherwise always win the implicit default.
+    writeRunManifest(corpusDir, "example", [], "2026-09-11T00:00:00.000Z");
+
+    expect(resolveLatestRun(corpusDir)).toBe("r-real");
+  });
+
+  it("falls back to the mock fixture when it is the only run (fresh checkout)", () => {
+    writeRunManifest(corpusDir, "example", [], "2026-09-11T00:00:00.000Z");
+
+    expect(resolveLatestRun(corpusDir)).toBe("example");
+  });
+
   it("returns null when no run exists", () => {
     expect(resolveLatestRun(corpusDir)).toBeNull();
   });
@@ -365,6 +381,160 @@ describe("validateSmoke", () => {
 
     expect(listFiles(corpusDir)).toEqual(before);
   });
+
+  it("SAMPLE_RUN_DEFAULT — the implicit default validates the real run, the explicit example the fixture", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    writeAllPassRun(corpusDir, "example", "2026-09-11T00:00:00.000Z");
+
+    // Implicit (no runId): the newest real run wins — the fixture's fixed
+    // future timestamp never silently defaults to the mock.
+    const implicit = validateSmoke([], { corpusDir, plan: testPlan });
+    expect(implicit.exitCode).toBe(0);
+    expect(implicit.out.at(-1)).toBe("2/2 checks passed in r-real");
+
+    // Explicit: `example` resolves the fixture directly.
+    const explicit = validateSmoke(["example"], { corpusDir, plan: testPlan });
+    expect(explicit.exitCode).toBe(0);
+    expect(explicit.out.at(-1)).toBe("2/2 checks passed in example");
+  });
+
+  it("EMPTY_VALUE — an empty --corpus-dir value is rejected with the Invalid-argument(s) + usage error", () => {
+    const outcome = validateSmoke(["--corpus-dir", ""], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("Invalid argument(s)");
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+});
+
+describe("validateSmoke against the committed sample fixture (unconditional)", () => {
+  const repoRoot = resolve(import.meta.dirname, "..");
+  const corpusDir = join(repoRoot, "corpus");
+
+  it("validates the committed example fixture 18/18, exit 0", () => {
+    const outcome = validateSmoke(["example"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(18);
+    expect(outcome.out.at(-1)).toBe("18/18 checks passed in example");
+  });
+});
+
+describe("extractCorpusDir", () => {
+  it("extracts the two-token flag wherever it appears and returns the rest", () => {
+    expect(extractCorpusDir(["--corpus-dir", "c", "run-1"])).toEqual({
+      corpusDir: "c",
+      rest: ["run-1"],
+    });
+    expect(extractCorpusDir(["run-1", "--corpus-dir", "c", "filter"])).toEqual({
+      corpusDir: "c",
+      rest: ["run-1", "filter"],
+    });
+    expect(extractCorpusDir([])).toEqual({ corpusDir: undefined, rest: [] });
+    expect(extractCorpusDir(["run-1"])).toEqual({ corpusDir: undefined, rest: ["run-1"] });
+  });
+
+  it("keeps a dangling flag (missing or flag-like value) in rest for the guard to reject", () => {
+    expect(extractCorpusDir(["--corpus-dir"])).toEqual({
+      corpusDir: undefined,
+      rest: ["--corpus-dir"],
+    });
+    expect(extractCorpusDir(["--corpus-dir", "--bogus"])).toEqual({
+      corpusDir: undefined,
+      rest: ["--corpus-dir", "--bogus"],
+    });
+  });
+
+  it("keeps an empty --corpus-dir value in rest for the guard to reject (EMPTY_VALUE)", () => {
+    expect(extractCorpusDir(["--corpus-dir", ""])).toEqual({
+      corpusDir: undefined,
+      rest: ["--corpus-dir", ""],
+    });
+  });
+
+  it("extracts only the first occurrence — a repeat stays in rest and errors", () => {
+    expect(extractCorpusDir(["--corpus-dir", "a", "--corpus-dir", "b"])).toEqual({
+      corpusDir: "a",
+      rest: ["--corpus-dir", "b"],
+    });
+  });
+});
+
+describe("validateSmoke --corpus-dir (CLI_CORPUS_DIR / FLAG_PRECEDENCE / UNKNOWN_FLAG)", () => {
+  let corpusDir: string;
+  const previousEnv = process.env.CORPUS_DIR;
+
+  beforeEach(() => {
+    corpusDir = mkdtempSync(join(tmpdir(), "validate-smoke-flag-"));
+    delete process.env.CORPUS_DIR;
+  });
+
+  afterEach(() => {
+    rmSync(corpusDir, { recursive: true, force: true });
+    if (previousEnv === undefined) {
+      delete process.env.CORPUS_DIR;
+    } else {
+      process.env.CORPUS_DIR = previousEnv;
+    }
+  });
+
+  it("accepts --corpus-dir <path> and validates the run inside that corpus", () => {
+    writeAllPassRun(corpusDir, "flagged-run");
+
+    const outcome = validateSmoke(["--corpus-dir", corpusDir, "flagged-run"], { plan: testPlan });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+  });
+
+  it("resolves the latest run inside the flagged corpus with no positional", () => {
+    writeAllPassRun(corpusDir, "flagged-run");
+
+    const outcome = validateSmoke(["--corpus-dir", corpusDir], { plan: testPlan });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+  });
+
+  it("FLAG_PRECEDENCE — the flag wins over the CORPUS_DIR env and the options override", () => {
+    const decoy = mkdtempSync(join(tmpdir(), "validate-smoke-decoy-"));
+    try {
+      // An empty decoy: env or options would both fail with "no recorded run".
+      process.env.CORPUS_DIR = decoy;
+      writeAllPassRun(corpusDir, "flagged-run");
+
+      const outcome = validateSmoke(["--corpus-dir", corpusDir], {
+        corpusDir: decoy,
+        plan: testPlan,
+      });
+
+      expect(outcome.exitCode).toBe(0);
+      expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+    } finally {
+      rmSync(decoy, { recursive: true, force: true });
+    }
+  });
+
+  it("UNKNOWN_FLAG — --bogus keeps the existing Invalid-argument(s) + usage error", () => {
+    const outcome = validateSmoke(["--bogus"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toBe(
+      "Invalid argument(s): --bogus — only positional [<runId>] [<contractId>…] are accepted.",
+    );
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
+  it("rejects a dangling --corpus-dir without its <path> value", () => {
+    const outcome = validateSmoke(["--corpus-dir"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toContain("Invalid argument(s): --corpus-dir");
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
 });
 
 describe("npm validate:smoke (process-level operator surface)", () => {
@@ -394,6 +564,47 @@ describe("npm validate:smoke (process-level operator surface)", () => {
       {
         cwd: repoRoot,
         env: { ...process.env, CORPUS_DIR: corpusDir },
+        encoding: "utf8",
+        timeout: 60_000,
+      },
+    );
+
+    expect(out).toContain("[PASS] filterHistoryByAsset");
+    expect(out).toContain(`2/2 checks passed in ${runId}`);
+
+    rmSync(corpusDir, { recursive: true, force: true });
+  });
+
+  it("exits 0 with the filtered summary via the --corpus-dir flag through npm forwarding", () => {
+    const corpusDir = mkdtempSync(join(tmpdir(), "validate-smoke-spawn-flag-"));
+    const runId = "spawn-run";
+    // The real smoke plan's global step indexes carrying the filtered contract.
+    const filterIndexes = smokeTestPlan.scenarios
+      .flatMap((scenario) => scenario.steps)
+      .flatMap((step, index) => (step.contractId === "filterHistoryByAsset" ? [index] : []));
+    for (const index of filterIndexes) {
+      writeSnapshot(corpusDir, runId, index, "pre", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+      writeSnapshot(corpusDir, runId, index, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
+    }
+    writeRunManifest(corpusDir, runId, filterIndexes.flatMap((index) => [
+      `snapshots/${runId}/${index}.pre.json`,
+      `snapshots/${runId}/${index}.json`,
+    ]));
+
+    const out = execFileSync(
+      npm,
+      [
+        "run",
+        "--silent",
+        "validate:smoke",
+        "--",
+        "--corpus-dir",
+        corpusDir,
+        runId,
+        "filterHistoryByAsset",
+      ],
+      {
+        cwd: repoRoot,
         encoding: "utf8",
         timeout: 60_000,
       },

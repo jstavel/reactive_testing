@@ -365,6 +365,30 @@ describe("reportSmoke", () => {
     expect(existsSync(join(corpusDir, "r-newer", "report.html"))).toBe(false);
   });
 
+  it("SAMPLE_RUN_DEFAULT — the implicit default reports the newest real run, never the mock fixture", () => {
+    writeAllPassRun(corpusDir, "r-real", "2026-09-08T00:00:00.000Z");
+    // The committed fixture's manifest carries a fixed future timestamp that
+    // would otherwise always win the implicit default.
+    writeRunManifest(corpusDir, "example", [], "2026-09-11T00:00:00.000Z");
+
+    const outcome = reportSmoke([], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out).toContain(
+      `Report written: ${join(corpusDir, "r-real", "report.html")}, ${join(corpusDir, "r-real", "report.json")}`,
+    );
+    expect(existsSync(join(corpusDir, "example", "report.html"))).toBe(false);
+  });
+
+  it("EMPTY_VALUE — an empty --corpus-dir value is rejected with the Invalid-argument(s) + usage error", () => {
+    const outcome = reportSmoke(["--corpus-dir", ""], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toContain("Invalid argument(s)");
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
   it("still writes the report on failing checks and exits 1 with a red bar", () => {
     writeAllPassRun(corpusDir, "run-1");
     corruptPostUrl(corpusDir, "run-1", 1, "https://pro.kraken.com/app/wrong");
@@ -804,6 +828,49 @@ describe("npm report:smoke (process-level operator surface)", () => {
     expect(err).toContain("Usage: npm run report:smoke");
   });
 
+  it("exits 0 with --corpus-dir targeting the corpus (before the runId)", () => {
+    writeAllPassRun(corpusDir, "spawn-run");
+
+    const { status, out } = spawnReportSmoke(["--corpus-dir", corpusDir, "spawn-run"]);
+
+    expect(status).toBe(0);
+    expect(out).toContain(`Report written: ${join(corpusDir, "spawn-run", "report.html")}`);
+    expect(out).toContain("14/14 scenarios passed (18 checks)");
+  });
+
+  it("FLAG_PRECEDENCE — the --corpus-dir flag wins over the CORPUS_DIR env", () => {
+    writeAllPassRun(corpusDir, "spawn-run");
+    // An empty decoy corpus: the env would fail with "no recorded run".
+    const decoy = mkdtempSync(join(tmpdir(), "report-smoke-decoy-"));
+
+    const { status, out } = spawnReportSmoke(
+      ["spawn-run", "--corpus-dir", corpusDir],
+      decoy,
+    );
+
+    expect(status).toBe(0);
+    expect(out).toContain(`Report written: ${join(corpusDir, "spawn-run", "report.html")}`);
+    rmSync(decoy, { recursive: true, force: true });
+  });
+
+  it("exits 1 with the invalid-argument error on an unknown flag (--bogus)", () => {
+    const { status, out, err } = spawnReportSmoke(["--bogus"], corpusDir);
+
+    expect(status).toBe(1);
+    expect(out).toBe("");
+    expect(err).toContain("Invalid argument(s): --bogus — only positional [<runId>] is accepted.");
+    expect(err).toContain("Usage: npm run report:smoke");
+  });
+
+  it("exits 1 with the invalid-argument error on extra positionals after the flag", () => {
+    writeAllPassRun(corpusDir, "spawn-run");
+
+    const { status, err } = spawnReportSmoke(["--corpus-dir", corpusDir, "spawn-run", "extra"]);
+
+    expect(status).toBe(1);
+    expect(err).toContain("Invalid argument(s): spawn-run, extra — only positional [<runId>] is accepted.");
+  });
+
   it("pins report:smoke 14/14 against the latest recorded corpus run (expiry-pinned)", () => {
     const latestRunId = resolveLatestRun(join(repoRoot, "corpus"));
     // Corpus runs live only where a smoke ran (corpus/ is not versioned), so
@@ -823,5 +890,28 @@ describe("npm report:smoke (process-level operator surface)", () => {
     expect(out).toContain("14/14 scenarios passed (18 checks)");
     const report = readFileSync(join(repoRoot, "corpus", latestRunId, "report.html"), "utf8");
     expect(report).toContain("<h1>PASS</h1>");
+  });
+});
+
+// ---- reportSmoke against the committed sample fixture (unconditional — the
+// fixture is git-tracked, so these run everywhere) ----
+
+describe("reportSmoke against the committed sample fixture (unconditional)", () => {
+  const repoRoot = resolve(import.meta.dirname, "..");
+  const corpusDir = join(repoRoot, "corpus");
+
+  it("writes both reports for the committed example fixture, 14/14, exit 0", () => {
+    const outcome = reportSmoke(["example"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out).toContain(
+      `Report written: ${join(corpusDir, "example", "report.html")}, ${join(corpusDir, "example", "report.json")}`,
+    );
+    expect(outcome.out).toContain("14/14 scenarios passed (18 checks)");
+    expect(readFileSync(join(corpusDir, "example", "report.html"), "utf8")).toContain("<h1>PASS</h1>");
+    expect(
+      JSON.parse(readFileSync(join(corpusDir, "example", "report.json"), "utf8")) as unknown,
+    ).toMatchObject({ schema: "report.v1", runId: "example" });
   });
 });

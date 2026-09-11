@@ -17,8 +17,11 @@
 // The argument/error surface mirrors bin/validate-smoke.ts: positional-only
 // `[<runId>]` defaulting to the latest recorded run (`resolveLatestRun` — the
 // `@last-run` fan, falling back to the newest run-manifest.json), the flag
-// guard, the shared `RUN_ID_PATTERN` shape guard before any fs access, and the
-// same error-message families (unknown run, no recorded run, zero checks).
+// guard over the arguments that remain after the two-token `--corpus-dir
+// <path>` flag is extracted (spec-report-gherkin-corpus-links story 2 —
+// precedence flag > CORPUS_DIR env > default), the shared `RUN_ID_PATTERN`
+// shape guard before any fs access, and the same error-message families
+// (unknown run, no recorded run, zero checks).
 // The report embeds the Gherkin snapshot built from features/ (CAP-4: the
 // source that was run, not an authored copy) plus the scenario↔model
 // relations.
@@ -50,10 +53,10 @@ import { emitJsonReport } from "../reporter/json-report.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
-import { isKnownRun, resolveLatestRun } from "./validate-smoke.js";
+import { extractCorpusDir, isKnownRun, resolveLatestRun } from "./validate-smoke.js";
 
 const CORPUS_DIR = "corpus";
-export const USAGE = "Usage: npm run report:smoke -- [<runId>]";
+export const USAGE = "Usage: npm run report:smoke -- [--corpus-dir <path>] [<runId>]";
 
 /** Per-scenario results derived from offline validation results (SPEC CAP-6
  * assumption, demo-verified on corpus efcb749d: 18/18 checks → 14/14
@@ -240,27 +243,34 @@ function readScreenshotRef(corpusDir: string, relPath: string): StepEvidence["sc
   }
 }
 
-/** The whole CLI as a pure function over argv + corpus state: resolve the run,
- * re-derive per-scenario results offline, write both reports, and decide the
- * exit code. The reports are written for any run with checks (pass or fail);
- * exit `0` only when every check passed. Exit `1` on any failing check, zero
- * checks ran for a selected run, an unknown run, no recorded run, or a usage
- * error — in the error cases nothing is written. */
+/** The whole CLI as a pure function over argv + corpus state: resolve the
+ * corpus dir (`--corpus-dir` flag > options > CORPUS_DIR env > `corpus`),
+ * resolve the run, re-derive per-scenario results offline, write both reports,
+ * and decide the exit code. The reports are written for any run with checks
+ * (pass or fail); exit `0` only when every check passed. Exit `1` on any
+ * failing check, zero checks ran for a selected run, an unknown run, no
+ * recorded run, or a usage error (any remaining flag or a second positional
+ * after the `--corpus-dir` tokens are removed) — in the error cases nothing
+ * is written. */
 export function reportSmoke(
   argv: readonly string[],
   options: ReportOptions = {},
 ): ReportOutcome {
-  const corpusDir = options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
+  const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
+  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
-  if (argv.length > 1 || argv.some((arg) => arg.startsWith("-"))) {
+  // The positional-count guard applies to the args that remain after the
+  // two-token --corpus-dir flag is extracted (so `--corpus-dir corpus run-1`
+  // leaves a single positional, while any other flag still errors).
+  if (rest.length > 1 || rest.some((arg) => arg.startsWith("-"))) {
     return errorOutcome(
-      `Invalid argument(s): ${argv.join(", ")} — only positional [<runId>] is accepted.`,
+      `Invalid argument(s): ${rest.join(", ")} — only positional [<runId>] is accepted.`,
       USAGE,
     );
   }
 
-  const requested = argv[0];
+  const requested = rest[0];
   let runId: string;
   if (requested === undefined) {
     const latest = resolveLatestRun(corpusDir);

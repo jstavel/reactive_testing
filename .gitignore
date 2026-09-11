@@ -30,7 +30,19 @@ playwright/.auth/
 coverage/
 
 # --- Reactive Testing runtime evidence (generated, not checked in) ---
-corpus/
+# corpus/* re-includes the immediate children; the ! negations un-ignore only
+# the committed mock fixture subtree (spec-report-gherkin-corpus-links story
+# 2). A negation cannot rescue a path under an excluded parent dir, so the
+# snapshots/probes kind dirs are themselves re-included and their other
+# children re-ignored — real recorded runs and their evidence stay ignored.
+corpus/*
+!corpus/example/
+!corpus/snapshots/
+corpus/snapshots/*
+!corpus/snapshots/example/
+!corpus/probes/
+corpus/probes/*
+!corpus/probes/example/
 reports/
 
 # --- OS ---
