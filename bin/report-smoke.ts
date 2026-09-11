@@ -53,7 +53,13 @@ import { emitJsonReport } from "../reporter/json-report.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
-import { extractCorpusDir, isKnownRun, resolveLatestRun } from "./validate-smoke.js";
+import {
+  extractCorpusDir,
+  isKnownRun,
+  planVersionRefusal,
+  readRawRunManifest,
+  resolveLatestRun,
+} from "./validate-smoke.js";
 
 const CORPUS_DIR = "corpus";
 export const USAGE = "Usage: npm run report:smoke -- [--corpus-dir <path>] [<runId>]";
@@ -122,19 +128,29 @@ function unknownRunOutcome(runId: string, corpusDir: string): ReportOutcome {
   );
 }
 
-/** The run's metadata for the report header, parsed leniently from the run
- * manifest. `undefined` = manifest unreadable OR parsed without a timestamp —
- * both collapse into the zero-checks guard, which never writes a report. */
-function readRunMetadata(corpusDir: string, runId: string): RunMetadata | undefined {
-  try {
-    const parsed: unknown = JSON.parse(
-      readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"),
-    );
-    const timestamp = (parsed as { timestamp?: unknown } | null)?.timestamp;
-    return typeof timestamp === "string" ? { runId, timestamp } : undefined;
-  } catch {
-    return undefined;
-  }
+/** The run's metadata for the report header plus the recorded plan version,
+ * derived from the CLIs' ONE shared raw-manifest reader (a single read — no
+ * double JSON parse, story 6 review). `run` is `undefined` = manifest
+ * unreadable/non-object OR parsed without a usable timestamp.
+ * `planModelVersion` is `undefined` when the manifest predates the
+ * plan-version guard. `manifestReadable` separates the two refusal families:
+ * the plan-version guard fires whenever the raw manifest parses to an object
+ * — independent of `timestamp` — while an unreadable/non-object one keeps the
+ * generic zero-checks path (unchanged). */
+function readRunMetadata(
+  corpusDir: string,
+  runId: string,
+): {
+  manifestReadable: boolean;
+  run: RunMetadata | undefined;
+  planModelVersion: string | undefined;
+} {
+  const raw = readRawRunManifest(corpusDir, runId);
+  return {
+    manifestReadable: raw !== undefined,
+    run: raw?.timestamp !== undefined ? { runId, timestamp: raw.timestamp } : undefined,
+    planModelVersion: raw?.planModelVersion,
+  };
 }
 
 /** Per-step evidence for the report emitters, existence-filtered from the
@@ -245,13 +261,14 @@ function readScreenshotRef(corpusDir: string, relPath: string): StepEvidence["sc
 
 /** The whole CLI as a pure function over argv + corpus state: resolve the
  * corpus dir (`--corpus-dir` flag > options > CORPUS_DIR env > `corpus`),
- * resolve the run, re-derive per-scenario results offline, write both reports,
- * and decide the exit code. The reports are written for any run with checks
- * (pass or fail); exit `0` only when every check passed. Exit `1` on any
- * failing check, zero checks ran for a selected run, an unknown run, no
- * recorded run, or a usage error (any remaining flag or a second positional
- * after the `--corpus-dir` tokens are removed) — in the error cases nothing
- * is written. */
+ * resolve the run, guard the recorded plan version, re-derive per-scenario
+ * results offline, write both reports, and decide the exit code. The reports
+ * are written for any run with checks (pass or fail); exit `0` only when every
+ * check passed. Exit `1` on any failing check, zero checks ran for a selected
+ * run, an unknown run, no recorded run, a plan-version guard refusal (state
+ * error — the re-record message, nothing written), or a usage error (any
+ * remaining flag or a second positional after the `--corpus-dir` tokens are
+ * removed) — in the error cases nothing is written. */
 export function reportSmoke(
   argv: readonly string[],
   options: ReportOptions = {},
@@ -290,9 +307,24 @@ export function reportSmoke(
     runId = requested;
   }
 
+  // The plan-version guard (story 6) precedes any validation or report write:
+  // a run recorded under a different model — or predating the provenance
+  // field — is refused with a single re-record message (a state error, no
+  // usage noise) and NOTHING is written. The guard fires whenever the raw
+  // manifest parses to an object — even without a usable timestamp — so a
+  // parseable-but-timestampless manifest with a missing/mismatched plan
+  // version is refused, never the generic zero-checks error. A manifest that
+  // cannot be read at all keeps the existing zero-checks path (unchanged).
+  const { manifestReadable, run, planModelVersion } = readRunMetadata(corpusDir, runId);
+  if (manifestReadable) {
+    const refusal = planVersionRefusal(planModelVersion, plan.modelVersion);
+    if (refusal !== undefined) {
+      return errorOutcome(refusal);
+    }
+  }
+
   // Unfiltered: the report always covers the whole plan (mirrors validate:smoke
   // without contract filters).
-  const run = readRunMetadata(corpusDir, runId);
   const results =
     run === undefined ? [] : runValidatorsOffline(corpusDir, runId, plan);
 

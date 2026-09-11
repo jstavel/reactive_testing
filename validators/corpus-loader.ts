@@ -54,6 +54,11 @@ export function loadCorpusSteps(
   plan: TestPlan,
 ): StepEvidence[] {
   // --- Read the manifest (source of what exists). Absent run → empty. ---
+  // Note: since the planModelVersion provenance field became required on
+  // runManifestSchema (story 6), a LEGACY manifest lacking it fails this
+  // safeParse and yields `[]` here too — the library-visible ripple of the
+  // plan-version guard. The operator CLIs guard earlier and refuse with a
+  // clear re-record message; this comment documents the loader-side behavior.
   const manifestPath = join(corpusDir, runId, "run-manifest.json");
   let manifest;
   try {

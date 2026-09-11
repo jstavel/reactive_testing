@@ -242,6 +242,10 @@ export async function runTestPlan(
       config.corpusDir,
       corpus,
       runTimestamp,
+      // The executed plan's version is the recorded provenance (story 6):
+      // after the modelVersion gate above, parsed.modelVersion IS the current
+      // model — the manifest encodes exactly what was validated at record time.
+      parsed.modelVersion,
       collectorErrors,
       stepFailures,
       plannedCollectors,

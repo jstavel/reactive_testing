@@ -75,3 +75,21 @@
     is a one-off human-reviewed committed artifact; industry-standards framing
     (expected-vs-actual diagnostics), no outreach language; fail-demo stays
     gitignored and uncommitted.
+
+- id: "6"
+  title: "Run-plan modelVersion guard"
+  description: >-
+    Record each run's plan modelVersion in run-manifest.json at record time and
+    make validate:smoke/report:smoke refuse (with a re-record message) any run
+    whose recorded plan version differs from the current plan or whose manifest
+    lacks the field, so stale recordings can never be validated or reported
+    against a drifted plan. Accepted churn: the schemas change re-hashes the
+    model, regenerating the plan and the committed sample fixture.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Guard runs after run resolution and before the offline runner / any report
+    write; legacy manifests must fail with a clear re-record message, never a
+    generic zero-checks error; regenerate smoke.test-plan.ts per its header
+    convention, regenerate + commit corpus/example (manifest gains the field),
+    and keep the determinism gate green.

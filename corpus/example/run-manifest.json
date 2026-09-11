@@ -1,6 +1,7 @@
 {
   "runId": "example",
   "timestamp": "2026-09-11T00:00:00.000Z",
+  "planModelVersion": "320bed0cf074a40e59dbda1a55e0f7b389d358aa45376042cb8c6514888380b1",
   "files": [
     "snapshots/example/0.pre.json",
     "snapshots/example/0.json",

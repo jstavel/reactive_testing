@@ -144,6 +144,16 @@ describe("orchestrator → corpus-loader round trip (retro F1)", () => {
     expect(steps[0]!.evidence.pre).toBeDefined();
     expect(steps[0]!.evidence.post).toBeDefined();
 
+    // The manifest records the EXECUTED plan's modelVersion (record-path AC,
+    // story 6) — the provenance the offline CLIs' guard checks. Asserted
+    // against the plan's own field (== the mocked MODEL_VERSION), end to end
+    // through the real runner, without a browser.
+    const manifest = JSON.parse(readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8")) as {
+      planModelVersion?: unknown;
+    };
+    expect(manifest.planModelVersion).toBe(homePageNavigationPlan.modelVersion);
+    expect(manifest.planModelVersion).toBe(MODEL_VERSION);
+
     // And the offline runner must produce a PASS for the nav contract —
     // "missing snapshot evidence" on the precondition is exactly the retro F1 break.
     const results = runValidatorsOffline(corpusDir, runId, homePageNavigationPlan);

@@ -69,9 +69,26 @@ function writeProbes(corpusDir: string, runId: string, stepIndex: number, record
   writeFileSync(join(dir, `${stepIndex}.json`), JSON.stringify(records));
 }
 
-function writeRunManifest(corpusDir: string, runId: string, files: string[], timestamp: string = CAPTURED_AT): void {
+function writeRunManifest(
+  corpusDir: string,
+  runId: string,
+  files: string[],
+  timestamp: string = CAPTURED_AT,
+  planModelVersion: string | null = smokeTestPlan.modelVersion,
+): void {
   mkdirSync(join(corpusDir, runId), { recursive: true });
-  writeFileSync(join(corpusDir, runId, "run-manifest.json"), JSON.stringify({ runId, timestamp, files }));
+  // `planModelVersion: null` omits the key — the legacy (pre-guard) manifest
+  // shape the report guard must refuse. (`undefined` can't be the sentinel:
+  // an explicit undefined would trigger the default.)
+  writeFileSync(
+    join(corpusDir, runId, "run-manifest.json"),
+    JSON.stringify({
+      runId,
+      timestamp,
+      ...(planModelVersion === null ? {} : { planModelVersion }),
+      files,
+    }),
+  );
 }
 
 /** The post-step snapshot each contract's validator passes against (the
@@ -149,7 +166,12 @@ function preSnapshotFor(stateId: string): unknown {
 
 /** A run over the real smoke plan whose 18 steps satisfy every declared
  * precondition and postcondition. */
-function writeAllPassRun(corpusDir: string, runId: string, timestamp: string = CAPTURED_AT): void {
+function writeAllPassRun(
+  corpusDir: string,
+  runId: string,
+  timestamp: string = CAPTURED_AT,
+  planModelVersion: string | null = smokeTestPlan.modelVersion,
+): void {
   const files: string[] = [];
   let stepIndex = 0;
   for (const scenario of smokeTestPlan.scenarios) {
@@ -166,7 +188,7 @@ function writeAllPassRun(corpusDir: string, runId: string, timestamp: string = C
       stepIndex += 1;
     }
   }
-  writeRunManifest(corpusDir, runId, files, timestamp);
+  writeRunManifest(corpusDir, runId, files, timestamp, planModelVersion);
 }
 
 /** Corrupt one step's post snapshot so its contract's validator fails while
@@ -561,10 +583,14 @@ describe("reportSmoke", () => {
   });
 
   it("exits 1 without writing a report when the manifest parses but lacks a timestamp (zero checks)", () => {
+    // Timestampless but provenance-MATCHING: the guard passes (MATCH) and the
+    // header read fails → the existing zero-checks family (unchanged). A
+    // timestampless manifest with a MISSING/MISMATCHED version is refused by
+    // the guard instead — see the plan-version-guard describe below.
     mkdirSync(join(corpusDir, "run-1"), { recursive: true });
     writeFileSync(
       join(corpusDir, "run-1", "run-manifest.json"),
-      JSON.stringify({ runId: "run-1", files: [] }),
+      JSON.stringify({ runId: "run-1", files: [], planModelVersion: smokeTestPlan.modelVersion }),
     );
 
     const outcome = reportSmoke(["run-1"], { corpusDir });
@@ -579,7 +605,8 @@ describe("reportSmoke", () => {
   });
 
   it("exits 1 without writing a report when the plan declares no steps (zero checks)", () => {
-    writeRunManifest(corpusDir, "run-1", []);
+    // The manifest's planModelVersion must match THIS test's validating plan.
+    writeRunManifest(corpusDir, "run-1", [], CAPTURED_AT, "test-hash");
     const emptyPlan: TestPlan = { planId: "smoke", modelVersion: "test-hash", scenarios: [] };
 
     const outcome = reportSmoke(["run-1"], { corpusDir, plan: emptyPlan });
@@ -628,6 +655,160 @@ describe("reportSmoke", () => {
         (entry) => !entry.includes("report.html") && !entry.includes("report.json"),
       ),
     ).toEqual(before);
+  });
+});
+
+describe("plan-version guard (story 6 — report side)", () => {
+  let corpusDir: string;
+
+  beforeEach(() => {
+    corpusDir = mkdtempSync(join(tmpdir(), "report-smoke-guard-"));
+  });
+
+  afterEach(() => {
+    rmSync(corpusDir, { recursive: true, force: true });
+  });
+
+  it("MATCH — a manifest whose planModelVersion equals the plan's reports exactly as today", () => {
+    writeAllPassRun(corpusDir, "run-1");
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out.at(-1)).toBe("14/14 scenarios passed (18 checks)");
+  });
+
+  it("MISMATCH — a different recorded version exits 1 with the re-record message and NOTHING is written", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "stale-model-hash");
+    // Pre-existing reports from an earlier reporting pass: a refusal must
+    // leave them byte-identical (nothing written/truncated).
+    writeFileSync(join(corpusDir, "run-1", "report.html"), "<h1>PRE-EXISTING</h1>");
+    writeFileSync(join(corpusDir, "run-1", "report.json"), '{"schema":"pre-existing"}');
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      `model changed since recording (stale-model-hash ≠ ${smokeTestPlan.modelVersion}) — re-record the run (run:smoke)`,
+    ]);
+    expect(outcome.err.at(-1)).not.toContain("Usage:");
+    // No report or validation on a guard failure — the pre-existing pair
+    // stands untouched, byte for byte.
+    expect(readFileSync(join(corpusDir, "run-1", "report.html"), "utf8")).toBe(
+      "<h1>PRE-EXISTING</h1>",
+    );
+    expect(readFileSync(join(corpusDir, "run-1", "report.json"), "utf8")).toBe(
+      '{"schema":"pre-existing"}',
+    );
+  });
+
+  it("MISMATCH — the guard also refuses the implicitly resolved latest run", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "stale-model-hash");
+    linkLastRun(corpusDir, "run-1");
+
+    const outcome = reportSmoke([], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toContain("model changed since recording (stale-model-hash ≠");
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+    expect(existsSync(join(corpusDir, "run-1", "report.json"))).toBe(false);
+  });
+
+  it("LEGACY — a manifest without planModelVersion exits 1 with the predates-guard message and writes nothing", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, null);
+    // Pre-existing reports: the refusal preserves them byte-identically.
+    writeFileSync(join(corpusDir, "run-1", "report.html"), "<h1>PRE-EXISTING</h1>");
+    writeFileSync(join(corpusDir, "run-1", "report.json"), '{"schema":"pre-existing"}');
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    ]);
+    expect(outcome.err.at(-1)).not.toContain("no checks ran");
+    expect(outcome.err.at(-1)).not.toContain("Usage:");
+    expect(readFileSync(join(corpusDir, "run-1", "report.html"), "utf8")).toBe(
+      "<h1>PRE-EXISTING</h1>",
+    );
+    expect(readFileSync(join(corpusDir, "run-1", "report.json"), "utf8")).toBe(
+      '{"schema":"pre-existing"}',
+    );
+  });
+
+  it("LEGACY — an empty-string planModelVersion gets the predates-guard message, not a mismatch", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "");
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    ]);
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+    expect(existsSync(join(corpusDir, "run-1", "report.json"))).toBe(false);
+  });
+
+  it("TIMESTAMPLESS — a parseable-but-timestampless manifest with a MISSING version is LEGACY, never zero-checks", () => {
+    mkdirSync(join(corpusDir, "run-1"), { recursive: true });
+    writeFileSync(
+      join(corpusDir, "run-1", "run-manifest.json"),
+      JSON.stringify({ runId: "run-1", files: [] }),
+    );
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    ]);
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+    expect(existsSync(join(corpusDir, "run-1", "report.json"))).toBe(false);
+  });
+
+  it("TIMESTAMPLESS — a parseable-but-timestampless manifest with a MISMATCHED version is refused, never zero-checks", () => {
+    mkdirSync(join(corpusDir, "run-1"), { recursive: true });
+    writeFileSync(
+      join(corpusDir, "run-1", "run-manifest.json"),
+      JSON.stringify({ runId: "run-1", files: [], planModelVersion: "stale-model-hash" }),
+    );
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      `model changed since recording (stale-model-hash ≠ ${smokeTestPlan.modelVersion}) — re-record the run (run:smoke)`,
+    ]);
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+    expect(existsSync(join(corpusDir, "run-1", "report.json"))).toBe(false);
+  });
+
+  it("UNREADABLE — an unparseable or non-object manifest keeps the existing zero-checks outcome (guard skips)", () => {
+    mkdirSync(join(corpusDir, "run-1"), { recursive: true });
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "{not json");
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toBe(
+      'no checks ran for "run-1" — the run manifest was unreadable or lacks a timestamp, or the plan declares no steps.',
+    );
+    expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(false);
+
+    // Non-object JSON (a bare number): same zero-checks family, never LEGACY.
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "123");
+    const nonObject = reportSmoke(["run-1"], { corpusDir });
+
+    expect(nonObject.exitCode).toBe(1);
+    expect(nonObject.err[0]).toBe(
+      'no checks ran for "run-1" — the run manifest was unreadable or lacks a timestamp, or the plan declares no steps.',
+    );
   });
 });
 
@@ -934,22 +1115,44 @@ describe("npm report:smoke (process-level operator surface)", () => {
     expect(err).toContain("Invalid argument(s): spawn-run, extra — only positional [<runId>] is accepted.");
   });
 
-  it("pins report:smoke 14/14 against the latest recorded corpus run (expiry-pinned)", () => {
+  it("pins report:smoke against the latest recorded corpus run (expiry-pinned, guard-aware)", () => {
     const latestRunId = resolveLatestRun(join(repoRoot, "corpus"));
     // Corpus runs live only where a smoke ran (corpus/ is not versioned), so
     // the pin degrades to a skip on machines without one — but wherever a run
-    // exists it must report 14/14 against the committed plan + validators.
+    // exists, its outcome is pinned: 14/14 when the run was recorded under the
+    // current model, or the story-6 re-record refusal when the run predates
+    // the plan-version guard (a legacy local run is never silently accepted).
     if (latestRunId === null) {
       return;
     }
+    const manifest = JSON.parse(
+      readFileSync(join(repoRoot, "corpus", latestRunId, "run-manifest.json"), "utf8"),
+    ) as { planModelVersion?: unknown };
 
-    const { status, out } = spawnReportSmoke([], join(repoRoot, "corpus"));
+    if (typeof manifest.planModelVersion !== "string") {
+      // A previous report:smoke run may have left a report pair in this local
+      // run dir — clear it so "nothing is written" is provable.
+      rmSync(join(repoRoot, "corpus", latestRunId, "report.html"), { force: true });
+      rmSync(join(repoRoot, "corpus", latestRunId, "report.json"), { force: true });
+    }
 
-    expect(status).toBe(0);
+    const { status, out, err } = spawnReportSmoke([], join(repoRoot, "corpus"));
+
+    if (typeof manifest.planModelVersion !== "string") {
+      expect(status).toBe(1);
+      expect(out).toBe("");
+      expect(err).toContain(
+        "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+      );
+      expect(existsSync(join(repoRoot, "corpus", latestRunId, "report.html"))).toBe(false);
+      return;
+    }
+
     // Expiry pin: the smoke plan declares exactly 14 scenarios / 18 checks
     // today. A plan or validator change that grows/breaks the counts fails
     // here until the expectation is explicitly updated (and a fresh corpus
     // recorded).
+    expect(status).toBe(0);
     expect(out).toContain("14/14 scenarios passed (18 checks)");
     const report = readFileSync(join(repoRoot, "corpus", latestRunId, "report.html"), "utf8");
     expect(report).toContain("<h1>PASS</h1>");

@@ -47,6 +47,10 @@ export function writeCorpusFile(
 
 /**
  * Write the run-manifest.json at `{corpusDir}/{runId}/run-manifest.json`.
+ * `planModelVersion` is the executed plan's modelVersion — the run's recorded
+ * provenance (story 6 of spec-report-gherkin-corpus-links): the offline CLIs
+ * refuse a run recorded under a different model (or predating the field), so
+ * every recorded run must carry the version it was made under.
  * `errors` is always present (AD-16): the collector gaps recorded across the
  * run, so a future reporter can flag collection gaps from the manifest.
  * `failures` is always present (Story 2.7): the step failures recorded across
@@ -63,6 +67,7 @@ export function finishRun(
   corpusDir: string,
   run: CorpusRun,
   timestamp: string,
+  planModelVersion: string,
   errors: CollectorError[],
   failures: StepFailure[],
   collectors: CollectorName[],
@@ -72,6 +77,7 @@ export function finishRun(
   const manifest: RunManifest = {
     runId: run.runId,
     timestamp,
+    planModelVersion,
     files: [...run.files],
     errors: [...errors],
     failures: [...failures],

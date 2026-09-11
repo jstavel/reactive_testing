@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -25,7 +25,7 @@ function makeCorpusDir(): string {
 
 /** Write the run-manifest so the loader can discover the file list. */
 function finish(corpusDir: string, run: CorpusRun, collectors: CollectorName[] = ["snapshot", "probe"]): void {
-  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", [], [], collectors);
+  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], collectors);
 }
 
 function writeSnapshot(
@@ -176,6 +176,32 @@ describe("loadCorpusSteps", () => {
   it("returns [] for an unknown runId/dir (UNKNOWN_RUN)", () => {
     const corpusDir = makeCorpusDir();
     expect(loadCorpusSteps(corpusDir, "does-not-exist", twoStepPlan)).toEqual([]);
+  });
+
+  it("returns [] for a legacy manifest lacking planModelVersion (plan-version guard ripple, story 6)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeSnapshot(corpusDir, run, 0, { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" }, "0.pre");
+    writeSnapshot(corpusDir, run, 0, { stateId: "historyMain", url: "https://pro.kraken.com/app/history/main/ledger", capturedAt: "t" });
+    // Hand-write the manifest WITHOUT planModelVersion — the pre-guard
+    // (legacy) shape: the required provenance field fails safeParse, so the
+    // loader yields [] exactly as for an unreadable manifest (the CLIs guard
+    // earlier with the re-record message; this pins the library behavior).
+    mkdirSync(join(corpusDir, run.runId), { recursive: true });
+    writeFileSync(
+      join(corpusDir, run.runId, "run-manifest.json"),
+      JSON.stringify({
+        runId: run.runId,
+        timestamp: "2026-09-01T00:00:00.000Z",
+        files: [...run.files],
+        errors: [],
+        failures: [],
+        collectors: ["snapshot", "probe"],
+        bootstrap: [],
+      }),
+    );
+
+    expect(loadCorpusSteps(corpusDir, run.runId, twoStepPlan)).toEqual([]);
   });
 
   it("is deterministic: the same run loads identical evidence twice (DETERMINISM)", () => {

@@ -144,6 +144,9 @@ describe("generateSampleReport", () => {
     ) as RunManifest;
     expect(manifest.runId).toBe("example");
     expect(manifest.timestamp).toBe("2026-09-11T00:00:00.000Z");
+    // The fixture encodes the model it was made under (story 6) — the offline
+    // CLIs' guard accepts it exactly like a freshly recorded run.
+    expect(manifest.planModelVersion).toBe(smokeTestPlan.modelVersion);
     expect(manifest.errors).toEqual([]);
     expect(manifest.failures).toEqual([]);
     expect(manifest.files).toHaveLength(54);
@@ -508,6 +511,8 @@ describe("generateSampleReport --fail (failure demo)", () => {
     ) as RunManifest;
     expect(manifest.runId).toBe("fail-demo");
     expect(manifest.timestamp).toBe("2026-09-11T00:00:00.000Z");
+    // The fail-demo manifest carries the provenance field too (story 6).
+    expect(manifest.planModelVersion).toBe(smokeTestPlan.modelVersion);
     expect(manifest.errors).toEqual([]);
     expect(manifest.failures).toEqual([]);
     expect(manifest.files).toHaveLength(54);
@@ -846,6 +851,42 @@ describe("committed fixture shape + prohibited content", () => {
       const raw = readFileSync(join(corpusRoot, "probes", "example", name), "utf8");
       expect(raw).not.toMatch(/balance/i);
       expect(raw).not.toContain("$");
+    }
+  });
+});
+
+// ---- Committed-fixture byte-equality (story 6 review): the accepted-churn
+// invariant "commit the regenerated corpus/example" pinned WITHOUT git — a
+// fresh generation must be byte-identical to every committed file. ----
+
+describe("committed fixture byte-equality (fresh generation vs corpus/example)", () => {
+  const repoRoot = resolve(import.meta.dirname, "..");
+  const committedRoot = join(repoRoot, "corpus");
+
+  it("a fresh generation is byte-identical to the committed fixture across all 57 files", () => {
+    const freshRoot = mkdtempSync(join(tmpdir(), "generate-sample-committed-"));
+    try {
+      expect(generateSampleReport(freshRoot).exitCode).toBe(0);
+
+      // The three fixture subtrees, compared name-and-byte (content hashes)
+      // pairwise between the committed corpus and the fresh output.
+      for (const rel of ["example", join("snapshots", "example"), join("probes", "example")]) {
+        const committed = listWithHashes(join(committedRoot, rel));
+        const fresh = listWithHashes(join(freshRoot, rel));
+        expect(
+          `${rel}: ${fresh.length} files`,
+          `subtree ${rel} must exist on both sides`,
+        ).toBe(`${rel}: ${committed.length} files`);
+        expect(fresh).toEqual(committed);
+      }
+      // 57 = 3 (manifest + both reports) + 36 snapshots + 18 probe batches.
+      const total =
+        listWithHashes(join(committedRoot, "example")).length +
+        listWithHashes(join(committedRoot, "snapshots", "example")).length +
+        listWithHashes(join(committedRoot, "probes", "example")).length;
+      expect(total).toBe(57);
+    } finally {
+      rmSync(freshRoot, { recursive: true, force: true });
     }
   });
 });

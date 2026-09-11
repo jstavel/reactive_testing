@@ -137,6 +137,63 @@ export function isKnownRun(corpusDir: string, runId: string): boolean {
   return existsSync(join(corpusDir, runId, "run-manifest.json"));
 }
 
+/** The ONE shared raw-manifest reader for both operator CLIs (story 6 review):
+ * the run manifest parsed leniently — `{ timestamp?, planModelVersion? }` with
+ * only string-valued fields kept, when the file parses to a non-null object;
+ * `undefined` when it is absent, unparseable, or not an object (both guards
+ * step aside and the existing zero-checks error family applies, unchanged).
+ * Read raw — not via `runManifestSchema` — precisely because the schema now
+ * REQUIRES a non-empty `planModelVersion`: a legacy manifest must reach the
+ * guard and be refused with its own re-record message, never fail a parse. */
+export function readRawRunManifest(
+  corpusDir: string,
+  runId: string,
+): { timestamp?: string; planModelVersion?: string } | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return undefined;
+  }
+  const fields = parsed as { timestamp?: unknown; planModelVersion?: unknown };
+  return {
+    ...(typeof fields.timestamp === "string" ? { timestamp: fields.timestamp } : {}),
+    ...(typeof fields.planModelVersion === "string"
+      ? { planModelVersion: fields.planModelVersion }
+      : {}),
+  };
+}
+
+/** The recorded `planModelVersion` from the run's raw manifest, or `undefined`
+ * when the manifest predates the plan-version guard (field absent, blank, or
+ * the manifest unreadable/non-object). Exported so the guard's refusal cases
+ * are covered directly by tests. */
+export function readPlanModelVersion(corpusDir: string, runId: string): string | undefined {
+  return readRawRunManifest(corpusDir, runId)?.planModelVersion;
+}
+
+/** The plan-version guard's refusal message (story 6), or `undefined` when the
+ * recorded version matches the current plan's (MATCH — validate/report behave
+ * exactly as today). A blank recorded version (absent or whitespace-only) and
+ * a mismatched one are different root causes — a manifest predating
+ * provenance vs the model moving on — so each names its own fix. Both are
+ * state errors: a single message, no usage/flag noise. */
+export function planVersionRefusal(
+  recorded: string | undefined,
+  current: string,
+): string | undefined {
+  const trimmed = recorded?.trim() ?? "";
+  if (trimmed.length > 0 && trimmed === current) {
+    return undefined;
+  }
+  return trimmed.length === 0
+    ? "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)"
+    : `model changed since recording (${recorded} ≠ ${current}) — re-record the run (run:smoke)`;
+}
+
 /** The deterministic "newest" key for one candidate run dir: the manifest's
  * embedded `timestamp` when it parses to a date, else the manifest's mtime (a
  * corrupt manifest still sorts by mtime). `undefined` = skip the entry
@@ -295,12 +352,35 @@ function unknownRunOutcome(
   return errorOutcome(...errors, USAGE);
 }
 
+/** The plan-version guard outcome (story 6): the refusal when the resolved
+ * run may no longer be interpreted against the current plan, `undefined` when
+ * it may (MATCH). Sits after run resolution and before `runValidatorsOffline`.
+ * The refusal fires whenever the raw manifest parses to an object —
+ * independent of whether `timestamp` is a usable string. A manifest that is
+ * missing, unparseable, or not an object is NOT a guard refusal — the
+ * existing no-checks-run outcome (validators ran over nothing) stays
+ * authoritative, unchanged. One shared raw read — no double JSON parse. */
+function planVersionGuardOutcome(
+  corpusDir: string,
+  runId: string,
+  plan: TestPlan,
+): ValidateOutcome | undefined {
+  const raw = readRawRunManifest(corpusDir, runId);
+  if (raw === undefined) {
+    return undefined;
+  }
+  const refusal = planVersionRefusal(raw.planModelVersion, plan.modelVersion);
+  return refusal === undefined ? undefined : errorOutcome(refusal);
+}
+
 /** The whole CLI as a pure function over argv + corpus state: resolve the
  * corpus dir (`--corpus-dir` flag > options > CORPUS_DIR env > `corpus`),
- * resolve the run, validate offline, format the summary, and decide the exit
- * code. Exit `0` when every check passed; exit `1` on any failing check, zero
- * checks ran for a selected run, an unknown run, no recorded run, or a usage
- * error (any remaining flag — only `--corpus-dir <path>` is accepted). */
+ * resolve the run, guard the recorded plan version, validate offline, format
+ * the summary, and decide the exit code. Exit `0` when every check passed;
+ * exit `1` on any failing check, zero checks ran for a selected run, an
+ * unknown run, no recorded run, a plan-version guard refusal (state error —
+ * no usage), or a usage error (any remaining flag — only `--corpus-dir <path>`
+ * is accepted). */
 export function validateSmoke(
   argv: readonly string[],
   options: ValidateOptions = {},
@@ -333,6 +413,10 @@ export function validateSmoke(
         USAGE,
       );
     }
+    const guard = planVersionGuardOutcome(corpusDir, latest, plan);
+    if (guard !== undefined) {
+      return guard;
+    }
     return summarizedOutcome(runValidatorsOffline(corpusDir, latest, plan, filter), latest);
   }
 
@@ -340,6 +424,10 @@ export function validateSmoke(
   // must never reach a corpus path (mirrors handlinks' RUN_ID_PATTERN trust).
   if (!RUN_ID_PATTERN.test(runId) || !isKnownRun(corpusDir, runId)) {
     return unknownRunOutcome(corpusDir, runId, plan);
+  }
+  const guard = planVersionGuardOutcome(corpusDir, runId, plan);
+  if (guard !== undefined) {
+    return guard;
   }
   return summarizedOutcome(runValidatorsOffline(corpusDir, runId, plan, filter), runId);
 }
