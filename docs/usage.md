@@ -376,6 +376,77 @@ The suite includes two cross-layer guards worth knowing:
   orchestrator and re-reads it through the real offline loader, proving the
   write→read contract.
 
+### CI & GitHub Pages
+
+The pipeline lives in
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) and runs entirely
+offline — no browser, no CDP, no Playwright; `npm ci` is the only network
+step. The `ci` job gates every push to `main` and every pull request:
+
+1. **Quality gates** — `npm run typecheck` and `npm test` (the gates above).
+2. **Fixture determinism (lockstep) gate** — `npm run generate:sample`
+   regenerates the committed fixture in place, then the tree must be
+   provably unchanged: `git diff --exit-code -- corpus/example corpus/snapshots/example corpus/probes/example`
+   empty, the run's `run-manifest.json` and both reports present, and
+   `git status --porcelain` over the same pathspecs empty (catches
+   deleted-from-HEAD or newly-added outputs the diff cannot see) — re-asserted
+   again after the reporter rewrites the reports (catches reporter drift). Any
+   drift (a model or recipe change without regenerating and committing the
+   fixture) fails the job red, and regenerating + committing the fixture is
+   the only way through.
+3. **Verify-on-fixture (green-only)** — over the committed fixture only:
+   `npm run validate:smoke -- example --corpus-dir corpus` (18/18 checks,
+   exit 0) and `npm run report:smoke -- example --corpus-dir corpus` (14/14
+   scenarios plus both reports, exit 0).
+4. **Fail-demo surface gate (green-only)** — `npm run generate:sample -- --fail`
+   writes the throwaway red demo (the reserved runId `fail-demo` — the same
+   deterministic recipe with exactly one hand-placed defect, 17/18 checks and
+   13/14 scenarios red) into the gitignored `corpus/fail-demo` subtrees, then
+   the job asserts all three fail-demo **subtree roots**
+   (`corpus/fail-demo`, `corpus/snapshots/fail-demo`, `corpus/probes/fail-demo`)
+   are gitignored (`git check-ignore`), that `git ls-files` over the roots is
+   empty (no failing evidence can already be tracked), that an anchored
+   `git status --porcelain` over the roots is empty, and that no `.gitignore`
+   `!`-negation rule re-includes `fail-demo` — any violation fails the job
+   red. The demo can never become committable or publishable, and since it is
+   generated and thrown away inside the job itself, no CI step ever turns red
+   because of it.
+
+On green, a second `pages` job — only for pushes to `main` (or a manual
+**Run workflow** dispatch on `main`, the way you redo the deploy right after
+enabling Pages), never for pull requests, and only after `ci` succeeded —
+stages the committed sample fixture into `_site/corpus/…` (exactly
+`corpus/example/`, `corpus/snapshots/example/`, and `corpus/probes/example/`,
+mirroring the repo layout 1:1; `fail-demo` is never staged), adds a minimal
+root `index.html` redirecting to the sample report so the site root is not a
+404, and deploys through the official `actions/upload-pages-artifact` +
+`actions/deploy-pages`. It then curls the deployed `report.json` and asserts
+its `report.v1` schema itself — "report.json live at the Pages URL" is
+verified by the job, not by hand. Consecutive deploys queue (never cancel an
+in-flight deploy).
+
+**One-time settings (both manual):** repo **Settings → Pages → Build and
+deployment → Source: GitHub Actions** — the workflow cannot flip this itself;
+without it the `pages` job fails at the deploy step (the repo is public, so
+Pages is available as soon as the source is set). And the `ci` job only
+actually *gates* pushes and pull requests once branch protection (repo
+**Settings → Branches**) marks it a required status check.
+
+**Deployed URL shape** — the Pages site mirrors the repo layout, so relative
+evidence links stay valid and URLs stay stable for external consumers:
+
+- Sample report — `https://jstavel.github.io/reactive_testing/corpus/example/report.html`
+- Machine-readable index — `https://jstavel.github.io/reactive_testing/corpus/example/report.json`
+  (the README's two dynamic badges read `summary.passed` and `summary.total`
+  here via shields.io dynamic JSON — numerator and denominator both live, so
+  nothing needs manual syncing when the plan grows; before the first deploy
+  they render shields's red "resource not found" state — documented and
+  acceptable.)
+- Evidence siblings — `…/corpus/snapshots/example/…` and `…/corpus/probes/example/…`
+
+The URLs and badge URLs above embed the repo name `jstavel/reactive_testing` —
+renaming the repository breaks the badges and live links until they are updated.
+
 ## 8. Authoring — growing the model
 
 The model is deliberately small (one read-only critical path). Growing it is an

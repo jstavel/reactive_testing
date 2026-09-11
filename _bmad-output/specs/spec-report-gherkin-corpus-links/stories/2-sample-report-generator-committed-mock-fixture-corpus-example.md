@@ -13,7 +13,7 @@ context:
 
 ## Intent
 
-**Problem:** The repo has no committed example corpus — a headhunter or AI assistant opening it sees no browsable evidence, and CI has no offline fixture to validate against. The only corpora are live recordings, which are private (real account data) and gitignored.
+**Problem:** The repo has no committed example corpus — readers and tooling opening it see no browsable evidence, and CI has no offline fixture to validate against. The only corpora are live recordings, which are private (real account data) and gitignored.
 
 **Approach:** Add a deterministic `bin/generate-sample-report.ts` that writes an all-passing mock fixture at `corpus/example/` (runId `example`: manifest, 18 pre/post snapshots, 18 probe batches, plus `report.html`/`report.json` via the existing emitters), wire a `--corpus-dir` flag on the `validate:smoke`/`report:smoke` CLIs, and un-ignore only the fixture subtree in `.gitignore` so it can be committed and browsed.
 

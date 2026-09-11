@@ -10,7 +10,7 @@ sources: []
 
 ## Why
 
-This is an **opportunity to capture**: the reactive-testing repo already *is* a compelling story for a Senior QE / AI-Quality Engineer position — spec-first model as SSOT, offline validators, per-step evidence — but it does not yet *speak for itself* when a headhunter or their AI assistant opens it. The test-run report exists as a single self-contained HTML file with a Gherkin tree, but it surfaces only screenshots as evidence, is invisible to text-based AI assistants, and has no committed example anyone can open without running a live authenticated session. The ask is to make the report and the repo browsable *and* machine-readable with zero live-browser participation, backed by a CI/CD facade that is conclusively green.
+This is an **opportunity to capture**: the reactive-testing repo already meets a high engineering bar — spec-first model as SSOT, offline pure validators, per-step evidence — but it does not yet conform to the industry-standard expectations for a serious, maintained testing project: machine-readable results, a browsable committed evidence fixture, and CI/CD that keeps the pipeline provably green on every push. The test-run report exists as a single self-contained HTML file with a Gherkin tree, but it surfaces only screenshots as evidence, is invisible to text-based tooling, and has no committed example anyone can run or read without a live authenticated session. The ask is to make the report and the repo browsable *and* machine-readable with zero live-browser participation, backed by a CI/CD facade that is conclusively green.
 
 ## Capabilities
 
@@ -59,7 +59,7 @@ This is an **opportunity to capture**: the reactive-testing repo already *is* a 
 
 ## Success signal
 
-A headhunter or AI assistant can open the repo, read `corpus/example/`, click from a Gherkin scenario to its snapshot/probe/network/screenshot evidence, and trust the CI README badges and GitHub Pages report — all green, all offline-derived — because the committed fixture and the generator provably agree, and a FAIL example is visible only where it cannot poison that signal.
+Anyone — a human reader or tooling — can open the repo, read `corpus/example/`, click from a Gherkin scenario to its snapshot/probe/network/screenshot evidence, and trust the CI README badges and GitHub Pages report — all green, all offline-derived — because the committed fixture and the generator provably agree, and a FAIL example is visible only where it cannot poison that signal. The project thereby meets the industry-standard expectations for reproducible artifacts, machine-readable output, and continuously verified quality.
 
 ## Assumptions
 
