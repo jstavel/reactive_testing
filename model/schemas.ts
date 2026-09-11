@@ -109,6 +109,18 @@ export interface StepEvidence {
   timingMs: number;
   /** Optional screenshot reference — corpus-relative path, never bytes. */
   screenshot?: ScreenshotRef;
+  /** Optional corpus-relative path to the pre-step snapshot — a ref, never the
+   * snapshot body. */
+  snapshotPre?: string;
+  /** Optional corpus-relative path to the post-step snapshot — a ref, never the
+   * snapshot body. */
+  snapshotPost?: string;
+  /** Optional corpus-relative path to the step's probe batch — a ref, never the
+   * probe results. */
+  probes?: string;
+  /** Optional corpus-relative path to the step's network events — a ref, never
+   * the event array. */
+  network?: string;
 }
 
 // ---- Shared in-memory shapes (AD-13: single home for every shared shape) ----

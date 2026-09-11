@@ -9,12 +9,14 @@
 // view-selected probe binding field.
 // Regenerated (Story 5-2 review) after contracts.ts pinned selectOrderBookTab's
 // url-is postcondition and corrected the Trade-contract invariants.
+// Regenerated (spec report-gherkin-corpus-links, story 1) after schemas.ts
+// gave StepEvidence the four corpus ref fields.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "832c258f35e4e6806e2d1fd731b3df2ca0f3f44d8ffd96b8c8c6315ccaee0c6c",
+  modelVersion: "e1acb826cdfbede1b0d8d9b31c8efd49bea5d3b8a04b742707adb9427d92c1c2",
   scenarios: [
     // home-page-history-menu.feature
     {

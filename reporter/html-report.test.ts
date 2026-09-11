@@ -401,7 +401,7 @@ describe("renderHtmlReport with relations (Story 2)", () => {
 });
 
 describe("renderHtmlReport with stepEvidence (Story 3)", () => {
-  it("TIMING_ONLY — step with timing but no screenshot shows timing text", () => {
+  it("TIMING_ONLY — step with timing but no screenshot/link falls back to the plain row", () => {
     const plan = makePlan([
       { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
     ]);
@@ -412,12 +412,11 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
 
     const html = renderHtmlReport({ run, plan, results, stepEvidence });
 
-    // Step is inside a <details> element.
-    expect(html).toContain("<details>");
-    // Timing text is present.
-    expect(html).toContain("42 ms");
-    // No <img> — no screenshot.
-    expect(html).not.toContain("<img");
+    // Timing alone renders nothing visible — the legacy plain step row.
+    expect(html).not.toContain("<details>\n              <summary>");
+    expect(html).not.toContain('class="step-timing"');
+    expect(html).toContain("Given");
+    expect(html).toContain("openLogin");
   });
 
   it("WITH_SCREENSHOT — step with timing and screenshot shows both", () => {
@@ -433,7 +432,8 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
 
     expect(html).toContain("<details>");
     expect(html).toContain("120 ms");
-    expect(html).toContain('<img src="screenshots/run1/0.png"');
+    // The report lives one level below the corpus root — src is ../-prefixed.
+    expect(html).toContain('<img src="../screenshots/run1/0.png"');
   });
 
   it("MISSING_EVIDENCE — step absent from stepEvidence renders as plain line", () => {
@@ -496,7 +496,7 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     const stepEvidence: Record<string, StepEvidence[]> = {
       sc: [
         { timingMs: 30, screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-03T10:00:00Z" } },
-        { timingMs: 80 },
+        { timingMs: 80, probes: "probes/run1/1.json" },
       ],
     };
 
@@ -508,10 +508,12 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     // Timing for both steps.
     expect(html).toContain("30 ms");
     expect(html).toContain("80 ms");
-    // Screenshot only for the first step.
-    expect(html).toContain('<img src="screenshots/run1/0.png"');
-    // Second step has no screenshot — no second <img>.
+    // Screenshot only for the first step (../-prefixed src)…
+    expect(html).toContain('<img src="../screenshots/run1/0.png"');
     expect(html.match(/<img/g)?.length ?? 0).toBe(1);
+    // …and a link only for the second.
+    expect(html).toContain('<a class="step-link" href="../probes/run1/1.json" target="_blank" rel="noopener noreferrer">probes</a>');
+    expect(html.match(/class="step-link"/g)?.length ?? 0).toBe(1);
   });
 
   it("CLOSED_BY_DEFAULT — step-level <details> has no open attribute", () => {
@@ -520,7 +522,7 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     ]);
     const results = [result("sc", true)];
     const stepEvidence: Record<string, StepEvidence[]> = {
-      sc: [{ timingMs: 10 }],
+      sc: [{ timingMs: 10, probes: "probes/run1/0.json" }],
     };
 
     const html = renderHtmlReport({ run, plan, results, stepEvidence });
@@ -546,6 +548,171 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
 
     const written = readReport(corpusDir, run.runId);
     expect(written).toContain("77 ms");
-    expect(written).toContain('<img src="screenshots/run1/0.png"');
+    expect(written).toContain('<img src="../screenshots/run1/0.png"');
+  });
+});
+
+describe("renderHtmlReport corpus evidence links (report.json sibling spec)", () => {
+  const fullEvidence: StepEvidence = {
+    timingMs: 412,
+    screenshot: { filePath: "screenshots/run1/0.png", capturedAt: "2026-09-11T09:00:00.412Z" },
+    snapshotPre: "snapshots/run1/0.pre.json",
+    snapshotPost: "snapshots/run1/0.json",
+    probes: "probes/run1/0.json",
+    network: "network/run1/0.json",
+  };
+
+  function planWithStep(): TestPlan {
+    return makePlan([
+      { id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] },
+    ]);
+  }
+
+  it("FULL_EVIDENCE — a step with all four refs plus a screenshot shows the four links and the img", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullEvidence] };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    // The report lives one level below the corpus root — hrefs are ../-prefixed
+    // (the stored ref values stay corpus-root-relative).
+    expect(html).toContain('<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>');
+    expect(html).toContain('<a class="step-link" href="../snapshots/run1/0.json" target="_blank" rel="noopener noreferrer">snapshot post</a>');
+    expect(html).toContain('<a class="step-link" href="../probes/run1/0.json" target="_blank" rel="noopener noreferrer">probes</a>');
+    expect(html).toContain('<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>');
+    expect(html).toContain('<img src="../screenshots/run1/0.png"');
+    // Every link opens in a new tab, rel-guarded, and cites a relative href.
+    expect(html.match(/class="step-link"/g)?.length).toBe(4);
+    expect(html.match(/target="_blank" rel="noopener noreferrer"/g)?.length).toBe(4);
+    expect(html).not.toContain('href="/');
+    expect(html).not.toContain('href="http');
+  });
+
+  it("LINK_KINDS — each ref kind alone renders exactly its one link", () => {
+    const cases: Array<["snapshotPre" | "snapshotPost" | "probes" | "network", string, string]> = [
+      ["snapshotPre", "snapshots/run1/0.pre.json", "snapshot pre"],
+      ["snapshotPost", "snapshots/run1/0.json", "snapshot post"],
+      ["probes", "probes/run1/0.json", "probes"],
+      ["network", "network/run1/0.json", "network"],
+    ];
+    for (const [kind, ref, label] of cases) {
+      const stepEvidence: Record<string, StepEvidence[]> = {
+        sc: [{ timingMs: 5, [kind]: ref }],
+      };
+
+      const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+      expect(html, kind).toContain(`<a class="step-link" href="../${ref}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+      expect(html.match(/class="step-link"/g)?.length, kind).toBe(1);
+      expect(html, kind).not.toContain("<img");
+    }
+  });
+
+  it("UNSAFE_HREF — a ref carrying a scheme (javascript:) renders no link", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 5, snapshotPre: "javascript:alert(1)", probes: "probes/run1/0.json" }],
+    };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    // The hostile ref is discarded entirely — nowhere in the document.
+    expect(html).not.toContain("javascript:");
+    // The safe sibling ref still renders exactly its one link.
+    expect(html.match(/class="step-link"/g)?.length).toBe(1);
+    expect(html).toContain('href="../probes/run1/0.json"');
+  });
+
+  it("TIMING_ONLY_PLAIN_ROW — zero-timing step with no refs renders the plain row (no details, no timing)", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = { sc: [{ timingMs: 0 }] };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    expect(html).not.toContain("<details>\n              <summary>");
+    expect(html).not.toContain('class="step-timing"');
+    expect(html).not.toContain("0 ms");
+    expect(html).toContain("Given");
+    expect(html).toContain("openLogin");
+  });
+
+  it("ZERO_TIMING_WITH_LINK — a link keeps the details block even at 0 ms", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 0, probes: "probes/run1/0.json" }],
+    };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    expect(html).toContain("<details>\n              <summary>");
+    expect(html).toContain('class="step-timing"');
+    expect(html).toContain('href="../probes/run1/0.json"');
+  });
+
+  it("MISSING_KIND — an absent ref renders no link; the other refs are unaffected", () => {
+    const { network: _absent, ...partial } = fullEvidence;
+    const stepEvidence: Record<string, StepEvidence[]> = { sc: [partial] };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    expect(html).not.toContain('href="../network/run1/0.json"');
+    expect(html).toContain('href="../snapshots/run1/0.pre.json"');
+    expect(html).toContain('href="../snapshots/run1/0.json"');
+    expect(html).toContain('href="../probes/run1/0.json"');
+    // Screenshot present → exactly 3 links + 1 img.
+    expect(html.match(/class="step-link"/g)?.length).toBe(3);
+    expect(html.match(/<img/g)?.length).toBe(1);
+  });
+
+  it("MISSING_KIND_SCREENSHOT — no screenshot ref renders links without an img", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ ...fullEvidence, screenshot: undefined }],
+    };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    expect(html).not.toContain("<img");
+    expect(html.match(/class="step-link"/g)?.length).toBe(4);
+  });
+
+  it("EMPTY_REF — an empty ref string renders no link (no dangling hrefs)", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = {
+      sc: [{ timingMs: 5, snapshotPre: "", probes: "probes/run1/0.json" }],
+    };
+
+    const html = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    expect(html).not.toContain('href=""');
+    expect(html).not.toContain('href="../"');
+    expect(html).toContain('href="../probes/run1/0.json"');
+    expect(html.match(/class="step-link"/g)?.length).toBe(1);
+  });
+
+  it("NO_STEP_EVIDENCE — omitted stepEvidence keeps today's text-only step rows", () => {
+    const without = renderHtmlReport({ run, plan: planWithStep(), results: [result("sc", true)] });
+
+    expect(without).not.toContain('class="step-link"');
+    expect(without).not.toContain("<details>\n              <summary>");
+  });
+
+  it("FAILED_STEP — refs render for a failing scenario (failure evidence is the most valuable)", () => {
+    const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullEvidence] };
+
+    const html = renderHtmlReport({
+      run,
+      plan: planWithStep(),
+      results: [result("sc", false, "expected dialog")],
+      stepEvidence,
+    });
+
+    expect(html.match(/class="step-link"/g)?.length).toBe(4);
+    expect(html).toContain("expected dialog");
+  });
+
+  it("EMIT_FORWARDS_LINKS — emitHtmlReport writes the ref links into the report file", () => {
+    const corpusDir = makeCorpusDir();
+    const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullEvidence] };
+
+    emitHtmlReport({ corpusDir, run, plan: planWithStep(), results: [result("sc", true)], stepEvidence });
+
+    const written = readReport(corpusDir, run.runId);
+    expect(written).toContain('<a class="step-link" href="../snapshots/run1/0.pre.json" target="_blank" rel="noopener noreferrer">snapshot pre</a>');
+    expect(written).toContain('<a class="step-link" href="../network/run1/0.json" target="_blank" rel="noopener noreferrer">network</a>');
   });
 });
