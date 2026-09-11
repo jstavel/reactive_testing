@@ -285,11 +285,19 @@ function fixtureEvidenceFiles(plan: TestPlan, runId: string, fail: boolean): Fix
 }
 
 /** The run manifest — the storage inventory naming every evidence file (the
- * reports are written later by the emitters and are not inventory). */
-function fixtureManifest(files: readonly string[], runId: string): RunManifest {
+ * reports are written later by the emitters and are not inventory).
+ * `planModelVersion` is the generating plan's model version (story 6): the
+ * fixture encodes the model it was made under, so the offline CLIs' guard
+ * accepts it exactly like a freshly recorded run. */
+function fixtureManifest(
+  files: readonly string[],
+  runId: string,
+  planModelVersion: string,
+): RunManifest {
   return {
     runId,
     timestamp: RUN_TIMESTAMP,
+    planModelVersion,
     files: [...files],
     errors: [],
     failures: [],
@@ -407,7 +415,11 @@ export function generateSampleReport(
     for (const file of evidence) {
       writeCorpusJson(corpusRoot, file.relPath, file.data);
     }
-    const manifest = fixtureManifest(evidence.map(({ relPath }) => relPath), runId);
+    const manifest = fixtureManifest(
+      evidence.map(({ relPath }) => relPath),
+      runId,
+      plan.modelVersion,
+    );
     mkdirSync(join(corpusRoot, runId), { recursive: true });
     writeFileSync(
       join(corpusRoot, runId, "run-manifest.json"),

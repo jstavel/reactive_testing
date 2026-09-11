@@ -11,12 +11,16 @@
 // url-is postcondition and corrected the Trade-contract invariants.
 // Regenerated (spec report-gherkin-corpus-links, story 1) after schemas.ts
 // gave StepEvidence the four corpus ref fields.
+// Regenerated (spec report-gherkin-corpus-links, story 6) after schemas.ts
+// gave runManifestSchema the required planModelVersion provenance field.
+// Regenerated (story 6 review) after planModelVersion gained min(1) — blank
+// provenance is unrecordable.
 
 import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "e1acb826cdfbede1b0d8d9b31c8efd49bea5d3b8a04b742707adb9427d92c1c2",
+  modelVersion: "320bed0cf074a40e59dbda1a55e0f7b389d358aa45376042cb8c6514888380b1",
   scenarios: [
     // home-page-history-menu.feature
     {

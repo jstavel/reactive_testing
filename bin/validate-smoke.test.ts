@@ -14,6 +14,8 @@ import {
   parseArgs,
   planContractIds,
   formatSummary,
+  planVersionRefusal,
+  readPlanModelVersion,
   resolveLatestRun,
   validateSmoke,
   USAGE,
@@ -61,16 +63,35 @@ function writeProbe(corpusDir: string, runId: string, stepIndex: number, value: 
   );
 }
 
-function writeRunManifest(corpusDir: string, runId: string, files: string[], timestamp: string = CAPTURED_AT): void {
+function writeRunManifest(
+  corpusDir: string,
+  runId: string,
+  files: string[],
+  timestamp: string = CAPTURED_AT,
+  planModelVersion: string | null = testPlan.modelVersion,
+): void {
   mkdirSync(join(corpusDir, runId), { recursive: true });
+  // `planModelVersion: null` omits the key — the legacy (pre-guard) manifest
+  // shape the offline guard must refuse. (`undefined` can't be the sentinel:
+  // an explicit undefined would trigger the default.)
   writeFileSync(
     join(corpusDir, runId, "run-manifest.json"),
-    JSON.stringify({ runId, timestamp, files }),
+    JSON.stringify({
+      runId,
+      timestamp,
+      ...(planModelVersion === null ? {} : { planModelVersion }),
+      files,
+    }),
   );
 }
 
 /** A run whose two steps satisfy every declared precondition and postcondition. */
-function writeAllPassRun(corpusDir: string, runId: string, timestamp: string = CAPTURED_AT): void {
+function writeAllPassRun(
+  corpusDir: string,
+  runId: string,
+  timestamp: string = CAPTURED_AT,
+  planModelVersion: string | null = testPlan.modelVersion,
+): void {
   writeSnapshot(corpusDir, runId, 0, "pre", snapshot("homePage", "https://pro.kraken.com/app/home"));
   writeSnapshot(corpusDir, runId, 0, "post", snapshot("historyMain", "https://pro.kraken.com/app/history/main/ledger"));
   writeProbe(corpusDir, runId, 0, "Ledger");
@@ -82,7 +103,7 @@ function writeAllPassRun(corpusDir: string, runId: string, timestamp: string = C
     `probes/${runId}/0.json`,
     `snapshots/${runId}/1.pre.json`,
     `snapshots/${runId}/1.json`,
-  ], timestamp);
+  ], timestamp, planModelVersion);
 }
 
 function setMtime(corpusDir: string, runId: string, when: Date): void {
@@ -464,6 +485,194 @@ describe("validateSmoke", () => {
   });
 });
 
+describe("plan-version guard (story 6 — validate side)", () => {
+  let corpusDir: string;
+
+  beforeEach(() => {
+    corpusDir = mkdtempSync(join(tmpdir(), "validate-smoke-guard-"));
+  });
+
+  afterEach(() => {
+    rmSync(corpusDir, { recursive: true, force: true });
+  });
+
+  it("readPlanModelVersion — reads the recorded field from the raw manifest", () => {
+    writeRunManifest(corpusDir, "run-1", [], CAPTURED_AT, "abc123");
+
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBe("abc123");
+  });
+
+  it("readPlanModelVersion — undefined when the manifest parses but lacks the field (legacy)", () => {
+    writeRunManifest(corpusDir, "run-1", [], CAPTURED_AT, null);
+
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBeUndefined();
+  });
+
+  it("readPlanModelVersion — undefined when the manifest is missing or unparseable", () => {
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBeUndefined();
+
+    mkdirSync(join(corpusDir, "run-1"), { recursive: true });
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "{not json");
+
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBeUndefined();
+
+    // Non-object JSON (a bare number) is also unreadable for the guard.
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "123");
+
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBeUndefined();
+  });
+
+  it("readPlanModelVersion — keeps a blank field as the empty string (the refusal decides LEGACY)", () => {
+    writeRunManifest(corpusDir, "run-1", [], CAPTURED_AT, "");
+
+    expect(readPlanModelVersion(corpusDir, "run-1")).toBe("");
+  });
+
+  it("MATCH — a manifest whose planModelVersion equals the plan's validates exactly as today", () => {
+    writeAllPassRun(corpusDir, "run-1");
+
+    const outcome = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out.at(-1)).toBe("2/2 checks passed in run-1");
+  });
+
+  it("MISMATCH — a different recorded version exits 1 with the re-record message (state error, no usage)", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "stale-model-hash");
+
+    const outcome = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "model changed since recording (stale-model-hash ≠ test-hash) — re-record the run (run:smoke)",
+    ]);
+    expect(outcome.err.at(-1)).not.toContain("Usage:");
+  });
+
+  it("MISMATCH — the guard also refuses the implicitly resolved latest run", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "stale-model-hash");
+
+    const outcome = validateSmoke([], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err).toEqual([
+      "model changed since recording (stale-model-hash ≠ test-hash) — re-record the run (run:smoke)",
+    ]);
+  });
+
+  it("MISMATCH — the guard holds on the @last-run fan-resolution path (implicit default via the fan)", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "stale-model-hash");
+    linkLastRun(corpusDir, "run-1");
+    // resolveLatestRun takes the FAN branch here (not the manifest fallback) —
+    // the refusal must still fire on that resolution path.
+    expect(resolveLatestRun(corpusDir)).toBe("run-1");
+
+    const outcome = validateSmoke([], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "model changed since recording (stale-model-hash ≠ test-hash) — re-record the run (run:smoke)",
+    ]);
+    expect(outcome.err.at(-1)).not.toContain("Usage:");
+  });
+
+  it("LEGACY — a manifest without planModelVersion exits 1 with the predates-guard message (never the zero-checks error)", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, null);
+
+    const outcome = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    ]);
+    expect(outcome.err.at(-1)).not.toContain("no checks ran");
+    expect(outcome.err.at(-1)).not.toContain("Usage:");
+  });
+
+  it("LEGACY — the guard also refuses an implicitly resolved legacy latest run", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, null);
+
+    const outcome = validateSmoke([], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.err[0]).toContain("run predates the plan-version guard");
+  });
+
+  it("LEGACY — an empty-string planModelVersion gets the predates-guard message, not a mismatch", () => {
+    writeAllPassRun(corpusDir, "run-1", CAPTURED_AT, "");
+
+    const outcome = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toEqual([
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    ]);
+  });
+
+  it("UNREADABLE — a missing or unparseable manifest keeps the existing zero-checks outcome (guard skips)", () => {
+    // Missing manifest: isKnownRun fails → unknown-run (existing behavior).
+    const missing = validateSmoke(["missing-run"], { corpusDir, plan: testPlan });
+    expect(missing.exitCode).toBe(1);
+    expect(missing.err[0]).toContain('Unknown run "missing-run"');
+
+    // Unparseable manifest on a known run: the guard steps aside and the
+    // runner yields zero results → the existing no-checks-ran error.
+    writeAllPassRun(corpusDir, "run-1");
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "{not json");
+    const unreadable = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(unreadable.exitCode).toBe(1);
+    expect(unreadable.err[0]).toBe(
+      'no checks ran for "run-1" — the run manifest was unreadable or the plan declares no steps.',
+    );
+    expect(unreadable.err.at(-1)).toBe(USAGE);
+
+    // Non-object JSON (a bare number): also "unreadable" for the guard —
+    // never LEGACY.
+    writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "123");
+    const nonObject = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
+
+    expect(nonObject.exitCode).toBe(1);
+    expect(nonObject.err[0]).toBe(
+      'no checks ran for "run-1" — the run manifest was unreadable or the plan declares no steps.',
+    );
+  });
+
+  it("MATCH — contract filters still validate after the guard passes", () => {
+    writeAllPassRun(corpusDir, "run-1");
+
+    const outcome = validateSmoke(["run-1", "filterHistoryByAsset"], { corpusDir, plan: testPlan });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.out).toEqual(["[PASS] filterHistoryByAsset", "1/1 checks passed in run-1"]);
+  });
+
+  it("planVersionRefusal — MATCH is undefined; LEGACY and MISMATCH name distinct fixes", () => {
+    expect(planVersionRefusal("test-hash", "test-hash")).toBeUndefined();
+    expect(planVersionRefusal(undefined, "test-hash")).toBe(
+      "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+    );
+    expect(planVersionRefusal("old", "new")).toBe(
+      "model changed since recording (old ≠ new) — re-record the run (run:smoke)",
+    );
+  });
+
+  it("planVersionRefusal — a blank recorded version is LEGACY, never a mismatch", () => {
+    const legacy = "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)";
+
+    expect(planVersionRefusal("", "test-hash")).toBe(legacy);
+    expect(planVersionRefusal("   ", "test-hash")).toBe(legacy);
+    expect(planVersionRefusal("\t\n", "test-hash")).toBe(legacy);
+    // Whitespace around an otherwise-matching version still matches (trimmed).
+    expect(planVersionRefusal(` ${"test-hash"} `, "test-hash")).toBeUndefined();
+  });
+});
+
 describe("validateSmoke against the committed sample fixture (unconditional)", () => {
   const repoRoot = resolve(import.meta.dirname, "..");
   const corpusDir = join(repoRoot, "corpus");
@@ -612,7 +821,7 @@ describe("npm validate:smoke (process-level operator surface)", () => {
     writeRunManifest(corpusDir, runId, filterIndexes.flatMap((index) => [
       `snapshots/${runId}/${index}.pre.json`,
       `snapshots/${runId}/${index}.json`,
-    ]));
+    ]), CAPTURED_AT, smokeTestPlan.modelVersion);
 
     const out = execFileSync(
       npm,
@@ -645,7 +854,7 @@ describe("npm validate:smoke (process-level operator surface)", () => {
     writeRunManifest(corpusDir, runId, filterIndexes.flatMap((index) => [
       `snapshots/${runId}/${index}.pre.json`,
       `snapshots/${runId}/${index}.json`,
-    ]));
+    ]), CAPTURED_AT, smokeTestPlan.modelVersion);
 
     const out = execFileSync(
       npm,
@@ -672,29 +881,50 @@ describe("npm validate:smoke (process-level operator surface)", () => {
     rmSync(corpusDir, { recursive: true, force: true });
   });
 
-  it("pins validate:smoke 18/18 against the latest recorded corpus run (expiry-pinned)", () => {
+  it("pins validate:smoke against the latest recorded corpus run (expiry-pinned, guard-aware)", () => {
     const repoRoot = resolve(import.meta.dirname, "..");
     const latestRunId = resolveLatestRun(join(repoRoot, "corpus"));
     // Corpus runs live only where a smoke ran (corpus/ is not versioned), so
     // the pin degrades to a skip on machines without one — but wherever a run
-    // exists it must validate 18/18 against the committed plan + validators.
+    // exists, its outcome is pinned: 18/18 when the run was recorded under the
+    // current model, or the story-6 re-record refusal when the run predates
+    // the plan-version guard (a legacy local run is never silently accepted).
     if (latestRunId === null) {
       return;
     }
+    const manifest = JSON.parse(
+      readFileSync(join(repoRoot, "corpus", latestRunId, "run-manifest.json"), "utf8"),
+    ) as { planModelVersion?: unknown };
 
-    const out = execFileSync(
-      npm,
-      ["run", "--silent", "validate:smoke"],
-      {
+    let status = 0;
+    let out = "";
+    let err = "";
+    try {
+      out = execFileSync(npm, ["run", "--silent", "validate:smoke"], {
         cwd: repoRoot,
         encoding: "utf8",
         timeout: 60_000,
-      },
-    );
+      });
+    } catch (error) {
+      const failure = error as { status?: number; stdout?: string; stderr?: string };
+      status = failure.status ?? 1;
+      out = failure.stdout ?? "";
+      err = failure.stderr ?? "";
+    }
+
+    if (typeof manifest.planModelVersion !== "string") {
+      expect(status).toBe(1);
+      expect(out).toBe("");
+      expect(err).toContain(
+        "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)",
+      );
+      return;
+    }
 
     // Expiry pin: the smoke plan declares exactly 18 contracts today. A plan
     // or validator-map change that grows/breaks the check count fails here
     // until the expectation is explicitly updated (and a fresh corpus recorded).
+    expect(status).toBe(0);
     expect(out.trim().split("\n").at(-1)).toBe(`18/18 checks passed in ${latestRunId}`);
   });
 });

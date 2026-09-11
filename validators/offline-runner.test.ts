@@ -61,7 +61,7 @@ function writeProbes(
 }
 
 function finish(corpusDir: string, run: CorpusRun): void {
-  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", [], [], ["snapshot", "probe"]);
+  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], ["snapshot", "probe"]);
 }
 
 describe("runValidatorsOffline", () => {

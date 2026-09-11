@@ -342,6 +342,17 @@ export const runManifestSchema = z.object({
   runId: z.string(),
   /** ISO-8601 timestamp of when the run started. */
   timestamp: z.string(),
+  /**
+   * The model version the executed plan carried when the run was recorded
+   * (run-versioning provenance, story 6 of spec-report-gherkin-corpus-links).
+   * The offline CLIs refuse a run whose recorded version differs from the
+   * current plan's — or whose manifest predates this field — because
+   * step-indexed evidence refs and per-contract validation silently misalign
+   * against stale recordings. Required AND non-empty (never defaulted): a
+   * manifest without it — or with a blank one — is a recording that predates
+   * the guard and must be re-recorded, not silently accepted.
+   */
+  planModelVersion: z.string().min(1),
   /** Corpus-relative file paths written during the run. */
   files: z.array(z.string()),
   /** Collector gaps recorded across the run (AD-16); `[]` means no gaps.

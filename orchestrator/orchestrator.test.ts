@@ -567,6 +567,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       expect.any(Array),
       expect.any(Array),
       expect.any(Array),
@@ -595,6 +596,7 @@ describe("corpus wiring", () => {
         baseConfig.corpusDir,
         mockCorpusRun,
         expect.any(String),
+        MODEL_VERSION,
         expect.any(Array),
         expect.any(Array),
         expect.any(Array),
@@ -782,6 +784,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [{ collector: "probe", stepIndex: 0, error: "collector boom" }],
       [],
       ["probe", "snapshot"],
@@ -825,6 +828,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [
         { collector: "probe", stepIndex: 1, error: "step-1 boom" },
         { collector: "probe", stepIndex: 3, error: "scenario-2 boom" },
@@ -871,6 +875,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [
         {
           collector: "probe",
@@ -910,6 +915,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [],
       ["probe", "snapshot"],
@@ -944,6 +950,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [],
       ["probe", "snapshot"],
@@ -1013,6 +1020,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [
         {
@@ -1094,6 +1102,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [
         {
@@ -1137,6 +1146,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [
         {
@@ -1175,6 +1185,7 @@ describe("corpus wiring", () => {
       baseConfig.corpusDir,
       mockCorpusRun,
       expect.any(String),
+      MODEL_VERSION,
       [],
       [],
       ["probe", "snapshot"],

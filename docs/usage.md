@@ -82,6 +82,28 @@ names every file the run wrote, plus any **collector gaps** (`errors`) and
 **step failures** (`failures`) — a gap means a collector threw for one step and
 its evidence is absent, never a crashed run.
 
+> **The plan-version guard (authoritative):** the manifest also carries
+> `planModelVersion` — the model hash the executed plan held when the run was
+> recorded. The guard exists because the offline CLIs interpret a recording
+> against the *current* plan: when the model grows (new scenarios, reordered
+> steps), step-indexed evidence and per-contract validation silently misalign
+> against stale recordings. `validate:smoke`/`report:smoke` therefore compare
+> the recorded version against the current plan's after run resolution and
+> before any validation or report write:
+>
+> - **MATCH** (equal) — validate/report behave exactly as always (outcome by
+>   evidence);
+> - **MISMATCH** (recorded ≠ current) — exit `1`: "model changed since
+>   recording (… ≠ …) — re-record the run (run:smoke)";
+> - **LEGACY** (manifest predates the field, or it is blank) — exit `1`:
+>   "run predates the plan-version guard (no planModelVersion in the
+>   manifest) — re-record the run (run:smoke)".
+>
+> The remedy for both refusals is the same: **re-record with §1** — there is
+> no warn-and-continue, and a refused report writes nothing. Local runs
+> recorded **before** this guard was introduced are all LEGACY and must be
+> re-recorded once before the offline CLIs accept them.
+>
 > **Legacy corpora caveat:** the runs currently present in a local `corpus/`
 > predate the per-step pre-snapshot layout, so re-validating *them* reports
 > `missing snapshot evidence` for every precondition. A run recorded with the
@@ -128,8 +150,10 @@ You see, per check (sample abridged):
 - Exit code `0` — every check passed.
 - Exit code `1` — **any** check failed (each failure prints its details), a
   selected run yielded **no checks at all** (unreadable manifest or a plan with
-  no steps — never a pass), the runId is unknown, no run is recorded yet, or
-  the usage was wrong. An unknown contract id is also an error (it would
+  no steps — never a pass), the runId is unknown, no run is recorded yet, the
+  **plan-version guard refused the run** (one-way pointer: see §2's
+  authoritative plan-version-guard note), or the usage was wrong.
+  An unknown contract id is also an error (it would
   silently validate nothing) — the message names every valid contract id.
 
 The CLI is print-only: it reads `corpus/` and `model/`, never mutates the
@@ -527,3 +551,9 @@ npm run run:smoke          # record a fresh corpus
 
 The model-version guard test (`model/model-version.test.ts`) fails CI if you
 edit a model file and forget to regenerate the plan.
+
+**Re-record after any model-file edit (coupling):** because the model hash
+covers the full text of the hashed model files (a comment-only edit re-hashes
+too), ANY model-file edit makes previously recorded local runs refused by the
+plan-version guard (§2) — re-record them with `run:smoke` before
+`validate:smoke`/`report:smoke` accept them again.
