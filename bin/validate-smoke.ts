@@ -18,28 +18,40 @@
 // (UnknownScenarioIdError), applied to contract filters; the runId shape guard
 // mirrors handlinks' RUN_ID_PATTERN.
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
-import { LAST_RUN, RUN_ID_PATTERN, resolveFan } from "../orchestrator/handlinks.js";
+import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
-import { FAIL_DEMO_RUN_ID, SAMPLE_RUN_ID } from "./sample-run-id.js";
+import {
+  type CliOutcome,
+  DEFAULT_CORPUS_DIR,
+  errorOutcome,
+  extractCorpusDir,
+  isKnownRun,
+  noRecordedRunOutcome,
+  planVersionRefusal,
+  readRawRunManifest,
+  resolveLatestRun,
+  unknownRunOutcome,
+} from "./cli-shared.js";
 
-const CORPUS_DIR = "corpus";
+export {
+  type CorpusDirArgs,
+  extractCorpusDir,
+  isKnownRun,
+  readPlanModelVersion,
+  readRawRunManifest,
+  planVersionRefusal,
+  resolveLatestRun,
+} from "./cli-shared.js";
+
 export const USAGE =
   "Usage: npm run validate:smoke -- [--corpus-dir <path>] [<runId>] [<contractId>…]";
 const RUNID_FILTER_HINT =
   "the first argument is the runId; contract filters come after it " +
   "(e.g. npm run validate:smoke -- <runId> <contractId>)";
-
-/** A runId is always a UUID/kebab token; anything else (path separators, `..`)
- * must never reach a corpus path. Shared with handlinks (handoff symlink
- * targets) — one source of truth for the runId shape guard. */
-/** Kind dirs at the corpus root holding per-run evidence — never a run dir. */
-const KIND_DIRS = new Set(["snapshots", "network", "probes", "screenshots"]);
 
 /** An unknown contract-id filter (it would silently validate nothing). */
 export class UnknownContractIdError extends Error {
@@ -68,36 +80,6 @@ export interface ParsedArgs {
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const [runId, ...contractIds] = argv;
   return { runId, contractIds };
-}
-
-/** Extracted `--corpus-dir <path>`: the flag's value plus the remaining
- * arguments (the two flag tokens removed, wherever they appeared). */
-export interface CorpusDirArgs {
-  readonly corpusDir: string | undefined;
-  readonly rest: readonly string[];
-}
-
-/** Extract `--corpus-dir <path>` (two tokens, position-free) from argv BEFORE
- * the positional guard — the operator CLIs' shared flag surface (SPEC
- * Constraints: both CLIs gain `--corpus-dir`). Precedence is decided by the
- * caller: flag > options.corpusDir > CORPUS_DIR env > default. A dangling
- * flag (no `<path>` value, an empty value, or a value that is itself a flag)
- * and any repeated flag stay in `rest`, so the positional guard rejects them
- * with the usual Invalid-argument(s) + usage error — never a
- * silently-swallowed token and never an empty corpus dir. */
-export function extractCorpusDir(argv: readonly string[]): CorpusDirArgs {
-  const index = argv.indexOf("--corpus-dir");
-  if (index === -1) {
-    return { corpusDir: undefined, rest: [...argv] };
-  }
-  const value = argv[index + 1];
-  if (value === undefined || value === "" || value.startsWith("-")) {
-    return { corpusDir: undefined, rest: [...argv] };
-  }
-  return {
-    corpusDir: value,
-    rest: [...argv.slice(0, index), ...argv.slice(index + 2)],
-  };
 }
 
 /** The distinct contract ids the plan steps through, in plan order. */
@@ -131,152 +113,6 @@ export function resolveContractIds(
   return [...filters];
 }
 
-/** Whether a recorded run exists for runId (UNKNOWN_RUN gate: a run dir with a
- * run-manifest.json). */
-export function isKnownRun(corpusDir: string, runId: string): boolean {
-  return existsSync(join(corpusDir, runId, "run-manifest.json"));
-}
-
-/** The ONE shared raw-manifest reader for both operator CLIs (story 6 review):
- * the run manifest parsed leniently — `{ timestamp?, planModelVersion? }` with
- * only string-valued fields kept, when the file parses to a non-null object;
- * `undefined` when it is absent, unparseable, or not an object (both guards
- * step aside and the existing zero-checks error family applies, unchanged).
- * Read raw — not via `runManifestSchema` — precisely because the schema now
- * REQUIRES a non-empty `planModelVersion`: a legacy manifest must reach the
- * guard and be refused with its own re-record message, never fail a parse. */
-export function readRawRunManifest(
-  corpusDir: string,
-  runId: string,
-): { timestamp?: string; planModelVersion?: string } | undefined {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"));
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return undefined;
-  }
-  const fields = parsed as { timestamp?: unknown; planModelVersion?: unknown };
-  return {
-    ...(typeof fields.timestamp === "string" ? { timestamp: fields.timestamp } : {}),
-    ...(typeof fields.planModelVersion === "string"
-      ? { planModelVersion: fields.planModelVersion }
-      : {}),
-  };
-}
-
-/** The recorded `planModelVersion` from the run's raw manifest, or `undefined`
- * when the manifest predates the plan-version guard (field absent, blank, or
- * the manifest unreadable/non-object). Exported so the guard's refusal cases
- * are covered directly by tests. */
-export function readPlanModelVersion(corpusDir: string, runId: string): string | undefined {
-  return readRawRunManifest(corpusDir, runId)?.planModelVersion;
-}
-
-/** The plan-version guard's refusal message (story 6), or `undefined` when the
- * recorded version matches the current plan's (MATCH — validate/report behave
- * exactly as today). A blank recorded version (absent or whitespace-only) and
- * a mismatched one are different root causes — a manifest predating
- * provenance vs the model moving on — so each names its own fix. Both are
- * state errors: a single message, no usage/flag noise. */
-export function planVersionRefusal(
-  recorded: string | undefined,
-  current: string,
-): string | undefined {
-  const trimmed = recorded?.trim() ?? "";
-  if (trimmed.length > 0 && trimmed === current) {
-    return undefined;
-  }
-  return trimmed.length === 0
-    ? "run predates the plan-version guard (no planModelVersion in the manifest) — re-record the run (run:smoke)"
-    : `model changed since recording (${recorded} ≠ ${current}) — re-record the run (run:smoke)`;
-}
-
-/** The deterministic "newest" key for one candidate run dir: the manifest's
- * embedded `timestamp` when it parses to a date, else the manifest's mtime (a
- * corrupt manifest still sorts by mtime). `undefined` = skip the entry
- * (manifest unreadable). */
-function newestKey(corpusDir: string, entry: string): number | undefined {
-  const manifestPath = join(corpusDir, entry, "run-manifest.json");
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
-    const timestamp = (parsed as { timestamp?: unknown } | null)?.timestamp;
-    if (typeof timestamp === "string") {
-      const ms = Date.parse(timestamp);
-      if (Number.isFinite(ms)) {
-        return ms;
-      }
-    }
-  } catch {
-    // Unparseable or absent manifest → fall back to mtime below.
-  }
-  try {
-    return statSync(manifestPath).mtimeMs;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Newest run-manifest.json in corpusDir — by the manifest's embedded
- * `timestamp` (mtime fallback for unparseable manifests), ties broken by entry
- * name lexicographically. `@`-prefixed fans and the kind dirs never
- * participate. Absent corpus or no runs → `null`. Per-entry read/stat failures
- * skip that entry; they never collapse the whole scan.
- *
- * Implicit resolution prefers real recorded runs: the reserved runIds never
- * hijack the default — the committed mock fixture (SAMPLE_RUN_ID) because its
- * fixed future timestamp would otherwise silently shadow every real run, and
- * the failure demo's throwaway (FAIL_DEMO_RUN_ID) because a leftover red demo
- * must never become the default validation target. The filter covers the
- * fallback too: fail-demo never resolves implicitly (a corpus holding only
- * the throwaway reports "no recorded run"). With no real run (fresh
- * checkout) the fixture stays the implicit default; an explicit positional
- * (`example` or `fail-demo`) bypasses this resolution entirely. */
-function newestManifestRun(corpusDir: string): string | null {
-  let entries: string[];
-  try {
-    entries = readdirSync(corpusDir);
-  } catch {
-    return null;
-  }
-  const byName = (a: string, b: string): number =>
-    a < b ? -1 : a > b ? 1 : 0;
-  const newest = (runs: readonly { entry: string; key: number }[]): string | null =>
-    [...runs].sort((a, b) => b.key - a.key || byName(a.entry, b.entry)).at(0)?.entry ??
-    null;
-  const candidates = entries
-    .filter((entry) => !entry.startsWith("@") && !KIND_DIRS.has(entry))
-    .flatMap((entry) => {
-      const key = newestKey(corpusDir, entry);
-      return key === undefined ? [] : [{ entry, key }];
-    });
-  return (
-    newest(
-      candidates.filter(
-        ({ entry }) => entry !== SAMPLE_RUN_ID && entry !== FAIL_DEMO_RUN_ID,
-      ),
-    ) ??
-    newest(candidates.filter(({ entry }) => entry !== FAIL_DEMO_RUN_ID))
-  );
-}
-
-/** The run to validate by default: the `@last-run` fan's canonical run dir
- * (exactly what run:smoke last wrote), falling back to the newest manifest so
- * the CLI stays usable before/independently of the handoff links. Null when
- * no run exists. A fan that resolves to the throwaway fail-demo run is
- * ignored — a stale handoff must never hand the implicit default to the red
- * demo — and manifest resolution decides instead. */
-export function resolveLatestRun(corpusDir: string): string | null {
-  const viaFan = resolveFan(corpusDir, LAST_RUN);
-  const fanRun = viaFan !== null ? basename(viaFan) : null;
-  if (fanRun !== null && fanRun !== FAIL_DEMO_RUN_ID) {
-    return fanRun;
-  }
-  return newestManifestRun(corpusDir);
-}
-
 /** One result line: `[PASS]/[FAIL] contractId — details?` — failures print
  * their details, whitespace-collapsed so one line per check holds. */
 export function formatResult(result: ValidationResult): string {
@@ -299,11 +135,7 @@ export function formatSummary(
 /** A CLI run's observable behavior: exit code plus stdout/stderr lines.
  * Extracted so the exit/print contract is unit-testable without spawning the
  * process. */
-export interface ValidateOutcome {
-  readonly exitCode: 0 | 1;
-  readonly out: readonly string[];
-  readonly err: readonly string[];
-}
+export type ValidateOutcome = CliOutcome;
 
 export interface ValidateOptions {
   /** Corpus dir override for tests; the operator default is `corpus` (or CORPUS_DIR). */
@@ -329,27 +161,6 @@ function summarizedOutcome(
     out: [...results.map(formatResult), formatSummary(results, runId)],
     err: [],
   };
-}
-
-function errorOutcome(...errors: readonly string[]): ValidateOutcome {
-  return { exitCode: 1, out: [], err: errors };
-}
-
-/** The unknown-run outcome, shared by the shape guard and the manifest gate.
- * When the first positional is actually a valid contract id, add the targeted
- * hint — the operator most likely inverted the argument order. */
-function unknownRunOutcome(
-  corpusDir: string,
-  runId: string,
-  plan: TestPlan,
-): ValidateOutcome {
-  const errors = [
-    `Unknown run "${runId}" — no run-manifest.json in ${corpusDir}/${runId}/.`,
-  ];
-  if (planContractIds(plan).includes(runId)) {
-    errors.push(RUNID_FILTER_HINT);
-  }
-  return errorOutcome(...errors, USAGE);
 }
 
 /** The plan-version guard outcome (story 6): the refusal when the resolved
@@ -386,7 +197,7 @@ export function validateSmoke(
   options: ValidateOptions = {},
 ): ValidateOutcome {
   const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
-  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
+  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
   if (rest.some((arg) => arg.startsWith("-"))) {
@@ -408,10 +219,7 @@ export function validateSmoke(
   if (runId === undefined) {
     const latest = resolveLatestRun(corpusDir);
     if (latest === null) {
-      return errorOutcome(
-        `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
-        USAGE,
-      );
+      return noRecordedRunOutcome(corpusDir, USAGE);
     }
     const guard = planVersionGuardOutcome(corpusDir, latest, plan);
     if (guard !== undefined) {
@@ -423,7 +231,13 @@ export function validateSmoke(
   // The shape guard precedes any fs access: a runId with separators or ".."
   // must never reach a corpus path (mirrors handlinks' RUN_ID_PATTERN trust).
   if (!RUN_ID_PATTERN.test(runId) || !isKnownRun(corpusDir, runId)) {
-    return unknownRunOutcome(corpusDir, runId, plan);
+    // When the first positional is actually a valid contract id, add the
+    // targeted hint — the operator most likely inverted the argument order.
+    return unknownRunOutcome(
+      corpusDir,
+      runId,
+      ...(planContractIds(plan).includes(runId) ? [RUNID_FILTER_HINT, USAGE] : [USAGE]),
+    );
   }
   const guard = planVersionGuardOutcome(corpusDir, runId, plan);
   if (guard !== undefined) {

@@ -93,3 +93,23 @@
     generic zero-checks error; regenerate smoke.test-plan.ts per its header
     convention, regenerate + commit corpus/example (manifest gains the field),
     and keep the determinism gate green.
+
+- id: "7"
+  title: "Shared CLI outcome module"
+  description: >-
+    Extract the duplicated operator-CLI surface (outcome types, error outcomes,
+    corpus-run resolution, raw-manifest read, corpus-dir flag parsing, plan-version
+    refusal) into a neutral bin/cli-shared.ts so validate:smoke and report:smoke
+    share one implementation instead of hand-copying (report:smoke currently
+    imports the bits from validate:smoke). Pure refactor — zero behavior change,
+    the full test suite is the gate.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Extraction only — no logic edits; move (don't copy) each shared member; keep
+    validate-specific contract-filtering/parsing (parseArgs, planContractIds,
+    resolveContractIds, formatResult/formatSummary) in validate:smoke; update
+    every import site (both bins + the tests that import resolveLatestRun and
+    friends from validate-smoke); re-export the shared names if any public test
+    surface needs it; full suite + revoke example/report example/fixture
+    determinism must stay green.

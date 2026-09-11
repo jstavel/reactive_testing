@@ -11,12 +11,14 @@ import type { TestPlan } from "../model/schemas.js";
 import { generateSampleReport } from "./generate-sample-report.js";
 import {
   extractCorpusDir,
-  parseArgs,
-  planContractIds,
-  formatSummary,
   planVersionRefusal,
   readPlanModelVersion,
   resolveLatestRun,
+} from "./cli-shared.js";
+import {
+  parseArgs,
+  planContractIds,
+  formatSummary,
   validateSmoke,
   USAGE,
 } from "./validate-smoke.js";
