@@ -23,7 +23,14 @@
       "!_bmad*",
       "!.agents",
       "!.opencode",
-      "!docs"
+      "!docs",
+      // Generated root JSONs (the ci job's vitest JSON summary and the badge
+      // feed bin/tests-summary.ts derives from it; reproducible locally with
+      // the same two commands, gitignored): never project source, and the
+      // formatter would otherwise fail `npm run lint` when run right after
+      // reproducing the CI step locally.
+      "!tests.json",
+      "!vitest-summary.json"
     ]
   },
   "assist": {

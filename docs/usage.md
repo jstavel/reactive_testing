@@ -474,11 +474,18 @@ stages the committed sample fixture into `_site/corpus/…` (exactly
 `corpus/example/`, `corpus/snapshots/example/`, and `corpus/probes/example/`,
 mirroring the repo layout 1:1; `fail-demo` is never staged), adds a minimal
 root `index.html` redirecting to the sample report so the site root is not a
-404, and deploys through the official `actions/upload-pages-artifact` +
-`actions/deploy-pages`. It then curls the deployed `report.json` and asserts
-its `report.v1` schema itself — "report.json live at the Pages URL" is
+404, downloads the `ci` job's `tests-summary` artifact as `_site/tests.json`
+(guarded to be present), and deploys through the official
+`actions/upload-pages-artifact` + `actions/deploy-pages`. It then curls the
+deployed `report.json` and asserts its `report.v1` schema itself, and curls the
+deployed `tests.json` and asserts `{passed, total}` are numbers with
+`passed == total` — "report.json and tests.json live at the Pages URL" is
 verified by the job, not by hand. Consecutive deploys queue (never cancel an
-in-flight deploy).
+in-flight deploy). The `tests-summary` artifact is retained for **one day** —
+it is only needed by the same run's `pages` job — so re-running *only* the
+`pages` job of a run older than that fails at the download step; a fresh main
+push (or a manual **Run workflow** dispatch on `main`) regenerates the feed and
+redeploys everything.
 
 **One-time settings (both manual):** repo **Settings → Pages → Build and
 deployment → Source: GitHub Actions** — the workflow cannot flip this itself;
@@ -492,15 +499,29 @@ evidence links stay valid and URLs stay stable for external consumers:
 
 - Sample report — `https://jstavel.github.io/reactive_testing/corpus/example/report.html`
 - Machine-readable index — `https://jstavel.github.io/reactive_testing/corpus/example/report.json`
-  (the README's two dynamic badges read `summary.passed` and `summary.total`
-  here via shields.io dynamic JSON — numerator and denominator both live, so
-  nothing needs manual syncing when the plan grows; before the first deploy
-  they render shields's red "resource not found" state — documented and
-  acceptable.)
+  (asserted `report.v1` by the deploy's own curl+jq check)
+- Badge feed — `https://jstavel.github.io/reactive_testing/tests.json`
+  (`{"passed":N,"total":M}`). Generated on every main push by the `ci` job:
+  `npx vitest run --reporter=json --outputFile=vitest-summary.json`, then
+  `npx tsx bin/tests-summary.ts vitest-summary.json tests.json` — the script
+  exits 1 without writing anything unless both counts are present, finite
+  non-negative integers, and `passed <= total`, so the feed can never go stale
+  or fabricated. The README carries **one** dynamic "tests passed" badge that
+  reads `passed` from this URL (old behavior: two dynamic badges read
+  `summary.passed` / `summary.total` from `report.json` — the vitest suite,
+  not the fixture's 14-scenario count, is what a "tests passed" label owes the
+  reader). Before the first successful main-push deploy the badge renders
+  shields's red "resource not found" state — expected and documented.
+  shields.io caches badge responses briefly, so right after a deploy the badge
+  may still show the previous count for a few minutes; the deployed
+  `tests.json` is the source of truth — open the URL to read the current
+  numbers.
 - Evidence siblings — `…/corpus/snapshots/example/…` and `…/corpus/probes/example/…`
 
 The URLs and badge URLs above embed the repo name `jstavel/reactive_testing` —
-renaming the repository breaks the badges and live links until they are updated.
+renaming the repository breaks the badges and live links until they are updated
+(the tests-badge URL in particular embeds `reactive_testing` twice: in the
+shields `url=` parameter and in the badge's link target).
 
 ## 8. Authoring — growing the model
 

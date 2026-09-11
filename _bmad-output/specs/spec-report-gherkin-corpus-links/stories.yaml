@@ -113,3 +113,17 @@
     friends from validate-smoke); re-export the shared names if any public test
     surface needs it; full suite + revoke example/report example/fixture
     determinism must stay green.
+
+- id: "8"
+  title: "Live tests-count badge"
+  description: >-
+    CI emits a tests.json summary (vitest JSON reporter -> passed/total) into the
+    Pages artifact, and the README shows a dynamic "tests passed" badge that reads
+    it — a truthful, always-current test count alongside the CI status badge.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Green-only and offline; tests.json generated in the ci job (vitest --reporter=json
+    --outputFile, then a node one-liner -> {passed,total}), uploaded as an artifact;
+    pages job downloads + stages _site/tests.json; README adds one dynamic badge
+    (query=passed, brightgreen) + documents the pre-first-deploy shield state.

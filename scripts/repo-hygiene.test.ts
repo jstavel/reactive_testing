@@ -1,6 +1,8 @@
 // Durable repo-hygiene pins (spec-repo-hygiene-biome-contributing, review
 // loop): the license triangle and the CONTRIBUTING command table must stay in
-// agreement with the tree. Pure fs reads — offline, no fixtures, no browser.
+// agreement with the tree, and the README's live badge surface (the dynamic
+// tests.json feed and its pre-deploy caveat, story 8 review loop) must stay
+// intact and marker-free. Pure fs reads — offline, no fixtures, no browser.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -63,5 +65,28 @@ describe("CONTRIBUTING command pins (CAP-2)", () => {
     for (const name of documented) {
       expect(scripts, `CONTRIBUTING documents \`npm run ${name}\``).toContain(name);
     }
+  });
+});
+
+describe("README live-badge pins (spec-report-gherkin-corpus-links story 8, review loop)", () => {
+  const readme = readRepoFile("README.md");
+
+  it("contains the dynamic tests badge reading query=passed from the deployed tests.json", () => {
+    expect(readme).toContain(
+      "https://img.shields.io/badge/dynamic/json" +
+        "?url=https%3A%2F%2Fjstavel.github.io%2Freactive_testing%2Ftests.json" +
+        "&query=passed&label=tests%20passed&color=brightgreen",
+    );
+    expect(readme).not.toContain("query=summary.passed");
+  });
+
+  it("documents the pre-first-deploy shield state (the tests-passed caveat sentence)", () => {
+    expect(readme).toMatch(
+      /Until the first successful deploy the dynamic "tests\s+passed" badge renders shields's red "resource not found" state/,
+    );
+  });
+
+  it("carries no merge-conflict markers", () => {
+    expect(readme).not.toMatch(/^(<{7}|={7}|>{7})/m);
   });
 });
