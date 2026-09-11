@@ -14,7 +14,7 @@
 // error that writes nothing — validators ran over nothing, which is never a
 // reportable pass.
 //
-// The argument/error surface mirrors bin/validate-smoke.ts: positional-only
+// The argument/error surface is shared (bin/cli-shared.ts): positional-only
 // `[<runId>]` defaulting to the latest recorded run (`resolveLatestRun` — the
 // `@last-run` fan, falling back to the newest run-manifest.json), the flag
 // guard over the arguments that remain after the two-token `--corpus-dir
@@ -54,14 +54,18 @@ import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import {
+  type CliOutcome,
+  DEFAULT_CORPUS_DIR,
+  errorOutcome,
   extractCorpusDir,
   isKnownRun,
+  noRecordedRunOutcome,
   planVersionRefusal,
   readRawRunManifest,
   resolveLatestRun,
-} from "./validate-smoke.js";
+  unknownRunOutcome,
+} from "./cli-shared.js";
 
-const CORPUS_DIR = "corpus";
 export const USAGE = "Usage: npm run report:smoke -- [--corpus-dir <path>] [<runId>]";
 
 /** Per-scenario results derived from offline validation results (SPEC CAP-6
@@ -101,31 +105,16 @@ export function deriveScenarioResults(
   });
 }
 
-/** A CLI run's observable behavior: exit code plus stdout/stderr lines,
- * mirroring ValidateOutcome so both operator CLIs print/exit the same way. */
-export interface ReportOutcome {
-  readonly exitCode: 0 | 1;
-  readonly out: readonly string[];
-  readonly err: readonly string[];
-}
+/** A CLI run's observable behavior: exit code plus stdout/stderr lines — an
+ * alias of the shared `CliOutcome`, like validate's `ValidateOutcome`, so both
+ * operator CLIs print/exit the same way. */
+export type ReportOutcome = CliOutcome;
 
 export interface ReportOptions {
   /** Corpus dir override for tests; the operator default is `corpus` (or CORPUS_DIR). */
   readonly corpusDir?: string;
   /** Plan override for tests; the operator default is the smoke plan. */
   readonly plan?: TestPlan;
-}
-
-function errorOutcome(...errors: readonly string[]): ReportOutcome {
-  return { exitCode: 1, out: [], err: errors };
-}
-
-/** The unknown-run outcome shared by the shape guard and the manifest gate. */
-function unknownRunOutcome(runId: string, corpusDir: string): ReportOutcome {
-  return errorOutcome(
-    `Unknown run "${runId}" — no run-manifest.json in ${corpusDir}/${runId}/.`,
-    USAGE,
-  );
 }
 
 /** The run's metadata for the report header plus the recorded plan version,
@@ -274,7 +263,7 @@ export function reportSmoke(
   options: ReportOptions = {},
 ): ReportOutcome {
   const { corpusDir: flagCorpusDir, rest } = extractCorpusDir(argv);
-  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? CORPUS_DIR;
+  const corpusDir = flagCorpusDir ?? options.corpusDir ?? process.env.CORPUS_DIR ?? DEFAULT_CORPUS_DIR;
   const plan = options.plan ?? smokeTestPlan;
 
   // The positional-count guard applies to the args that remain after the
@@ -292,17 +281,14 @@ export function reportSmoke(
   if (requested === undefined) {
     const latest = resolveLatestRun(corpusDir);
     if (latest === null) {
-      return errorOutcome(
-        `No recorded run found in ${corpusDir}/ — record one first with \`npm run run:smoke\`.`,
-        USAGE,
-      );
+      return noRecordedRunOutcome(corpusDir, USAGE);
     }
     runId = latest;
   } else {
     // The shape guard precedes any fs access: a runId with separators or ".."
     // must never reach a corpus path (mirrors handlinks' RUN_ID_PATTERN trust).
     if (!RUN_ID_PATTERN.test(requested) || !isKnownRun(corpusDir, requested)) {
-      return unknownRunOutcome(requested, corpusDir);
+      return unknownRunOutcome(corpusDir, requested, USAGE);
     }
     runId = requested;
   }

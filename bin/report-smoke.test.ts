@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { StepEvidence, TestPlan, ValidationResult } from "../model/schemas.js";
 import { generateSampleReport } from "./generate-sample-report.js";
-import { resolveLatestRun } from "./validate-smoke.js";
+import { resolveLatestRun } from "./cli-shared.js";
 import { buildStepEvidence, deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
 
 // Ghost-result injection: the offline runner is wrapped so one test can append

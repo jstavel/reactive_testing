@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import type { RunManifest, TestPlan } from "../model/schemas.js";
-import { resolveLatestRun } from "./validate-smoke.js";
+import { resolveLatestRun } from "./cli-shared.js";
 import { GENERATE_USAGE, generateSampleReport } from "./generate-sample-report.js";
 
 // Emit-failure injection: the json emitter is wrapped so a test can reproduce
