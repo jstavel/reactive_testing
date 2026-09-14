@@ -7,6 +7,7 @@
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
+import { actionDiagnostics } from "./action-diagnostics.js";
 import { finishRun } from "./run-smoke-finish.js";
 import { selectScenarios } from "./scenario-select.js";
 
@@ -75,5 +76,8 @@ for (const error of finish.err) {
 }
 for (const line of finish.out) {
   console.log(line);
+}
+for (const line of actionDiagnostics(plan, result.scenarios, config.corpusDir)) {
+  console.error(line);
 }
 process.exit(finish.exitCode);

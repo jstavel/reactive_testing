@@ -22,7 +22,7 @@ import type { TestPlan } from "./schemas.js";
 
 export const smokeTestPlan: TestPlan = {
   planId: "smoke",
-  modelVersion: "eace0d6f677c2ba81698d931123d96f03bf5415777ba4e0249a5bfe4fe86d13e",
+  modelVersion: "883880428012aa2d8180b683780db6578b1a51a53f10250e3220fd8a1bf1f76c",
   scenarios: [
     // home-page-history-menu.feature
     {

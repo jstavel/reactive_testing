@@ -488,6 +488,7 @@ async function executeScenario(
   plannedCollectors: CollectorName[],
   phase?: "bootstrap",
 ): Promise<ScenarioResult> {
+  let failedStep: { stepIndex: number; stateId: string; contractId: string } | undefined;
   try {
     const planned = new Set(plannedCollectors);
     for (let i = 0; i < scenario.steps.length; i++) {
@@ -526,6 +527,7 @@ async function executeScenario(
 
       // Action + settle, wrapped so a failure captures best-effort evidence and
       // records a step failure before rethrowing (the scenario still fails).
+      failedStep = { stepIndex, stateId: step.stateId, contractId: step.contractId };
       try {
         await withTimeout(action({ page }), stepTimeout);
         const settleSelector = config.settleSelector ?? config.readySelector;
@@ -650,6 +652,7 @@ async function executeScenario(
       id: scenario.id,
       passed: false,
       error: err instanceof Error ? err.message : String(err),
+      failedStep,
     };
   }
 }

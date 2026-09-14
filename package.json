@@ -15,6 +15,7 @@
     "lint:fix": "biome check --write .",
     "lint:fix:unsafe": "biome check --write --unsafe .",
     "run:smoke": "tsx bin/run-smoke.ts",
+    "verify:actions": "tsx bin/verify-actions.ts",
     "validate:smoke": "tsx bin/validate-smoke.ts",
     "report:smoke": "tsx bin/report-smoke.ts",
     "generate:sample": "tsx bin/generate-sample-report.ts",

@@ -40,6 +40,17 @@ The runner executes selected scenarios in plan order, deduplicates repeated ids,
 fails before connecting to CDP when an id is unknown (the error lists every valid id).
 Without ids, the full plan runs as before. Exit-code semantics are unchanged.
 
+When a live action fails, the runner prints the failed contract and state, points to
+`corpus/@last-fail`, and prompts QA to distinguish locator drift from a wrong
+postcondition. To replay every distinct action-map entry as an isolated live check:
+
+```bash
+npm run verify:actions
+```
+
+This command requires the same authenticated CDP browser and writes local corpus
+evidence. It is a QA guard, not a CI test.
+
 What happens: the orchestrator attaches over CDP
 (`http://127.0.0.1:9222`), opens a fresh tab, navigates to
 `https://pro.kraken.com/app/home`, waits for the hero value, then walks the

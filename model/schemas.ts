@@ -259,6 +259,11 @@ export interface ScenarioResult {
   id: string;
   passed: boolean;
   error?: string;
+  failedStep?: {
+    stepIndex: number;
+    stateId: string;
+    contractId: string;
+  };
 }
 
 /** Result of a test plan run. */
