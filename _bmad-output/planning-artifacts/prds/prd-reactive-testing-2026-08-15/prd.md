@@ -10,7 +10,7 @@ status: final
 
 ## 0. Document Purpose
 
-This PRD defines Reactive Testing, a spec-first approach to testware: the target application is described as a formal model (FSM + contracts + schemas), the model is the deliverable, and test scripts are byproducts. It is written for the QE who builds and operates it (internal/tech audience), for the AI agents that execute it, and for downstream workflow owners (architecture, epics and stories, sprint planning, build). It builds on three inputs and does not duplicate them: `SPEC.md` (the canonical, preservation-validated contract — capabilities, constraints, non-goals, success signal), `constitution.md` (frozen history; its domain discovery is harvested, not re-litigated), and `project-context.md` (motivation, state-reuse value, role mapping). Interview/showcase narrative lives in `addendum.md`, never in this body. Vocabulary is glossary-anchored, each feature nests its FRs, and assumptions are tagged inline and indexed in §9.
+This PRD defines Reactive Testing, a spec-first approach to testware: the target application is described as a formal model (FSM + contracts + schemas), the model is the deliverable, and test scripts are byproducts. It is written for the QE who builds and operates it (internal/tech audience), for the AI agents that execute it, and for downstream workflow owners (architecture, epics and stories, sprint planning, build). It builds on the canonical `SPEC.md` (capabilities, constraints, non-goals, and success signal), the companion `state-granularity.md`, and the architecture decisions. Historical source material has been harvested into those current artifacts. Interview/showcase narrative lives in `addendum.md`, never in this body. Vocabulary is glossary-anchored, each feature nests its FRs, and assumptions are tagged inline and indexed in §9.
 
 ## 1. Vision
 
@@ -180,7 +180,7 @@ Multiple named test plans exist; the QE specifies which plan covers a scenario, 
 - **Polyglot emitter** — no TS + Pytest + Bash targets; one language, TypeScript. Realizes the single-language constraint.
 - **Gherkin as SSOT** — it is a query/input interface only; FSM/contracts are the machine truth.
 - **Re-enabling Clojure skills** — no Clojure/EDN/Malli; that lineage stays in the sibling project.
-- **Re-validating `constitution.md`** — it stays frozen as history; its domain discovery is harvested, not re-litigated.
+- **Re-validating retired historical design material** — the relevant decisions are already captured in the current SPEC, companions, and architecture.
 - **Portfolio/deadline framing** — this is a way of working, not a 1–2-week demo race (even though the Kraken Pro corpus is the proving ground).
 - **Fixing the target app's bugs** — testware reports failures and produces repros; it does not patch the app.
 - **A general AI agent framework / vector RAG over the corpus** — dedup runs as a direct corpus query in v1; no retrieval layer is added over the corpus.

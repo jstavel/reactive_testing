@@ -2,7 +2,6 @@
 id: SPEC-pilot-operation
 companions:
   - ../spec-reactive-testing/SPEC.md
-  - ../../../constitution.md
   - state-granularity.md
 sources: []
 ---

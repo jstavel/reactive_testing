@@ -135,4 +135,4 @@ exist, on purpose or by staging:
 | xunit / JSON CI reporter | Not built (reporter is library-only) |
 | Headless smoke mode | Not built; recording attaches to your authenticated browser over CDP |
 | `scripts/repro-*.ts` | Created on demand by `writeReproScript` |
-| `docs/` history | The removed `project-context.md` / `constitution.md` hold frozen vision; planning lives under `_bmad-output/` (internal) |
+| Historical constitution | Removed after its relevant decisions were harvested into the canonical SPEC and `state-granularity.md`; planning lives under `_bmad-output/` (internal) |

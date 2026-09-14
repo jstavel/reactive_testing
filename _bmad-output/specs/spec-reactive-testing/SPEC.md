@@ -1,7 +1,6 @@
 ---
 id: SPEC-reactive-testing
 companions:
-  - ../../../constitution.md
   - state-granularity.md
   - ../../planning-artifacts/architecture/architecture-reactive-testing-2026-08-17/ARCHITECTURE-SPINE.md
 sources: []
@@ -52,7 +51,7 @@ An opportunity to capture, born of the AI revolution: as AI writes more code, th
 - A polyglot emitter framework (TS + Pytest + Bash targets) — one language, TypeScript.
 - Gherkin as SSOT — it is a query/input interface only.
 - Portfolio/deadline framing — this is a way of working, not a 1–2-week demo race.
-- Re-validating the full body of `constitution.md` — it stays frozen as history; its domain discovery is harvested, not re-litigated.
+- Re-validating retired historical design material — the domain decisions needed by this project are captured in this SPEC and its companions.
 
 ## Success signal
 
@@ -61,7 +60,7 @@ A live session against the target app where a newly discovered state is recorded
 ## Assumptions
 
 - Browser automation is Playwright over CDP against the live authenticated app (read-only), with the AI agent reading DOM/aria snapshots via Playwright MCP.
-- The target app for the initial corpus is Kraken Pro (the discovered FSM in `constitution.md`).
+- The target app for the initial corpus is Kraken Pro, represented by the discovered FSM and contracts in the corpus model.
 - MBT/MDD lineage holds: the model drives scenario generation; artifacts are derived from the model.
 
 ## Open Questions

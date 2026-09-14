@@ -1,6 +1,6 @@
 # State Granularity — decision rules for discover-and-record
 
-Rules for classifying what an agent observes in the live app, harvested from the discovered domain (see adopted companion `constitution.md`). CAP-1's discover-and-record applies these to judge whether a new observation is a state, a contract, a parameter, or ignorable.
+Rules for classifying what an agent observes in the live app. CAP-1's discover-and-record applies these to judge whether a new observation is a state, a contract, a parameter, or ignorable.
 
 ## Core rule
 
