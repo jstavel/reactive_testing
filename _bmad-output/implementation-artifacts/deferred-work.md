@@ -187,6 +187,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-3-new-validation-rule-without-re-running-the-scenario.md`
   summary: Add an `npm run validate:smoke` script as the validation counterpart to `npm run run:smoke`. The offline validator runner exists (`validators/offline-runner.ts` `runValidatorsOffline(corpusDir, runId, plan, contractIds?)`), but there is no CLI entry point: `package.json` scripts list only `typecheck`/`test`/`run:smoke`, and `bin/` holds only `run-smoke.ts`. The script needs proper arguments — corpus dir, the `runId` to validate, and which `plan` — and surfaces the resulting `ValidationResult`s.
   evidence: User observation (2026-09-08): "there is no command the same way as 'npm run run:smoke' to run validators." Overlaps epic-4 retro item-5 (FR-12/FR-13 entry-point wiring of `runCrossViewInvariants` into a verification entry point) and the spec-user-documentation-set deferred item on a missing regeneration path.
+  RESOLVED (2026-09-15): shipped — `bin/validate-smoke.ts` + `npm run validate:smoke` (package.json:19) with `[--corpus-dir <path>] [<runId>] [<contractId>…]`, implicit `@last-run` default, runId shape guard, and the planModelVersion refusal; documented in docs/usage.md.
 
 ## Deferred from: review of spec-given-fsm-navigation (2026-09-08)
 
@@ -215,6 +216,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: The new `corpus:*` npm scripts, `CORPUS_DIR` override, and `@last-run`/`@last-fail` semantics are documented only in source comments and a `docs/usage.md` snippet hint; there is no canonical operator-facing documentation entry for the handoff surface (README/project-map/architecture). Add a docs story or fold into the user-docs set.
   evidence: Blind-hunter review noted no spec-side or doc-side text records the new operator surface beyond code comments; the repo's docs/ establish the convention (usage.md walkthrough, project-map.md).
+  RESOLVED (2026-09-15): shipped — docs/project-map.md documents `bin/corpus-links.ts` (`@last-run`/`@last-fail` handoff links, corpus:* scripts) and docs/usage.md documents the `@last-run` fan semantics plus the operator CLIs consuming it (validate:smoke/report:smoke walkthrough).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: `finishRun`'s `handoff` object is an eighth positional argument, so every existing `finishRun` assertion had to be updated with a trailing `{ failed: … }` — a params-object/options shape (or defaulting on the callers) would reduce churn and misordering risk as the signature grows.
@@ -226,12 +228,14 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-history-filter-pagination.md`
   summary: RFC — a `Given` state must be compiled into deterministic FSM navigation so it is always satisfied, not treated as documentation text. Concretely: (1) before every scenario, start from `initialStateId` (`homePage`), find the shortest path to the scenario's first required state (e.g. `homePage → historyMain` via `clickHistoryMenuMain`) and execute that bootstrap path; (2) record bootstrap steps in the evidence but keep them separate from the scenario's tested steps, so scenarios become independent of execution order and of the state left by the previous scenario; (3) reject the test at validation time when no path exists or when multiple paths exist without a priority rule, and add a runtime guard that verifies the expected URL/state before each action.
   evidence: User finding (2026-09-08) while investigating why `open-assets-filter` does not reach the History ledger page: the scenario `open-the-assets-filter` (`model/smoke.test-plan.ts`) starts directly at `historyMain`/`filterHistoryByAsset`, but the runner bootstraps only to `/app/home` (`bin/run-smoke.ts`), and no step executes `clickHistoryMenuMain` — the scenario works only if a preceding scenario happened to leave the page on the History ledger. Navigation actions already exist in `orchestrator/action-map.ts` (`clickHistoryMenuMain` waits for `**/app/history/main/ledger`); the gap is that the orchestrator never composes a bootstrap path from the FSM to satisfy a scenario's `Given`. Related parked item: "how to load app state before verifications use values" (2026-09-01) and the full-run cascade finding (scenario 7 leaving the page off-home breaking dialog scenarios 8-10) — both are symptoms of the same missing state-establishment mechanism.
+  RESOLVED (2026-09-15): shipped as spec-given-fsm-navigation — `orchestrator/bootstrap.ts` `resolveBootstrapPath` compiles the scenario's `givenStateId` into the deterministic shortest FSM path, wired into `validatePlan` preflight and the execution loop with bootstrap evidence, rejecting no-path/multi-path (route override escape hatch). The residual latent gap (guarded transitions ignored) remains tracked separately above.
 
 ## Deferred from: live smoke run (2026-09-09)
 
 - source_spec: none
   summary: Investigate live smoke timeouts in the Earn navigation and History ledger action contracts. In run `353dbf5a-ee9c-47a9-a982-3e373a6f9516` (`modelVersion 3b97cf8b…`, `stepTimeout 20000ms`), `clickPortfolioMenuEarn` timed out from `homePage`, and `filterHistoryByAsset` timed out twice plus `paginateHistoryNext` timed out once from `historyMain`; 9/13 scenarios passed. Also fix failure evidence naming so each failed step retains its own screenshot instead of all failures overwriting the shared `screenshots/<runId>/failure.png`.
   evidence: `npm run run:smoke` completed in 146.3s with failures at step indexes 6, 14, 15, and 16. Corpus: `corpus/353dbf5a-ee9c-47a9-a982-3e373a6f9516/` and `corpus/@last-fail/`; manifest records `clickPortfolioMenuEarn`, `filterHistoryByAsset`, and `paginateHistoryNext` failures with `Step timed out after 20000ms`. The captured screenshot is `corpus/screenshots/353dbf5a-ee9c-47a9-a982-3e373a6f9516/failure.png`; repeated manifest references point to this same filename, so earlier failure screenshots were overwritten by later failures. Most navigation and Portfolio Summary scenarios passed in the same CDP run, narrowing the issue to the Earn/History action locators or page-interaction state plus per-step failure artifact naming. Tracking issue: https://github.com/jstavel/reactive_testing/issues/22.
+  RESOLVED (2026-09-15): both halves shipped — the timeout root cause was diagnosed as action-map locator drift and fixed in spec-gh-22-action-locator-drift (see the RESOLVED note below; full plan 13/13 live); failure evidence naming fixed in spec-gh-22-failure-evidence-naming — per-step `snapshots|screenshots/<runId>/<i>.failure(.json|.png)` names replace the shared `failure.png` (orchestrator/corpus.test.ts:120-121).
 
 - source_spec: none
   summary: Investigate the live smoke timeouts themselves (Earn navigation `clickPortfolioMenuEarn` from `homePage`, and the History ledger actions `filterHistoryByAsset`/`paginateHistoryNext` from `historyMain` — root cause is either action-map locator drift or app-side change requiring adjudication) — split out of the gh-22 evidence-naming story so the two goals ship independently.
@@ -256,6 +260,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
   summary: Add an automated guard that pins `validate:smoke` (currently only verified manually each story) — e.g. an expiry-pinned test that runs `bin/validate-smoke.ts` against the latest corpus run and asserts 18/18.
   evidence: Verification-gap/AC review of the 5-3 diff; the 18/18 claim is demonstrated only by manual CLI runs in story verification (5-2 and 5-3 alike), never by the committed test suite, so a future regression in validator-map or corpus handling would escape CI.
+  RESOLVED (2026-09-15): shipped (consolidated with epic-5 retro item V2/3) — `bin/validate-smoke.test.ts` pins the committed `example` fixture at 18/18 exit 0 (:772) and the implicit latest-run default via a spawned process (:1017-1056).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
   summary: Add a `default:` fallthrough guard to the `evaluate()` switch in validator-map.ts (and the predicate switch in dependencies.ts) returning a failed "unknown predicate" result instead of falling off the switch — unreachable today because the schema restricts `assert` to the 5-predicate union, but a binding against a hand-rolled predicate would otherwise return `undefined` and violate FR-5 (never throw) at the `r.passed` dereference.
@@ -268,9 +273,11 @@
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
   summary: Extract a shared CLI outcome/guard module from `bin/validate-smoke.ts` + `bin/report-smoke.ts` — `ReportOutcome`/`ValidateOutcome`, `errorOutcome`, `unknownRunOutcome`, and the flag/shape-guard sequence are hand-duplicated, so the two operator CLIs can drift.
   evidence: Blind-hunter review of the story-6 diff: only `resolveLatestRun`/`isKnownRun` are imported; the error families and guards are textual copies that already needed a wording alignment during review.
+  RESOLVED (2026-09-15): shipped — `bin/cli-shared.ts` owns the shared outcome/guard surface (`errorOutcome`, `unknownRunOutcome`, `noRecordedRunOutcome`, `planVersionRefusal`, `readRawRunManifest`, `readPlanModelVersion`, `resolveLatestRun`); both CLIs import it and `bin/cli-shared.test.ts` pins the exports.
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
   summary: Document `report:smoke` in the operator CLI doc set (`docs/usage.md`) alongside `validate:smoke`/`run:smoke` — the new script ships with no operator-facing documentation.
   evidence: Blind-hunter review noted the diff adds the script and tests but no docs entry; the repo maintains a documented CLI walkthrough (docs/usage.md) as the canonical operator surface.
+  RESOLVED (2026-09-15): shipped — docs/usage.md documents `npm run report:smoke` alongside `validate:smoke` (usage.md:130-205) and the example-fixture walkthrough (:464-465).
 ## Deferred from: S1 reporter review (2026-09-11)
 
 - source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/1-reporter-report-json-sibling-and-corpus-evidence-links.md`
@@ -281,6 +288,7 @@
   summary: Offline `validate:smoke`/`report:smoke` CLIs have no run↔plan modelVersion guard — plan drift since recording misaligns offline validation and step-indexed evidence refs (`buildStepEvidence` inherits the risk);the run manifest doesn't record the plan version it ran. Pre-existing;, surfaced by the S1 review。
 
   evidence: Edge-case-hunter review of the S1 diff: step refs cite files by plan-order step index;if the plan changed since the corpus run was recorded, refs silently cite wrong steps' evidence — same misalignment already affects `runValidatorsOffline`, so the fix is repo-wide, not story-local（store plan modelVersion in run-manifest + guard in both CLIs.
+  RESOLVED (2026-09-15): shipped — `runManifestSchema` records `planModelVersion` (model/schemas.ts:333, orchestrator/corpus.ts), `validators/corpus-loader.ts` refuses legacy manifests without it, and both CLIs refuse drifted plans via `planVersionRefusal` (bin/validate-smoke.ts:174, bin/report-smoke.ts:301).
 
 ## Deferred from: S2 sample-report generator review (2026-09-11)
 
@@ -293,6 +301,7 @@
 - source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/3-failure-demo-red-report-showcase-zero-committed-footprint.md`
   summary: README failure showcase — dev-only Playwright rasterizer (bin/screenshot-report.ts, screenshot:report script) rendering the fail-demo report to a committed docs/report-failure.png, plus the README "Error report showcase" block (image + regenerate commands + not-committed note) and docs/usage.md entries.
   evidence: Token-budget split of the S3 story at plan time ([S] Split): the generator --fail red-report production (the standalone, headless-testable core) was kept; the human-visible presentation layer (PNG + README + docs) was deferred to a follow-up story because it needs a browser dependency (Playwright rasterize) and a human-reviewed artifact, both outside the generator's offline-pure surface.
+  RESOLVED (2026-09-15): shipped as story 5 of spec-report-gherkin-corpus-links — `bin/screenshot-report.ts` + `npm run screenshot:report`, committed human-reviewed `docs/report-failure.png`, README "Error report showcase" block, docs/usage.md entry (:233-247).
 
 ## Deferred from: S3 failure-demo review (2026-09-11)
 
