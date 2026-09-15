@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 19:58
-last_updated: 09-10-2026 22:12
+last_updated: 09-15-2026 18:45
 project: reactive-testing
 project_key: NOKEY
 tracking_system: file-system
@@ -61,11 +61,13 @@ development_status:
   3-4-failure-surfaces-as-reviewable-gherkin: done
   3-5-adjudicated-spec-change-only: done
   3-6-gherkin-is-never-the-ssot: done
+  3-7-offline-corpus-reconciliation: done
   epic-3-retrospective: done
 
-  epic-4: in-progress
+  epic-4: done
   4-1-standalone-repro-script-from-the-model: done
   4-2-cross-view-standing-invariant-validator: done
+  4-3-cross-view-live-wiring: done
   epic-4-retrospective: done
 
   epic-5: done
@@ -138,8 +140,9 @@ action_items:
     action: "Commit feature subjects with the story id (3-N-slug) so git_evidence
       per-story attribution survives; extend Epic-2 F4 working rule. (retro F5)"
     owner: "Jan"
-    status: in-progress
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-3-retro-09-02-2026.md"
+    resolution: "Historical 2026-09-15 commits were retained; retroactive story records now provide attribution, and future commits must use exact story IDs in their subjects."
   - id: "epic-3-retro-item-10-decide-whether-fr-7-fr-8-need-a-cli-path"
     epic: 3
     action: "Decide whether FR-7/FR-8 need a CLI path in the next epic or stay library-only
@@ -189,8 +192,9 @@ action_items:
       point / runner config, add the orchestrator-to-cross-view round-trip test, and
       resolve the cross-view comparison-scope question."
     owner: "Jan"
-    status: open
+    status: done
     ref: "/home/jstavel/dev/reactive-testing/_bmad-output/implementation-artifacts/epic-4-retro-09-02-2026.md"
+    resolution: "Completed by retroactive story 4-3-cross-view-live-wiring; implementation commit 6543dba and committed fixture verification provide evidence."
   - id: "epic-5-retro-item-16-flip-spec-5-1-history-filter-pagination"
     epic: 5
     action: "Flip spec-5-1-history-filter-pagination.md frontmatter status in-review

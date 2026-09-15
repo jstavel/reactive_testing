@@ -1,5 +1,6 @@
 ---
 title: 'Offline validation reconciles expected checks — no vacuous passes on partial corpora'
+story_id: '3-7-offline-corpus-reconciliation'
 type: 'bugfix'
 created: '2026-09-15'
 status: 'done'

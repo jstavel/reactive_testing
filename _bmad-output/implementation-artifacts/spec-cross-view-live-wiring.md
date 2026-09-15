@@ -1,5 +1,6 @@
 ---
 title: 'Wire cross-view invariants into live and offline smoke verification'
+story_id: '4-3-cross-view-live-wiring'
 type: 'feature'
 created: '2026-09-15'
 status: 'done'
