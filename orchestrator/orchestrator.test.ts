@@ -89,7 +89,10 @@ const baseConfig: OrchestratorConfig = {
   stepTimeout: 30_000,
   runTimeout: 300_000,
   corpusDir: "/tmp/test-corpus",
-  probes: [{ name: "selected-view", selector: 'a[role="tab"][aria-current="page"]' }],
+  probes: [
+    { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]' },
+    { name: "portfolio-value", selector: '[data-testid="overview-portfolio-hero-value-text"]' },
+  ],
 };
 
 function makePlan(scenarios: TestPlan["scenarios"]): TestPlan {
@@ -1204,6 +1207,23 @@ describe("corpus wiring", () => {
 
     await expect(runTestPlan(plan, { ...baseConfig, probes: [] })).rejects.toThrow(
       /not configured: selected-view/,
+    );
+  });
+
+  it("fails preflight before CDP launch when the configured probes omit the registry-derived portfolio-value probe", async () => {
+    // AC pin (spec INVARIANT matrix, PROBE_NOT_CONFIGURED): a config carrying
+    // every contract probe but the invariant's own probe must be rejected with
+    // the missing probe named — the spec task claimed this coverage.
+    const plan = makePlan([
+      {
+        id: "needs-invariant",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = baseConfig.probes.filter(({ name }) => name !== "portfolio-value");
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /not configured: portfolio-value/,
     );
   });
 });

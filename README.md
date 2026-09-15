@@ -141,8 +141,6 @@ These are the highest-value, lowest-dependency items tracked in the
 [sprint status](_bmad-output/implementation-artifacts/sprint-status.yaml)
 and [deferred work](_bmad-output/implementation-artifacts/deferred-work.md).
 
-- **Wire cross-view invariants into the runner.** `runCrossViewInvariants` exists
-  but no runner calls it. The seed `portfolio-value` probe needs wiring too.
 - **Resolve earn-nav intermittent timeout.** Scenario 7
   (`clicking-earn-navigates-to-the-standalone-earn-page`) occasionally times
   out and cascades to fail the dialog scenarios that follow.

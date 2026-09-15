@@ -7,6 +7,7 @@
 
 import { allContracts } from "../model/contracts.js";
 import type { CollectorName } from "../model/schemas.js";
+import { crossViewInvariants } from "./cross-view.js";
 
 /** Which collectors a contract's validators read, derived from its predicates:
  * `state-is`/`url-is`/`dialog-*` → snapshot; `view-selected` → probe.
@@ -48,4 +49,12 @@ export function requiredProbeNames(contractId: string): string[] {
     }
   }
   return [...probeNames];
+}
+
+export function requiredCrossViewProbeNames(): string[] {
+  return [...new Set(crossViewInvariants.map(({ probeName }) => probeName))];
+}
+
+export function crossViewCorpusDependencies(): CollectorName[] {
+  return crossViewInvariants.length > 0 ? ["probe"] : [];
 }

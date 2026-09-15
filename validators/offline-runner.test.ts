@@ -7,6 +7,7 @@ import type { CorpusRun, TestPlan } from "../model/schemas.js";
 import { validationResultSchema } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
+import { crossViewInvariants } from "./cross-view.js";
 import { runValidatorsOffline } from "./offline-runner.js";
 import { validatorMap } from "./validator-map.js";
 
@@ -63,6 +64,15 @@ function finish(corpusDir: string, run: CorpusRun): void {
   finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], ["snapshot", "probe"]);
 }
 
+function runContractValidators(corpusDir: string, runId: string, plan: TestPlan) {
+  return runValidatorsOffline(
+    corpusDir,
+    runId,
+    plan,
+    plan.scenarios.flatMap((scenario) => scenario.steps.map((step) => step.contractId)),
+  );
+}
+
 describe("runValidatorsOffline", () => {
   it("re-validates a recorded run end-to-end, producing conforming results (satisfied + violated)", () => {
     const corpusDir = makeCorpusDir();
@@ -117,6 +127,136 @@ describe("runValidatorsOffline", () => {
     expect(violated).toHaveLength(1);
     expect(violated[0]!.passed).toBe(false);
     expect(violated[0]!.details).toContain("url-is");
+  });
+
+  it("appends a passing cross-view result after contract results", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "open", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+        {
+          id: "close",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
+      ],
+    };
+    writeSnapshot(corpusDir, run, 0, { stateId: "portfolioSummaryDialog", url: "home" });
+    writeProbes(corpusDir, run, 0, [{ name: "portfolio-value", value: "100.00" }]);
+    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "home" });
+    writeProbes(corpusDir, run, 1, [{ name: "portfolio-value", value: "100.00" }]);
+    finish(corpusDir, run);
+    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    expect(results.at(-1)).toMatchObject({
+      contractId: "current-portfolio-value-agrees-across-surfaces",
+      passed: true,
+    });
+  });
+
+  it("fails divergent values through the offline runner", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "open", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+        {
+          id: "close",
+          steps: [{ stateId: "portfolioSummaryDialog", contractId: "closePortfolioSummary" }],
+        },
+      ],
+    };
+    writeSnapshot(corpusDir, run, 0, { stateId: "portfolioSummaryDialog", url: "home" });
+    writeProbes(corpusDir, run, 0, [{ name: "portfolio-value", value: "100.00" }]);
+    writeSnapshot(corpusDir, run, 1, { stateId: "homePage", url: "home" });
+    writeProbes(corpusDir, run, 1, [{ name: "portfolio-value", value: "101.00" }]);
+    finish(corpusDir, run);
+    const result = runValidatorsOffline(corpusDir, run.runId, plan).at(-1);
+    expect(result).toMatchObject({
+      contractId: "current-portfolio-value-agrees-across-surfaces",
+      passed: false,
+    });
+    expect(result?.details).toContain('surface "homePage" shows "101.00"');
+    expect(result?.details).toContain('surface "portfolioSummaryDialog" shows "100.00"');
+  });
+
+  it("fails the invariant when the run manifest is invalid (no silent count shrink)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "open", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    finish(corpusDir, run);
+    writeFileSync(join(corpusDir, run.runId, "run-manifest.json"), "{not json");
+    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    expect(results).toContainEqual(
+      expect.objectContaining({
+        contractId: "openPortfolioSummary",
+        passed: false,
+        details: "cannot validate: run manifest invalid",
+      }),
+    );
+    expect(results).toContainEqual(
+      expect.objectContaining({
+        contractId: "current-portfolio-value-agrees-across-surfaces",
+        passed: false,
+        details: "cannot validate: run manifest invalid",
+      }),
+    );
+  });
+
+  it("fails the invariant when the plan is malformed (never vanishes)", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    finish(corpusDir, run);
+    const malformedPlan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        {
+          id: "broken",
+          steps: "not-an-array" as unknown as TestPlan["scenarios"][number]["steps"],
+        },
+      ],
+    };
+    const results = runValidatorsOffline(corpusDir, run.runId, malformedPlan);
+    expect(results).toContainEqual(
+      expect.objectContaining({
+        contractId: "current-portfolio-value-agrees-across-surfaces",
+        passed: false,
+        details: "cannot validate: plan malformed",
+      }),
+    );
+  });
+
+  it("runs only selected invariants when the registry has multiple entries", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "open", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    finish(corpusDir, run);
+    crossViewInvariants.push({ ...crossViewInvariants[0]!, invariantId: "second-invariant" });
+    try {
+      const results = runValidatorsOffline(corpusDir, run.runId, plan, [
+        "current-portfolio-value-agrees-across-surfaces",
+      ]);
+      expect(results).toHaveLength(1);
+      expect(results[0]?.contractId).toBe("current-portfolio-value-agrees-across-surfaces");
+    } finally {
+      crossViewInvariants.pop();
+    }
   });
 
   it("returns [] for an unknown run (UNKNOWN_RUN mirror)", () => {
@@ -229,7 +369,7 @@ describe("runValidatorsOffline", () => {
         scenarios: [{ id: "s1", steps: [{ stateId: "homePage", contractId: NEW_CONTRACT }] }],
       };
 
-      const results = runValidatorsOffline(corpusDir, run.runId, plan);
+      const results = runContractValidators(corpusDir, run.runId, plan);
 
       // The outcome derives purely from the recorded (unchanged) evidence.
       expect(results).toHaveLength(1);
@@ -252,7 +392,7 @@ describe("runValidatorsOffline", () => {
         { id: "unknown", steps: [{ stateId: "homePage", contractId: "missingContract" }] },
       ],
     };
-    expect(runValidatorsOffline(corpusDir, run.runId, plan)).toEqual([
+    expect(runContractValidators(corpusDir, run.runId, plan)).toEqual([
       expect.objectContaining({
         contractId: "missingContract",
         passed: false,
@@ -273,7 +413,7 @@ describe("runValidatorsOffline", () => {
         { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
-    expect(runValidatorsOffline(corpusDir, invalidRun.runId, oneStep)).toEqual([
+    expect(runContractValidators(corpusDir, invalidRun.runId, oneStep)).toEqual([
       expect.objectContaining({
         contractId: "openPortfolioSummary",
         passed: false,
@@ -291,7 +431,7 @@ describe("runValidatorsOffline", () => {
         ...oneStep,
         scenarios: [{ id: "one", steps: [{ stateId: "homePage", contractId: INDEPENDENT }] }],
       };
-      const results = runValidatorsOffline(corpusDir, corruptRun.runId, corruptPlan);
+      const results = runContractValidators(corpusDir, corruptRun.runId, corruptPlan);
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
         contractId: INDEPENDENT,
@@ -316,7 +456,7 @@ describe("runValidatorsOffline", () => {
         modelVersion: "x",
         scenarios: [{ id: "one", steps: [{ stateId: "homePage", contractId: INDEPENDENT }] }],
       };
-      const schemaResults = runValidatorsOffline(corpusDir, schemaRun.runId, plan);
+      const schemaResults = runContractValidators(corpusDir, schemaRun.runId, plan);
       expect(schemaResults).toContainEqual(
         expect.objectContaining({
           contractId: INDEPENDENT,
@@ -339,7 +479,7 @@ describe("runValidatorsOffline", () => {
         { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
-    const missingResults = runValidatorsOffline(corpusDir, missingRun.runId, missingPlan);
+    const missingResults = runContractValidators(corpusDir, missingRun.runId, missingPlan);
     expect(missingResults).toHaveLength(1);
     expect(missingResults[0]?.details).toContain("missing snapshot evidence");
     expect(missingResults[0]?.details).not.toContain("corrupt file");
@@ -404,10 +544,10 @@ describe("runValidatorsOffline", () => {
         { id: "good", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
-    expect(runValidatorsOffline(corpusDir, run.runId, wellFormedPlan)).toEqual([
+    expect(runContractValidators(corpusDir, run.runId, wellFormedPlan)).toEqual([
       expect.objectContaining({ contractId: "openPortfolioSummary", passed: true }),
     ]);
-    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    const results = runContractValidators(corpusDir, run.runId, plan);
     expect(results.length).toBeGreaterThan(0);
     expect(results.every(({ contractId, passed }) => contractId === "(corpus)" && !passed)).toBe(
       true,
@@ -425,7 +565,7 @@ describe("runValidatorsOffline", () => {
         { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
       ],
     };
-    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    const results = runContractValidators(corpusDir, run.runId, plan);
     expect(results).toHaveLength(1);
     expect(results[0]?.contractId).toBe("openPortfolioSummary");
     expect(results[0]?.details).not.toContain("corrupt");
@@ -483,9 +623,9 @@ describe("runValidatorsOffline", () => {
         ],
       };
 
-      expect(() => runValidatorsOffline(corpusDir, run.runId, plan)).not.toThrow();
+      expect(() => runContractValidators(corpusDir, run.runId, plan)).not.toThrow();
 
-      const results = runValidatorsOffline(corpusDir, run.runId, plan);
+      const results = runContractValidators(corpusDir, run.runId, plan);
       expect(results).toContainEqual(
         expect.objectContaining({
           contractId: THROWING,

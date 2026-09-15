@@ -26,7 +26,7 @@
 // source that was run, not an authored copy) plus the scenario↔model
 // relations.
 //
-// Derivation (demo-verified on corpus efcb749d, 18/18 checks → 14/14
+// Derivation (demo-verified on corpus efcb749d, 19/19 checks → 14/14
 // scenarios): validation results arrive in plan-step order, so a contract's
 // results are consumed whole by the first scenario — in plan order — that
 // references the contract in a step; every result lands in exactly one
@@ -52,6 +52,7 @@ import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
 import { emitHtmlReport } from "../reporter/html-report.js";
 import { emitJsonReport } from "../reporter/json-report.js";
+import { crossViewInvariants } from "../validators/cross-view.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import {
   type CliOutcome,
@@ -69,7 +70,7 @@ import {
 export const USAGE = "Usage: npm run report:smoke -- [--corpus-dir <path>] [<runId>]";
 
 /** Per-scenario results derived from offline validation results (SPEC CAP-6
- * assumption, demo-verified on corpus efcb749d: 18/18 checks → 14/14
+ * assumption, demo-verified on corpus efcb749d: 19/19 checks → 14/14
  * scenarios): the runner emits results in plan-step order, so a contract's
  * results queue up and are consumed whole by the first scenario — in plan
  * order — that references the contract in a step. Every result lands in
@@ -90,7 +91,7 @@ export function deriveScenarioResults(
   }
 
   const failedResults = results.filter(({ passed }) => !passed);
-  return plan.scenarios.map((scenario) => {
+  const scenarioResults = plan.scenarios.map((scenario) => {
     const ownedFailures = failedResults.filter(
       (result) => firstOwnerByContract.get(result.contractId) === scenario.id,
     );
@@ -103,6 +104,21 @@ export function deriveScenarioResults(
       ...(error.length > 0 ? { error } : {}),
     };
   });
+  const crossViewFailures = failedResults.filter(({ contractId }) =>
+    crossViewInvariants.some(({ invariantId }) => invariantId === contractId),
+  );
+  return crossViewFailures.length === 0
+    ? scenarioResults
+    : [
+        ...scenarioResults,
+        {
+          id: "cross-view-invariants",
+          passed: false,
+          error: crossViewFailures
+            .map(({ contractId, details }) => `${contractId}: ${details ?? "failed"}`)
+            .join("; "),
+        },
+      ];
 }
 
 /** A CLI run's observable behavior: exit code plus stdout/stderr lines — an
@@ -318,7 +334,11 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
   }
 
   const scenarioResults = deriveScenarioResults(plan, results);
-  const stepEvidence = buildStepEvidence(plan, corpusDir, runId);
+  const reportPlan =
+    scenarioResults.length === plan.scenarios.length
+      ? plan
+      : { ...plan, scenarios: [...plan.scenarios, { id: "cross-view-invariants", steps: [] }] };
+  const stepEvidence = buildStepEvidence(reportPlan, corpusDir, runId);
 
   // The html rel path doubles as the "html written" flag: it is set only after
   // emitHtmlReport returned (the file is on disk), so the catch can roll a
@@ -329,7 +349,7 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
     htmlWritten = emitHtmlReport({
       corpusDir,
       run,
-      plan,
+      plan: reportPlan,
       results: scenarioResults,
       relations,
       gherkinSource: buildGherkinSnapshot("features", relations),
@@ -338,7 +358,7 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
     jsonRelPath = emitJsonReport({
       corpusDir,
       run,
-      plan,
+      plan: reportPlan,
       results: scenarioResults,
       relations,
       stepEvidence,

@@ -136,11 +136,13 @@ step's snapshot manually and open an issue.
 [current-portfolio-value-agrees-across-surfaces] FAIL — <surface>: missing probe result for "portfolio-value"
 ```
 
-**Cause:** the `portfolio-value` probe is not wired into any runner's probe
-config. The cross-view mechanism works, but no runner records the probe it
-reads.
+**Cause:** the recorded run predates the live `portfolio-value` probe, or the
+probe was absent from the runner configuration. The invariant cannot confirm
+agreement without values on every declared surface.
 
-**Fix:** not yet available — tracked as a ready-to-pick-up Roadmap item.
+**Fix:** record a fresh run with `npm run run:smoke`, verify the optional probe
+uses `[data-testid="overview-portfolio-hero-value-text"]`, then rerun
+`npm run validate:smoke`.
 
 ## Development
 

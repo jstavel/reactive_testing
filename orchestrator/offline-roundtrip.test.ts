@@ -107,6 +107,11 @@ function makeConfig(corpusDir: string): OrchestratorConfig {
     headless: true,
     probes: [
       { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
+      {
+        name: "portfolio-value",
+        selector: '[data-testid="overview-portfolio-hero-value-text"]',
+        optional: true,
+      },
     ],
   };
 }

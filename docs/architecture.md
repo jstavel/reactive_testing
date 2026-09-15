@@ -192,6 +192,6 @@ This testware is a proof-of-concept for the read-only Kraken Pro critical path.
   `model/smoke.test-plan.ts`.
 - **No headless smoke mode** — recording attaches to your authenticated browser
   over CDP; an anonymous headless launch exists only for local/CI tests.
-- **Dialog predicates** (`dialog-open` / `dialog-closed`) and the cross-view
-  **`portfolio-value` probe** are declared but not yet wired into a runner —
-  tracked in `_bmad-output/implementation-artifacts/deferred-work.md`.
+- **Dialog predicates** (`dialog-open` / `dialog-closed`) remain model contracts;
+  the cross-view **`portfolio-value` probe** is collected by live smoke and
+  action-verification entry points and validated offline.

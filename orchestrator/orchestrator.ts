@@ -19,7 +19,12 @@ import type {
   TestPlan,
 } from "../model/schemas.js";
 import { testPlanSchema } from "../model/schemas.js";
-import { corpusDependenciesFor, requiredProbeNames } from "../validators/dependencies.js";
+import {
+  corpusDependenciesFor,
+  crossViewCorpusDependencies,
+  requiredCrossViewProbeNames,
+  requiredProbeNames,
+} from "../validators/dependencies.js";
 import { actionMap } from "./action-map.js";
 import { resolveBootstrapPath } from "./bootstrap.js";
 import type { BrowserSession } from "./browser.js";
@@ -299,6 +304,9 @@ function planCollectors(plan: TestPlan): CollectorName[] {
       set.add(dep);
     }
   }
+  for (const dep of crossViewCorpusDependencies()) {
+    set.add(dep);
+  }
   return [...set].sort();
 }
 
@@ -315,6 +323,9 @@ function validateProbeDependencies(plan: TestPlan, probes: Probe[]): void {
     for (const name of requiredProbeNames(contractId)) {
       required.add(name);
     }
+  }
+  for (const name of requiredCrossViewProbeNames()) {
+    required.add(name);
   }
   const configured = new Set(probes.map((p) => p.name));
   const missing = [...required].filter((n) => !configured.has(n));

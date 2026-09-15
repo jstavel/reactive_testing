@@ -77,10 +77,15 @@ export function runCrossViewInvariants(
   corpusDir: string,
   runId: string,
   plan: TestPlan,
+  invariantIds?: string[],
 ): ValidationResult[] {
   assertRegistryEntryGaps();
   const steps = loadCorpusSteps(corpusDir, runId, plan);
-  return crossViewInvariants.map((invariant) => checkInvariant(invariant, steps));
+  const selected =
+    invariantIds === undefined
+      ? crossViewInvariants
+      : crossViewInvariants.filter(({ invariantId }) => invariantIds.includes(invariantId));
+  return selected.map((invariant) => checkInvariant(invariant, steps));
 }
 
 /** Entry-time declaration gaps (never silently skipped; mirrors validator-map's

@@ -201,7 +201,7 @@ them: without a runId, the newest recorded run is used — the committed
 fixture only when no real run exists on the machine.
 
 ```bash
-npm run validate:smoke -- example --corpus-dir corpus   # 18/18 checks passed in example
+npm run validate:smoke -- example --corpus-dir corpus   # 19/19 checks passed in example
 npm run report:smoke   -- example --corpus-dir corpus   # 14/14 scenarios + both reports in corpus/example/
 ```
 
@@ -219,7 +219,7 @@ npm run generate:sample -- /tmp/x    # optional corpus root (e.g. a CI temp dir)
 
 `npm run generate:sample -- --fail` mints the throwaway red demo into the
 gitignored `corpus/fail-demo` subtrees — the same deterministic recipe with
-exactly one hand-placed defect (17/18 checks, 13/14 scenarios). The CI gate
+exactly one hand-placed defect (18/19 checks, 13/14 scenarios). The CI gate
 (§7) asserts it stays untracked — never commit anything under
 `corpus/fail-demo/`, including after a regeneration. The README's
 [Error report showcase](../README.md#error-report-showcase) embeds a PNG of it,
@@ -389,9 +389,11 @@ for (const r of results) {
 }
 ```
 
-> No runner configures the `portfolio-value` probe yet, so on recorded corpora
-> this reports the surfaces as missing evidence (honest: it cannot confirm
-> agreement). Wiring the probe into the runner is a tracked open item.
+The live smoke and action-verification runners configure the optional
+`portfolio-value` probe with selector
+`[data-testid="overview-portfolio-hero-value-text"]`. It records an empty value
+on surfaces where the hero is absent; the invariant reports missing evidence
+instead of silently passing.
 
 ## 6. Standalone repro from the model
 
@@ -461,12 +463,12 @@ step. The `ci` job gates every push to `main` and every pull request:
    fixture) fails the job red, and regenerating + committing the fixture is
    the only way through.
 3. **Verify-on-fixture (green-only)** — over the committed fixture only:
-   `npm run validate:smoke -- example --corpus-dir corpus` (18/18 checks,
+   `npm run validate:smoke -- example --corpus-dir corpus` (19/19 checks,
    exit 0) and `npm run report:smoke -- example --corpus-dir corpus` (14/14
    scenarios plus both reports, exit 0).
 4. **Fail-demo surface gate (green-only)** — `npm run generate:sample -- --fail`
    writes the throwaway red demo (the reserved runId `fail-demo` — the same
-   deterministic recipe with exactly one hand-placed defect, 17/18 checks and
+   deterministic recipe with exactly one hand-placed defect, 18/19 checks and
    13/14 scenarios red) into the gitignored `corpus/fail-demo` subtrees, then
    the job asserts all three fail-demo **subtree roots**
    (`corpus/fail-demo`, `corpus/snapshots/fail-demo`, `corpus/probes/fail-demo`)

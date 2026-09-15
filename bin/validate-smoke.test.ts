@@ -353,12 +353,13 @@ describe("validateSmoke", () => {
 
     const outcome = validateSmoke([], { corpusDir, plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
+    expect(outcome.exitCode).toBe(1);
     expect(outcome.err).toEqual([]);
     expect(outcome.out).toEqual([
       "[PASS] clickHistoryMenuMain",
       "[PASS] filterHistoryByAsset",
-      "2/2 checks passed in run-1",
+      '[FAIL] current-portfolio-value-agrees-across-surfaces — surface "homePage": no recorded step lands on this surface (no post snapshot); surface "portfolioSummaryDialog": no recorded step lands on this surface (no post snapshot)',
+      "2/3 checks passed in run-1",
     ]);
   });
 
@@ -368,8 +369,8 @@ describe("validateSmoke", () => {
 
     const outcome = validateSmoke(["run-old"], { corpusDir, plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
-    expect(outcome.out.at(-1)).toBe("2/2 checks passed in run-old");
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out.at(-1)).toBe("2/3 checks passed in run-old");
   });
 
   it("preserves an unknown-contract check as a failed CLI result", () => {
@@ -388,7 +389,8 @@ describe("validateSmoke", () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([
       "[FAIL] unknownContract — unknownContract — unvalidated gap",
-      "0/1 checks passed in run-unknown-contract",
+      '[FAIL] current-portfolio-value-agrees-across-surfaces — surface "homePage": no recorded step lands on this surface (no post snapshot); surface "portfolioSummaryDialog": no recorded step lands on this surface (no post snapshot)',
+      "0/2 checks passed in run-unknown-contract",
     ]);
     expect(outcome.err).toEqual([]);
   });
@@ -499,7 +501,8 @@ describe("validateSmoke", () => {
       expect.stringMatching(
         /^\[FAIL\] filterHistoryByAsset — \[precondition\] state-is "historyMain" but snapshot stateId is "homePage"$/,
       ),
-      "0/1 checks passed in run-1",
+      expect.stringContaining("[FAIL] current-portfolio-value-agrees-across-surfaces"),
+      "0/2 checks passed in run-1",
     ]);
     expect(outcome.err).toEqual([]);
   });
@@ -531,7 +534,7 @@ describe("validateSmoke", () => {
     expect(outcome.out[0]).toBe(
       "[FAIL] filterHistoryByAsset — [precondition] missing snapshot evidence",
     );
-    expect(outcome.out.at(-1)).toBe("0/1 checks passed in run-1");
+    expect(outcome.out.at(-1)).toBe("0/2 checks passed in run-1");
   });
 
   it("never mutates the corpus (file names and contents)", () => {
@@ -551,13 +554,13 @@ describe("validateSmoke", () => {
     // Implicit (no runId): the newest real run wins — the fixture's fixed
     // future timestamp never silently defaults to the mock.
     const implicit = validateSmoke([], { corpusDir, plan: testPlan });
-    expect(implicit.exitCode).toBe(0);
-    expect(implicit.out.at(-1)).toBe("2/2 checks passed in r-real");
+    expect(implicit.exitCode).toBe(1);
+    expect(implicit.out.at(-1)).toBe("2/3 checks passed in r-real");
 
     // Explicit: `example` resolves the fixture directly.
     const explicit = validateSmoke(["example"], { corpusDir, plan: testPlan });
-    expect(explicit.exitCode).toBe(0);
-    expect(explicit.out.at(-1)).toBe("2/2 checks passed in example");
+    expect(explicit.exitCode).toBe(1);
+    expect(explicit.out.at(-1)).toBe("2/3 checks passed in example");
   });
 
   it("NEWEST_SKIP — an explicit fail-demo positional still resolves the throwaway run", () => {
@@ -566,11 +569,11 @@ describe("validateSmoke", () => {
 
     const outcome = validateSmoke(["fail-demo"], { corpusDir, plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
-    expect(outcome.out.at(-1)).toBe("2/2 checks passed in fail-demo");
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out.at(-1)).toBe("2/3 checks passed in fail-demo");
   });
 
-  it("FAIL_DEMO_E2E — validates a real minted fail-demo fixture red: 17/18 checks, exit 1", () => {
+  it("FAIL_DEMO_E2E — validates a real minted fail-demo fixture red: 18/19 checks, exit 1", () => {
     // A real fail-demo fixture (the --fail generator), not a synthetic run.
     expect(generateSampleReport(corpusDir, { fail: true }).exitCode).toBe(0);
 
@@ -578,11 +581,11 @@ describe("validateSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(17);
+    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(18);
     expect(outcome.out).toContain(
       '[FAIL] clickPortfolioMenuMain — [postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
     );
-    expect(outcome.out.at(-1)).toBe("17/18 checks passed in fail-demo");
+    expect(outcome.out.at(-1)).toBe("18/19 checks passed in fail-demo");
   });
 
   it("EMPTY_VALUE — an empty --corpus-dir value is rejected with the Invalid-argument(s) + usage error", () => {
@@ -643,9 +646,9 @@ describe("plan-version guard (story 6 — validate side)", () => {
 
     const outcome = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
+    expect(outcome.exitCode).toBe(1);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out.at(-1)).toBe("2/2 checks passed in run-1");
+    expect(outcome.out.at(-1)).toBe("2/3 checks passed in run-1");
   });
 
   it("MISMATCH — a different recorded version exits 1 with the re-record message (state error, no usage)", () => {
@@ -735,15 +738,15 @@ describe("plan-version guard (story 6 — validate side)", () => {
     const unreadable = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
 
     expect(unreadable.exitCode).toBe(1);
-    expect(unreadable.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(2);
-    expect(unreadable.out.at(-1)).toBe("0/2 checks passed in run-1");
+    expect(unreadable.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(3);
+    expect(unreadable.out.at(-1)).toBe("0/3 checks passed in run-1");
 
     writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "123");
     const nonObject = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
 
     expect(nonObject.exitCode).toBe(1);
-    expect(nonObject.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(2);
-    expect(nonObject.out.at(-1)).toBe("0/2 checks passed in run-1");
+    expect(nonObject.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(3);
+    expect(nonObject.out.at(-1)).toBe("0/3 checks passed in run-1");
   });
 
   it("MATCH — contract filters still validate after the guard passes", () => {
@@ -781,13 +784,24 @@ describe("validateSmoke against the committed sample fixture (unconditional)", (
   const repoRoot = resolve(import.meta.dirname, "..");
   const corpusDir = join(repoRoot, "corpus");
 
-  it("validates the committed example fixture 18/18, exit 0", () => {
+  it("accepts the cross-view invariant as a filter", () => {
+    const outcome = validateSmoke(["example", "current-portfolio-value-agrees-across-surfaces"], {
+      corpusDir,
+    });
+    expect(outcome).toMatchObject({ exitCode: 0, err: [] });
+    expect(outcome.out).toEqual([
+      "[PASS] current-portfolio-value-agrees-across-surfaces",
+      "1/1 checks passed in example",
+    ]);
+  });
+
+  it("validates the committed example fixture 19/19, exit 0", () => {
     const outcome = validateSmoke(["example"], { corpusDir });
 
     expect(outcome.exitCode).toBe(0);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(18);
-    expect(outcome.out.at(-1)).toBe("18/18 checks passed in example");
+    expect(outcome.out.filter((line) => line.startsWith("[PASS]"))).toHaveLength(19);
+    expect(outcome.out.at(-1)).toBe("19/19 checks passed in example");
   });
 });
 
@@ -854,8 +868,8 @@ describe("validateSmoke --corpus-dir (CLI_CORPUS_DIR / FLAG_PRECEDENCE / UNKNOWN
 
     const outcome = validateSmoke(["--corpus-dir", corpusDir, "flagged-run"], { plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
-    expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out.at(-1)).toBe("2/3 checks passed in flagged-run");
   });
 
   it("resolves the latest run inside the flagged corpus with no positional", () => {
@@ -863,8 +877,8 @@ describe("validateSmoke --corpus-dir (CLI_CORPUS_DIR / FLAG_PRECEDENCE / UNKNOWN
 
     const outcome = validateSmoke(["--corpus-dir", corpusDir], { plan: testPlan });
 
-    expect(outcome.exitCode).toBe(0);
-    expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out.at(-1)).toBe("2/3 checks passed in flagged-run");
   });
 
   it("FLAG_PRECEDENCE — the flag wins over the CORPUS_DIR env and the options override", () => {
@@ -879,8 +893,8 @@ describe("validateSmoke --corpus-dir (CLI_CORPUS_DIR / FLAG_PRECEDENCE / UNKNOWN
         plan: testPlan,
       });
 
-      expect(outcome.exitCode).toBe(0);
-      expect(outcome.out.at(-1)).toBe("2/2 checks passed in flagged-run");
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.out.at(-1)).toBe("2/3 checks passed in flagged-run");
     } finally {
       rmSync(decoy, { recursive: true, force: true });
     }
@@ -1026,7 +1040,7 @@ describe("npm validate:smoke (process-level operator surface)", () => {
     const latestRunId = resolveLatestRun(join(repoRoot, "corpus"));
     // Corpus runs live only where a smoke ran (corpus/ is not versioned), so
     // the pin degrades to a skip on machines without one — but wherever a run
-    // exists, its outcome is pinned: 18/18 when the run was recorded under the
+    // exists, its outcome is pinned: 19/19 when the run was recorded under the
     // current model, or the story-6 re-record refusal when the run predates
     // the plan-version guard (a legacy local run is never silently accepted).
     if (latestRunId === null) {
@@ -1065,6 +1079,6 @@ describe("npm validate:smoke (process-level operator surface)", () => {
     // or validator-map change that grows/breaks the check count fails here
     // until the expectation is explicitly updated (and a fresh corpus recorded).
     expect(status).toBe(0);
-    expect(out.trim().split("\n").at(-1)).toBe(`18/18 checks passed in ${latestRunId}`);
+    expect(out.trim().split("\n").at(-1)).toBe(`19/19 checks passed in ${latestRunId}`);
   });
 });

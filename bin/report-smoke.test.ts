@@ -138,10 +138,18 @@ function postSnapshotFor(contractId: string): unknown {
   }
 }
 
-/** The probe batch satisfying each contract's view-selected postcondition. */
-function postProbesFor(contractId: string): unknown[] | undefined {
+/** The probe batch satisfying each contract's view-selected postcondition.
+ * The `portfolio-value` probe mirrors the committed fixture / live collector:
+ * its value follows the step's POST state (the hero element exists only on
+ * homePage and portfolioSummaryDialog), never a fixed non-empty constant on
+ * other surfaces. */
+function postProbesFor(contractId: string): unknown[] {
+  const postStateId = (postSnapshotFor(contractId) as { stateId: string }).stateId;
+  const portfolioValue =
+    postStateId === "homePage" || postStateId === "portfolioSummaryDialog" ? "100.00" : "";
   const selectedView = (value: string): unknown[] => [
     { name: "selected-view", value, capturedAt: CAPTURED_AT },
+    { name: "portfolio-value", value: portfolioValue, capturedAt: CAPTURED_AT },
   ];
   switch (contractId) {
     case "clickHistoryMenuMain":
@@ -156,9 +164,12 @@ function postProbesFor(contractId: string): unknown[] | undefined {
     case "clickPortfolioMenuLoans":
       return selectedView("Loans");
     case "selectOrderBookTab":
-      return [{ name: "selected-board-tab", value: "Order book", capturedAt: CAPTURED_AT }];
+      return [
+        { name: "selected-board-tab", value: "Order book", capturedAt: CAPTURED_AT },
+        { name: "portfolio-value", value: portfolioValue, capturedAt: CAPTURED_AT },
+      ];
     default:
-      return undefined;
+      return [{ name: "portfolio-value", value: portfolioValue, capturedAt: CAPTURED_AT }];
   }
 }
 
@@ -206,10 +217,17 @@ function writeAllPassRun(
   writeRunManifest(corpusDir, runId, files, timestamp, planModelVersion);
 }
 
-/** Corrupt one step's post snapshot so its contract's validator fails while
- * the rest of the run stays green. */
+/** Corrupt one step's post snapshot URL so its contract's url-is validator
+ * fails while the rest of the run stays green. The post STATE is kept as the
+ * contract's real landing surface (like the --fail generator's single
+ * mutation): only the url is wrong, so the step's probe batch — written for
+ * that surface by `writeAllPassRun` — stays honest and the cross-view
+ * invariant is unaffected. */
 function corruptPostUrl(corpusDir: string, runId: string, stepIndex: number, url: string): void {
-  writeSnapshot(corpusDir, runId, stepIndex, "post", snapshot("homePage", url));
+  const contractId = smokeTestPlan.scenarios.flatMap((scenario) => scenario.steps)[stepIndex]!
+    .contractId;
+  const postStateId = (postSnapshotFor(contractId) as { stateId: string }).stateId;
+  writeSnapshot(corpusDir, runId, stepIndex, "post", snapshot(postStateId, url));
 }
 
 function linkLastRun(corpusDir: string, runId: string): void {
@@ -357,6 +375,34 @@ describe("deriveScenarioResults", () => {
     ]);
   });
 
+  it("appends a failing cross-view-invariants scenario when an invariant check fails", () => {
+    const results = [
+      result("c1", true),
+      result("c2", true),
+      result("c1", true),
+      result("c3", true),
+      {
+        contractId: "current-portfolio-value-agrees-across-surfaces",
+        passed: false,
+        details:
+          'cross-view divergence for fact "Current portfolio value": surface "homePage" shows "100.00"; surface "portfolioSummaryDialog" shows "101.00"',
+        corpusRefs: ["probe:portfolio-value@7", "probe:portfolio-value@10"],
+      },
+    ];
+
+    expect(deriveScenarioResults(multiPlan, results)).toEqual([
+      { id: "a", passed: true },
+      { id: "b", passed: true },
+      { id: "c", passed: true },
+      {
+        id: "cross-view-invariants",
+        passed: false,
+        error:
+          'current-portfolio-value-agrees-across-surfaces: cross-view divergence for fact "Current portfolio value": surface "homePage" shows "100.00"; surface "portfolioSummaryDialog" shows "101.00"',
+      },
+    ]);
+  });
+
   it("passes every scenario when every check passed", () => {
     const results = [
       result("c1", true),
@@ -395,7 +441,7 @@ describe("reportSmoke", () => {
       exitCode: 0,
       out: [
         `Report written: ${join(corpusDir, "run-1", "report.html")}, ${join(corpusDir, "run-1", "report.json")}`,
-        "14/14 scenarios passed (18 checks)",
+        "14/14 scenarios passed (19 checks)",
       ],
       err: [],
     });
@@ -416,6 +462,50 @@ describe("reportSmoke", () => {
     });
     // …and the html renders those refs as links.
     expect(report).toContain('class="step-link"');
+  });
+
+  it("reports a diverged cross-view invariant red across the summary, HTML, and JSON", () => {
+    // A fully-green run except ONE divergent dialog portfolio value: every
+    // contract check still passes, but the invariant must not.
+    writeAllPassRun(corpusDir, "run-1");
+    smokeTestPlan.scenarios
+      .flatMap((scenario) => scenario.steps)
+      .forEach(({ contractId }, index) => {
+        if (contractId === "openPortfolioSummary" || contractId === "toggleEyeIcon") {
+          writeFileSync(
+            join(corpusDir, "probes", "run-1", `${index}.json`),
+            JSON.stringify([{ name: "portfolio-value", value: "101.00", capturedAt: CAPTURED_AT }]),
+          );
+        }
+      });
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([
+      `Report written: ${join(corpusDir, "run-1", "report.html")}, ${join(corpusDir, "run-1", "report.json")}`,
+      // 14 plan scenarios all pass; the invariant failure adds a synthetic
+      // scenario, so the report shows 15 with the failing invariant.
+      "14/15 scenarios passed (19 checks)",
+    ]);
+    expect(outcome.err).toEqual([]);
+    const report = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
+    expect(report).toContain("<h1>FAIL</h1>");
+    expect(report).toContain("14 passed, 1 failed, 15 total");
+    expect(report).toContain("cross-view-invariants");
+    expect(report).toContain("current-portfolio-value-agrees-across-surfaces");
+    // The error block is HTML-escaped inside the synthetic scenario.
+    expect(report).toContain("surface &quot;portfolioSummaryDialog&quot; shows &quot;101.00&quot;");
+    const reportJson = JSON.parse(
+      readFileSync(join(corpusDir, "run-1", "report.json"), "utf8"),
+    ) as {
+      summary: { total: number; passed: number; failed: number };
+      scenarios: Array<{ id: string; passed: boolean; error?: string }>;
+    };
+    expect(reportJson.summary).toEqual({ total: 15, passed: 14, failed: 1 });
+    const synthetic = reportJson.scenarios.find(({ id }) => id === "cross-view-invariants");
+    expect(synthetic).toMatchObject({ passed: false });
+    expect(synthetic?.error).toContain('surface "portfolioSummaryDialog" shows "101.00"');
   });
 
   it("defaults to the @last-run fan's run and writes its report", () => {
@@ -495,7 +585,7 @@ describe("reportSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out).toContain("13/14 scenarios passed (18 checks)");
+    expect(outcome.out).toContain("13/14 scenarios passed (19 checks)");
     expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
     expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);
     expect(readFileSync(join(corpusDir, "fail-demo", "report.html"), "utf8")).toContain(
@@ -529,7 +619,7 @@ describe("reportSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out.at(-1)).toBe("13/14 scenarios passed (18 checks)");
+    expect(outcome.out.at(-1)).toBe("13/14 scenarios passed (19 checks)");
     const report = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
     expect(report).toContain("<h1>FAIL</h1>");
     expect(report).toContain("13 passed, 1 failed, 14 total");
@@ -576,7 +666,7 @@ describe("reportSmoke", () => {
       expect(outcome.err).toEqual([]);
       expect(outcome.out).toEqual([
         `Report written: ${join(corpusDir, "run-1", "report.html")}, ${join(corpusDir, "run-1", "report.json")}`,
-        "14/14 scenarios passed (19 checks)",
+        "14/14 scenarios passed (20 checks)",
       ]);
       expect(existsSync(join(corpusDir, "run-1", "report.html"))).toBe(true);
     } finally {
@@ -729,7 +819,7 @@ describe("plan-version guard (story 6 — report side)", () => {
 
     expect(outcome.exitCode).toBe(0);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out.at(-1)).toBe("14/14 scenarios passed (18 checks)");
+    expect(outcome.out.at(-1)).toBe("14/14 scenarios passed (19 checks)");
   });
 
   it("MISMATCH — a different recorded version exits 1 with the re-record message and NOTHING is written", () => {
@@ -1075,7 +1165,7 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(0);
     expect(out).toContain(`Report written: ${join(corpusDir, "spawn-run", "report.html")}`);
-    expect(out).toContain("14/14 scenarios passed (18 checks)");
+    expect(out).toContain("14/14 scenarios passed (19 checks)");
     const report = readFileSync(join(corpusDir, "spawn-run", "report.html"), "utf8");
     expect(report).toContain("<h1>PASS</h1>");
   });
@@ -1089,7 +1179,7 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(0);
     expect(out).toContain(`Report written: ${join(corpusDir, "spawn-latest", "report.html")}`);
-    expect(out).toContain("14/14 scenarios passed (18 checks)");
+    expect(out).toContain("14/14 scenarios passed (19 checks)");
   });
 
   it("still writes the report and exits 1 when a validator fails", () => {
@@ -1099,7 +1189,7 @@ describe("npm report:smoke (process-level operator surface)", () => {
     const { status, out } = spawnReportSmoke(["spawn-run"], corpusDir);
 
     expect(status).toBe(1);
-    expect(out).toContain("13/14 scenarios passed (18 checks)");
+    expect(out).toContain("13/14 scenarios passed (19 checks)");
     const report = readFileSync(join(corpusDir, "spawn-run", "report.html"), "utf8");
     expect(report).toContain("<h1>FAIL</h1>");
     expect(report).toContain("13 passed, 1 failed, 14 total");
@@ -1159,7 +1249,7 @@ describe("npm report:smoke (process-level operator surface)", () => {
 
     expect(status).toBe(0);
     expect(out).toContain(`Report written: ${join(corpusDir, "spawn-run", "report.html")}`);
-    expect(out).toContain("14/14 scenarios passed (18 checks)");
+    expect(out).toContain("14/14 scenarios passed (19 checks)");
   });
 
   it("FLAG_PRECEDENCE — the --corpus-dir flag wins over the CORPUS_DIR env", () => {
@@ -1227,12 +1317,12 @@ describe("npm report:smoke (process-level operator surface)", () => {
       return;
     }
 
-    // Expiry pin: the smoke plan declares exactly 14 scenarios / 18 checks
+    // Expiry pin: the smoke plan declares exactly 14 scenarios / 19 checks
     // today. A plan or validator change that grows/breaks the counts fails
     // here until the expectation is explicitly updated (and a fresh corpus
     // recorded).
     expect(status).toBe(0);
-    expect(out).toContain("14/14 scenarios passed (18 checks)");
+    expect(out).toContain("14/14 scenarios passed (19 checks)");
     const report = readFileSync(join(repoRoot, "corpus", latestRunId, "report.html"), "utf8");
     expect(report).toContain("<h1>PASS</h1>");
   });
@@ -1253,7 +1343,7 @@ describe("reportSmoke against the committed sample fixture (unconditional)", () 
     expect(outcome.out).toContain(
       `Report written: ${join(corpusDir, "example", "report.html")}, ${join(corpusDir, "example", "report.json")}`,
     );
-    expect(outcome.out).toContain("14/14 scenarios passed (18 checks)");
+    expect(outcome.out).toContain("14/14 scenarios passed (19 checks)");
     expect(readFileSync(join(corpusDir, "example", "report.html"), "utf8")).toContain(
       "<h1>PASS</h1>",
     );
