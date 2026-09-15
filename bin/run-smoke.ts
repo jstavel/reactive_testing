@@ -10,6 +10,7 @@ import { runTestPlan } from "../orchestrator/orchestrator.js";
 import { actionDiagnostics } from "./action-diagnostics.js";
 import { finishRun } from "./run-smoke-finish.js";
 import { selectScenarios } from "./scenario-select.js";
+import { PORTFOLIO_VALUE_PROBE } from "./smoke-config.js";
 
 const selectedIds = process.argv.slice(2);
 let plan: TestPlan;
@@ -30,11 +31,16 @@ const config: OrchestratorConfig = {
   // so the settle wait targets the persistent side-nav shell instead.
   settleSelector: '[aria-label="Side navigation"]',
   corpusDir: "corpus",
-  // Selected-view probe (Story 2.7): the active sub-view tab (e.g. "Ledger",
-  // "Overview", "Futures") is marked `aria-current="page"` on History/Portfolio
-  // pages. Optional — absent on the home/dialog surfaces, it records an empty
-  // value there rather than a collection gap.
+  // Portfolio hero-value probe (Story 4.2 wiring): recorded on the declared
+  // home/dialog surfaces to feed the cross-view invariant. Optional — absent
+  // on every other navigation surface, it records an empty value there rather
+  // than a collection gap.
   probes: [
+    PORTFOLIO_VALUE_PROBE,
+    // Selected-view probe (Story 2.7): the active sub-view tab (e.g. "Ledger",
+    // "Overview", "Futures") is marked `aria-current="page"` on History/Portfolio
+    // pages. Optional — absent on the home/dialog surfaces, it records an empty
+    // value there rather than a collection gap.
     { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
     // Board-tab probe (Story 5-2, live-discovered 2026-09-10): the Trade page's
     // board tabs are flexlayout divs (no role=tab / aria-current); the active

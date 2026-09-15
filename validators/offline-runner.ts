@@ -10,6 +10,7 @@
 
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
 import { type CorpusGap, loadCorpusRun, type StepEvidence } from "./corpus-loader.js";
+import { crossViewInvariants, runCrossViewInvariants } from "./cross-view.js";
 import { validatorsFor } from "./validator-map.js";
 
 export function runValidatorsOffline(
@@ -27,12 +28,20 @@ export function runValidatorsOffline(
   const steps = loaded.steps.filter(
     ({ contractId }) => filter === undefined || filter.has(contractId),
   );
-  const manifestGap = loaded.gaps.find(({ kind }) => kind === "manifest-invalid");
+  const manifestGap = loaded.gaps.some(({ kind }) => kind === "manifest-invalid");
   const results = manifestGap
     ? steps.map(({ contractId }) => failed(contractId, "cannot validate: run manifest invalid"))
     : steps.flatMap((step) => validateStep(step, loaded.gaps));
+  const planMalformed = loaded.gaps.some(({ kind }) => kind === "plan-malformed");
+  // Registry-derived invariant selection mirrors the contract filter (and
+  // keeps unfiltered runs whole): the same filter drives preflight in the
+  // orchestrator, so a configured name is never silently excluded here.
+  const selectedInvariants = crossViewInvariants.filter(
+    ({ invariantId }) => filter === undefined || filter.has(invariantId),
+  );
+  const invariantIds = selectedInvariants.map(({ invariantId }) => invariantId);
 
-  if (loaded.gaps.some(({ kind }) => kind === "plan-malformed")) {
+  if (planMalformed) {
     const malformed = loaded.gaps.filter(({ kind }) => kind === "plan-malformed");
     return [
       ...results.map((result) =>
@@ -47,9 +56,30 @@ export function runValidatorsOffline(
           `cannot validate: plan malformed${gap.detail ? ` — ${gap.detail}` : ""}`,
         ),
       ),
+      // The invariant is every bit as unvalidatable as the contracts — name it
+      // failed too, never vanish from the check count (no silent shrink).
+      ...selectedInvariants.map(({ invariantId }) =>
+        failed(invariantId, "cannot validate: plan malformed"),
+      ),
     ];
   }
-  return results;
+  if (manifestGap) {
+    // Mirror the per-contract manifest-invalid failures: the invariant cannot
+    // read any evidence either, so it fails naming the same cause.
+    return [
+      ...results,
+      ...selectedInvariants.map(({ invariantId }) =>
+        failed(invariantId, "cannot validate: run manifest invalid"),
+      ),
+    ];
+  }
+  // A stepless plan stays a zero-checks run (the CLIs' "no checks ran" guard
+  // is authoritative); any plan with steps is validated — missing surfaces are
+  // the invariant's verdict, never a skip.
+  const crossViewResults = plan.scenarios.some(({ steps }) => steps.length > 0)
+    ? runCrossViewInvariants(corpusDir, runId, plan, invariantIds)
+    : [];
+  return [...results, ...crossViewResults];
 }
 
 function validateStep(step: StepEvidence, gaps: CorpusGap[]): ValidationResult[] {

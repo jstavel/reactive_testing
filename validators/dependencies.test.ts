@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { corpusDependenciesFor, requiredProbeNames } from "./dependencies.js";
+import {
+  corpusDependenciesFor,
+  crossViewCorpusDependencies,
+  requiredCrossViewProbeNames,
+  requiredProbeNames,
+} from "./dependencies.js";
 
 describe("corpusDependenciesFor", () => {
   it("derives snapshot + probe for a nav contract (state-is/url-is + view-selected)", () => {
@@ -46,5 +51,10 @@ describe("requiredProbeNames", () => {
 
   it("returns [] for an unknown contractId", () => {
     expect(requiredProbeNames("nonexistent")).toEqual([]);
+  });
+
+  it("derives cross-view probe requirements from the registry", () => {
+    expect(requiredCrossViewProbeNames()).toEqual(["portfolio-value"]);
+    expect(crossViewCorpusDependencies()).toEqual(["probe"]);
   });
 });

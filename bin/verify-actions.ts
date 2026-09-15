@@ -2,6 +2,7 @@ import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { runTestPlan } from "../orchestrator/orchestrator.js";
 import { actionDiagnostics, distinctActionIds, scenarioForAction } from "./action-diagnostics.js";
+import { PORTFOLIO_VALUE_PROBE } from "./smoke-config.js";
 
 const config: OrchestratorConfig = {
   baseUrl: "https://pro.kraken.com/app/home",
@@ -9,6 +10,7 @@ const config: OrchestratorConfig = {
   settleSelector: '[aria-label="Side navigation"]',
   corpusDir: "corpus",
   probes: [
+    PORTFOLIO_VALUE_PROBE,
     { name: "selected-view", selector: 'a[role="tab"][aria-current="page"]', optional: true },
     {
       name: "selected-board-tab",

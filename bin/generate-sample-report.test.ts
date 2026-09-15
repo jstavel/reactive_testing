@@ -90,13 +90,13 @@ describe("generateSampleReport", () => {
     rmSync(corpusRoot, { recursive: true, force: true });
   });
 
-  it("HAPPY_PATH — writes the fixture + both reports, self-checks 18/18, exits 0", () => {
+  it("HAPPY_PATH — writes the fixture + both reports, self-checks 19/19, exits 0", () => {
     const outcome = generateSampleReport(corpusRoot);
 
     expect(outcome.exitCode).toBe(0);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out).toContain("18/18 checks passed in example");
-    expect(outcome.out).toContain("14/14 scenarios passed (18 checks)");
+    expect(outcome.out).toContain("19/19 checks passed in example");
+    expect(outcome.out).toContain("14/14 scenarios passed (19 checks)");
     expect(existsSync(join(corpusRoot, "example", "run-manifest.json"))).toBe(true);
     expect(existsSync(join(corpusRoot, "example", "report.html"))).toBe(true);
     expect(existsSync(join(corpusRoot, "example", "report.json"))).toBe(true);
@@ -210,7 +210,7 @@ describe("generateSampleReport", () => {
     expect(outcome.err[0]).toBe(
       '[FAIL] filterHistoryByAsset — [precondition] state-is "historyMain" but snapshot stateId is "homePage"',
     );
-    expect(outcome.err.at(-1)).toBe("0/1 checks passed in example");
+    expect(outcome.err.at(-1)).toBe("0/2 checks passed in example");
     // No partial reports claimed as pass — and the partial fixture is rolled
     // back too: no manifest, no evidence, nothing half-written survives.
     expect(existsSync(join(corpusRoot, "example"))).toBe(false);
@@ -245,19 +245,11 @@ describe("generateSampleReport", () => {
 
     const outcome = generateSampleReport(corpusRoot, { plan: customPlan });
 
-    expect(outcome.exitCode).toBe(0);
-    const pre = JSON.parse(
-      readFileSync(join(corpusRoot, "snapshots", "example", "0.pre.json"), "utf8"),
-    ) as { stateId: string };
-    expect(pre.stateId).toBe("historyMain");
-    const manifest = JSON.parse(
-      readFileSync(join(corpusRoot, "example", "run-manifest.json"), "utf8"),
-    ) as RunManifest;
-    expect(manifest.files).toEqual([
-      "snapshots/example/0.pre.json",
-      "snapshots/example/0.json",
-      "probes/example/0.json",
-    ]);
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(
+      outcome.err.some((line) => line.includes("current-portfolio-value-agrees-across-surfaces")),
+    ).toBe(true);
   });
 
   it("REPORT_ROLLBACK — a directory at report.json (EISDIR) leaves no report.html behind", () => {
@@ -416,8 +408,8 @@ describe("generateSampleReport --fail (failure demo)", () => {
 
     expect(outcome.exitCode).toBe(0);
     expect(outcome.err).toEqual([]);
-    expect(outcome.out).toContain("17/18 checks passed in fail-demo");
-    expect(outcome.out).toContain("13/14 scenarios passed (18 checks)");
+    expect(outcome.out).toContain("18/19 checks passed in fail-demo");
+    expect(outcome.out).toContain("13/14 scenarios passed (19 checks)");
     // The expected failure detail is printed…
     expect(outcome.out).toContain(
       'Expected failure: [FAIL] clickPortfolioMenuMain — [postcondition] url-is "/app/portfolio/main" but url pathname is "/app/portfolio/futures"',
@@ -600,7 +592,7 @@ describe("generateSampleReport --fail (failure demo)", () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
     expect(outcome.err[0]).toContain("fail-demo self-check signature mismatch");
-    expect(outcome.err[0]).toContain("no failing checks (every check passed)");
+    expect(outcome.err[0]).toContain("current-portfolio-value-agrees-across-surfaces");
     expectNoFailDemoState(corpusRoot);
   });
 
@@ -744,8 +736,8 @@ describe("npm generate:sample (process-level operator surface)", () => {
     const { status, out } = spawnGenerateSample([corpusDir]);
 
     expect(status).toBe(0);
-    expect(out).toContain("18/18 checks passed in example");
-    expect(out).toContain("14/14 scenarios passed (18 checks)");
+    expect(out).toContain("19/19 checks passed in example");
+    expect(out).toContain("14/14 scenarios passed (19 checks)");
     // The positional root owns the output: fixture + evidence + reports land
     // there (and nowhere in the repo's own corpus).
     expect(existsSync(join(corpusDir, "example", "run-manifest.json"))).toBe(true);
@@ -759,8 +751,8 @@ describe("npm generate:sample (process-level operator surface)", () => {
     const { status, out } = spawnGenerateSample(["--fail", corpusDir]);
 
     expect(status).toBe(0);
-    expect(out).toContain("17/18 checks passed in fail-demo");
-    expect(out).toContain("13/14 scenarios passed (18 checks)");
+    expect(out).toContain("18/19 checks passed in fail-demo");
+    expect(out).toContain("13/14 scenarios passed (19 checks)");
     expect(out).toContain("committed only when copied manually");
     expect(existsSync(join(corpusDir, "fail-demo", "report.html"))).toBe(true);
     expect(existsSync(join(corpusDir, "fail-demo", "report.json"))).toBe(true);

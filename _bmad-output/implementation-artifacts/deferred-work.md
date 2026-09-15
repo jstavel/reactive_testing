@@ -125,6 +125,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-cross-view-standing-invariant-validator.md`
   summary: Wire the cross-view invariant runner into a verification entry point and add the seed `portfolio-value` probe to the runner's probe config so FR-13 actually executes against real live corpora. Today `runCrossViewInvariants` is never called by `runValidatorsOffline`/`bin/run-smoke.ts` and the seed invariant reads a probe no runner records, so the mechanism is library-only until then.
   evidence: Blind-hunter review of the 4.2 diff noted the validator is not wired into any validation entry point and the seed probe is not collected; the spec froze both as out-of-scope (no caller requested; probe wiring was Ask First, needing a human live run).
+  RESOLVED (2026-09-15): `spec-cross-view-live-wiring` — `runValidatorsOffline` appends cross-view results for known runs, `bin/run-smoke.ts`/`bin/verify-actions.ts` configure the `portfolio-value` probe, and the committed fixture validates 19/19 through `validate:smoke`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-cross-view-standing-invariant-validator.md`
   summary: Add an automated integration test proving a cross-view failure renders through `emitFailureGherkin` (the reporter consumes the AD-14 `ValidationResult` unchanged, but nothing pins that a failing invariant lands in `failure.feature`).
@@ -320,3 +321,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-offline-corpus-reconciliation.md`
   summary: The offline runner never surfaces a run manifest's recorded `errors` (collector gaps) or `failures` (step failures) — a run that isolated one step's failure still validates its other steps from partial evidence without any note that the run recorded internal errors; surfacing these as failed results or a report line is a reporting enhancement (FR-6), not a vacuous-pass hole (failed steps lack post evidence and already fail their validators honestly).
   evidence: Blind-hunter review: `runManifestSchema` carries `errors`/`failures`, `loadCorpusRun` ignores both, so the operator cannot see from validation output that the run recorded collector/step errors. Deliberately not part of the reconciliation story's scope.
+
+## Deferred from: review of spec-cross-view-live-wiring (2026-09-15)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-cross-view-live-wiring.md`
+  summary: validate:smoke accepts a mixed or mistyped invariant-id filter without dedicated coverage, and the unknown-id error still speaks in contract terms ("Unknown contract id(s)") even though invariant ids are now valid filter values — a hint-wording/coverage refinement for the next CLI-touching story.
+  evidence: Review of the wiring diff: a new test pins a single invariant-id filter and the committed fixture, but no test mixes a contract id with an invariant id, and the filter error message names only "contract id(s)" while `resolveContractIds` now accepts both families.

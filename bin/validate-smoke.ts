@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url";
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
+import { crossViewInvariants } from "../validators/cross-view.js";
 import { runValidatorsOffline } from "../validators/offline-runner.js";
 import {
   type CliOutcome,
@@ -101,7 +102,10 @@ export function resolveContractIds(
   if (filters.length === 0) {
     return undefined;
   }
-  const validIds = planContractIds(plan);
+  const validIds = [
+    ...planContractIds(plan),
+    ...crossViewInvariants.map(({ invariantId }) => invariantId),
+  ];
   const validIdsSet = new Set(validIds);
   const unknownIds = [...new Set(filters.filter((id) => !validIdsSet.has(id)))];
   if (unknownIds.length > 0) {

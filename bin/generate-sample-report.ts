@@ -167,7 +167,7 @@ const SELECTED_VIEW_BY_CONTRACT: Record<string, string> = {
 // The clickPortfolioMenuMain step's post-snapshot url pathname is pointed at
 // the futures page, so exactly its url-is postcondition fails and its owning
 // scenario ("clicking-main-opens-the-portfolio-page-with-the-main-view")
-// fails red. Every other check passes: 17/18 checks, 13/14 scenarios. ---
+// fails red. Every other check passes: 18/19 checks, 13/14 scenarios. ---
 const FAIL_DEMO_CONTRACT_ID = "clickPortfolioMenuMain";
 const FAIL_DEMO_BROKEN_URL = `${BASE_URL}/app/portfolio/futures`;
 /** The exact failure signature the `--fail` self-check demands (the
@@ -230,8 +230,8 @@ function postSnapshot(contractId: string): SnapshotRecord {
   };
 }
 
-/** The probe batch for a contract — both names always present (mirroring the
- * recorded probe collector), values satisfying the view-selected predicates. */
+/** The probe batch for a contract — all configured names are present (mirroring
+ * the recorded probe collector), values satisfying the declared predicates. */
 function probeBatch(contractId: string): ProbeResult[] {
   return [
     {
@@ -242,6 +242,15 @@ function probeBatch(contractId: string): ProbeResult[] {
     {
       name: "selected-board-tab",
       value: contractId === "selectOrderBookTab" ? "Order book" : "",
+      capturedAt: POST_TIMESTAMP,
+    },
+    {
+      name: "portfolio-value",
+      value:
+        POST_STATE_BY_CONTRACT[contractId] === "homePage" ||
+        POST_STATE_BY_CONTRACT[contractId] === "portfolioSummaryDialog"
+          ? "100.00"
+          : "",
       capturedAt: POST_TIMESTAMP,
     },
   ];
