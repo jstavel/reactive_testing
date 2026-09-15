@@ -139,13 +139,10 @@ export interface ValidateOptions {
 }
 
 function summarizedOutcome(results: readonly ValidationResult[], runId: string): ValidateOutcome {
-  // Zero results after a run was selected means validators ran over nothing —
-  // an unreadable manifest or a stepless plan — never a pass.
+  // Zero results after a run was selected means the plan declares no steps —
+  // never a pass.
   if (results.length === 0) {
-    return errorOutcome(
-      `no checks ran for "${runId}" — the run manifest was unreadable or the plan declares no steps.`,
-      USAGE,
-    );
+    return errorOutcome(`no checks ran for "${runId}" — the plan declares no steps.`, USAGE);
   }
   return {
     exitCode: results.some(({ passed }) => !passed) ? 1 : 0,

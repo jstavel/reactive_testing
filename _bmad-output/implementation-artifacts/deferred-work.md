@@ -310,3 +310,13 @@
   
   evidence: Verification-gap review of the S3 diff: every fail-mode test writes to temp dirs and never invokes git; the "zero committed footprint" title contract is verified only by the spec's manual git check-ignore step. A .gitignore change un-ignoring corpus/fail-demo would go unnoticed by npm test.
 
+
+## Deferred from: review of spec-offline-corpus-reconciliation (2026-09-15)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-offline-corpus-reconciliation.md`
+  summary: `validatorsFor` reads `validatorMap[contractId] ?? []`, so a plan step whose contractId collides with an Object.prototype property (e.g. `"toString"`) receives an inherited non-array value, and the offline runner's `for (const validator of validators)` throws a TypeError that escapes the per-validator try — a FR-5 (never throw) violation reachable only with hand-built offline plans, not the validated smoke plan.
+  evidence: Edge-case-hunter review of the 5-file diff; pre-existing in validator-map.ts (`validatorMap[contractId] ?? []`), surfaced by the runner's new `.length` check plus unchanged `for..of` over the returned value. Fix options: own-property check (`Object.hasOwn`) or `Object.create(null)` map. Only reachable when a caller passes a plan referencing a `"toString"`-style contract id.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-offline-corpus-reconciliation.md`
+  summary: The offline runner never surfaces a run manifest's recorded `errors` (collector gaps) or `failures` (step failures) — a run that isolated one step's failure still validates its other steps from partial evidence without any note that the run recorded internal errors; surfacing these as failed results or a report line is a reporting enhancement (FR-6), not a vacuous-pass hole (failed steps lack post evidence and already fail their validators honestly).
+  evidence: Blind-hunter review: `runManifestSchema` carries `errors`/`failures`, `loadCorpusRun` ignores both, so the operator cannot see from validation output that the run recorded collector/step errors. Deliberately not part of the reconciliation story's scope.

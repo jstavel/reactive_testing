@@ -9,47 +9,78 @@
 // Layer direction preserved: validators/ imports only model/.
 
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
-import { loadCorpusSteps } from "./corpus-loader.js";
+import { type CorpusGap, loadCorpusRun, type StepEvidence } from "./corpus-loader.js";
 import { validatorsFor } from "./validator-map.js";
 
-/**
- * Re-validate a previously recorded run offline, purely over its corpus.
- *
- * Composes the loader with the per-contract validator interpreter. When
- * `contractIds` is given, only steps whose contract is in the subset are
- * validated (PLAN_FILTER). An unknown run yields an empty result set (mirrors
- * UNKNOWN_RUN) and an unknown contractId yields no results (an unvalidated gap,
- * never silently passed). The runner never escapes with a throw: a validator
- * that throws is skipped for its step while the remaining validators still run.
- */
 export function runValidatorsOffline(
   corpusDir: string,
   runId: string,
   plan: TestPlan,
   contractIds?: string[],
 ): ValidationResult[] {
-  const steps = loadCorpusSteps(corpusDir, runId, plan);
-  if (steps.length === 0) {
+  const loaded = loadCorpusRun(corpusDir, runId, plan);
+  if (loaded.gaps.some(({ kind }) => kind === "unknown-run")) {
     return [];
   }
 
   const filter = contractIds ? new Set(contractIds) : undefined;
-  const results: ValidationResult[] = [];
+  const steps = loaded.steps.filter(
+    ({ contractId }) => filter === undefined || filter.has(contractId),
+  );
+  const manifestGap = loaded.gaps.find(({ kind }) => kind === "manifest-invalid");
+  const results = manifestGap
+    ? steps.map(({ contractId }) => failed(contractId, "cannot validate: run manifest invalid"))
+    : steps.flatMap((step) => validateStep(step, loaded.gaps));
 
-  for (const step of steps) {
-    if (filter !== undefined && !filter.has(step.contractId)) {
-      continue;
-    }
-    for (const validator of validatorsFor(step.contractId)) {
-      try {
-        results.push(validator(step.evidence));
-      } catch {
-        // A throwing validator must not break the offline run: skip it for this
-        // step and keep validating the rest (failures are results, never throws —
-        // AD-14, NFR-1).
-      }
-    }
+  if (loaded.gaps.some(({ kind }) => kind === "plan-malformed")) {
+    const malformed = loaded.gaps.filter(({ kind }) => kind === "plan-malformed");
+    return [
+      ...results.map((result) =>
+        failed(
+          "(corpus)",
+          `cannot validate: plan malformed${result.details ? ` — ${result.details}` : ""}`,
+        ),
+      ),
+      ...malformed.map((gap) =>
+        failed(
+          "(corpus)",
+          `cannot validate: plan malformed${gap.detail ? ` — ${gap.detail}` : ""}`,
+        ),
+      ),
+    ];
   }
-
   return results;
+}
+
+function validateStep(step: StepEvidence, gaps: CorpusGap[]): ValidationResult[] {
+  const stepGaps = gaps.filter(
+    (gap) => gap.stepIndex === step.stepIndex && gap.contractId === step.contractId,
+  );
+  const validators = validatorsFor(step.contractId);
+  if (stepGaps.some(({ kind }) => kind === "file-corrupt")) {
+    const detail = stepGaps
+      .filter(({ kind }) => kind === "file-corrupt")
+      .map((gap) => gap.relPath)
+      .join(", ");
+    return (validators.length > 0 ? validators : [undefined]).map(() =>
+      failed(step.contractId, `cannot validate: corrupt file ${detail}`),
+    );
+  }
+  if (validators.length === 0) {
+    return [failed(step.contractId, `${step.contractId} — unvalidated gap`)];
+  }
+  return validators.map((validator) => {
+    try {
+      return validator(step.evidence);
+    } catch (error) {
+      return failed(
+        step.contractId,
+        `${step.contractId} — validator threw: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  });
+}
+
+function failed(contractId: string, details: string): ValidationResult {
+  return { contractId, passed: false, details, corpusRefs: [] };
 }
