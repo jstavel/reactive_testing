@@ -372,6 +372,27 @@ describe("validateSmoke", () => {
     expect(outcome.out.at(-1)).toBe("2/2 checks passed in run-old");
   });
 
+  it("preserves an unknown-contract check as a failed CLI result", () => {
+    const runId = "run-unknown-contract";
+    writeRunManifest(corpusDir, runId, []);
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: testPlan.modelVersion,
+      scenarios: [
+        { id: "unknown", steps: [{ stateId: "homePage", contractId: "unknownContract" }] },
+      ],
+    };
+
+    const outcome = validateSmoke([runId], { corpusDir, plan });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([
+      "[FAIL] unknownContract — unknownContract — unvalidated gap",
+      "0/1 checks passed in run-unknown-contract",
+    ]);
+    expect(outcome.err).toEqual([]);
+  });
+
   it("runs only the filtered contract's checks and accepts a valid filter", () => {
     writeAllPassRun(corpusDir, "run-1");
 
@@ -490,9 +511,7 @@ describe("validateSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err[0]).toBe(
-      'no checks ran for "run-1" — the run manifest was unreadable or the plan declares no steps.',
-    );
+    expect(outcome.err[0]).toBe('no checks ran for "run-1" — the plan declares no steps.');
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
 
@@ -711,27 +730,20 @@ describe("plan-version guard (story 6 — validate side)", () => {
     expect(missing.exitCode).toBe(1);
     expect(missing.err[0]).toContain('Unknown run "missing-run"');
 
-    // Unparseable manifest on a known run: the guard steps aside and the
-    // runner yields zero results → the existing no-checks-ran error.
     writeAllPassRun(corpusDir, "run-1");
     writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "{not json");
     const unreadable = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
 
     expect(unreadable.exitCode).toBe(1);
-    expect(unreadable.err[0]).toBe(
-      'no checks ran for "run-1" — the run manifest was unreadable or the plan declares no steps.',
-    );
-    expect(unreadable.err.at(-1)).toBe(USAGE);
+    expect(unreadable.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(2);
+    expect(unreadable.out.at(-1)).toBe("0/2 checks passed in run-1");
 
-    // Non-object JSON (a bare number): also "unreadable" for the guard —
-    // never LEGACY.
     writeFileSync(join(corpusDir, "run-1", "run-manifest.json"), "123");
     const nonObject = validateSmoke(["run-1"], { corpusDir, plan: testPlan });
 
     expect(nonObject.exitCode).toBe(1);
-    expect(nonObject.err[0]).toBe(
-      'no checks ran for "run-1" — the run manifest was unreadable or the plan declares no steps.',
-    );
+    expect(nonObject.out.filter((line) => line.startsWith("[FAIL]"))).toHaveLength(2);
+    expect(nonObject.out.at(-1)).toBe("0/2 checks passed in run-1");
   });
 
   it("MATCH — contract filters still validate after the guard passes", () => {

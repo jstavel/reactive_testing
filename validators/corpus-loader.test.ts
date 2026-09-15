@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CollectorName, CorpusRun, TestPlan } from "../model/schemas.js";
 import { finishRun, startCorpusRun, writeCorpusFile } from "../orchestrator/corpus.js";
-import { loadCorpusSteps } from "./corpus-loader.js";
+import { loadCorpusRun, loadCorpusSteps } from "./corpus-loader.js";
 
 let tempDirs: string[] = [];
 
@@ -366,38 +366,129 @@ describe("loadCorpusSteps", () => {
     ).toEqual([]);
   });
 
-  it("defensively skips malformed scenarios/steps rather than throwing", () => {
+  it("reports sparse scenario and step holes as malformed iterations", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
-    writeSnapshot(
-      corpusDir,
-      run,
-      0,
-      { stateId: "homePage", url: "https://pro.kraken.com/app/home", capturedAt: "t" },
-      "0.pre",
-    );
-    writeSnapshot(corpusDir, run, 0, {
+    writeSnapshot(corpusDir, run, 1, {
       stateId: "historyMain",
       url: "https://pro.kraken.com/app/history/main/ledger",
       capturedAt: "t",
     });
     finish(corpusDir, run);
+    const scenarios = [] as Array<unknown>;
+    scenarios.length = 2;
+    scenarios[1] = { id: "sparse", steps: [] as Array<unknown> };
+    (scenarios[1] as { steps: unknown[] }).steps.length = 2;
+    (scenarios[1] as { steps: unknown[] }).steps[1] = {
+      stateId: "homePage",
+      contractId: "clickHistoryMenuMain",
+    };
 
+    const loaded = loadCorpusRun(corpusDir, run.runId, { scenarios } as unknown as TestPlan);
+    expect(loaded.gaps).toContainEqual({
+      kind: "plan-malformed",
+      scenarioIndex: 0,
+      detail: "scenario.steps is not an array",
+    });
+    expect(loaded.gaps).toContainEqual({
+      kind: "plan-malformed",
+      scenarioIndex: 1,
+      stepIndex: 0,
+      detail: "step.contractId is not a string",
+    });
+    expect(loaded.steps[0]).toMatchObject({ stepIndex: 1, contractId: "clickHistoryMenuMain" });
+  });
+
+  it("reports taxonomy gaps and advances indexes across malformed steps", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeSnapshot(corpusDir, run, 1, {
+      stateId: "historyMain",
+      url: "https://pro.kraken.com/app/history/main/ledger",
+      capturedAt: "t",
+    });
+    finish(corpusDir, run);
     const plan = {
       scenarios: [
-        // A scenario with a malformed (non-array) steps.
-        { id: "bad", steps: "nope" },
-        // A scenario with a step lacking a string contractId (skipped).
-        { id: "bad2", steps: [{ stateId: "homePage", contractId: 42 }] },
-        // A well-formed scenario that still loads.
+        { id: "bad-scenario", steps: "nope" },
+        { id: "bad-step", steps: [{ stateId: "homePage", contractId: 42 }] },
         { id: "good", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
       ],
     } as unknown as TestPlan;
 
-    const steps = loadCorpusSteps(corpusDir, run.runId, plan);
-    expect(steps).toHaveLength(1);
-    expect(steps[0]!.stepIndex).toBe(0);
-    expect(steps[0]!.contractId).toBe("clickHistoryMenuMain");
-    expect(steps[0]!.evidence.post).toBeDefined();
+    const loaded = loadCorpusRun(corpusDir, run.runId, plan);
+    expect(loaded.gaps).toEqual([
+      {
+        kind: "plan-malformed",
+        scenarioIndex: 0,
+        detail: "scenario.steps is not an array",
+      },
+      {
+        kind: "plan-malformed",
+        scenarioIndex: 1,
+        stepIndex: 0,
+        detail: "step.contractId is not a string",
+      },
+    ]);
+    expect(loaded.steps[0]).toMatchObject({ stepIndex: 1, contractId: "clickHistoryMenuMain" });
+    expect(loaded.steps[0]!.evidence.post).toBeDefined();
+  });
+
+  it("classifies invalid manifests and distinguishes non-ENOENT read errors", () => {
+    const corpusDir = makeCorpusDir();
+    const invalidRun = startCorpusRun();
+    mkdirSync(join(corpusDir, invalidRun.runId), { recursive: true });
+    writeFileSync(join(corpusDir, invalidRun.runId, "run-manifest.json"), "{not json");
+    expect(loadCorpusRun(corpusDir, invalidRun.runId, twoStepPlan).gaps[0]?.kind).toBe(
+      "manifest-invalid",
+    );
+
+    const unreadableRun = startCorpusRun();
+    mkdirSync(join(corpusDir, unreadableRun.runId, "run-manifest.json"), { recursive: true });
+    expect(loadCorpusRun(corpusDir, unreadableRun.runId, twoStepPlan).gaps[0]?.kind).toBe(
+      "manifest-invalid",
+    );
+    expect(loadCorpusRun(corpusDir, "missing", twoStepPlan).gaps).toEqual([
+      { kind: "unknown-run" },
+    ]);
+  });
+
+  it("reports listed corrupt evidence while leaving its value undefined", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{not valid json");
+    finish(corpusDir, run);
+
+    const loaded = loadCorpusRun(corpusDir, run.runId, twoStepPlan);
+    expect(loaded.gaps).toContainEqual({
+      kind: "file-corrupt",
+      stepIndex: 0,
+      contractId: "clickHistoryMenuMain",
+      relPath: `snapshots/${run.runId}/0.json`,
+    });
+    expect(loaded.steps[0]!.evidence.post).toBeUndefined();
+  });
+
+  it("reports schema-invalid listed evidence but not a listed file removed from disk", () => {
+    const corpusDir = makeCorpusDir();
+    const schemaRun = startCorpusRun();
+    writeCorpusFile(corpusDir, schemaRun, "probes", 0, "json", "{}");
+    finish(corpusDir, schemaRun);
+    const schemaLoaded = loadCorpusRun(corpusDir, schemaRun.runId, twoStepPlan);
+    expect(schemaLoaded.gaps).toContainEqual({
+      kind: "file-corrupt",
+      stepIndex: 0,
+      contractId: "clickHistoryMenuMain",
+      relPath: `probes/${schemaRun.runId}/0.json`,
+    });
+
+    const missingRun = startCorpusRun();
+    const relPath = writeCorpusFile(corpusDir, missingRun, "probes", 0, "json", "[]");
+    finish(corpusDir, missingRun);
+    rmSync(join(corpusDir, relPath), { force: true });
+    const missingLoaded = loadCorpusRun(corpusDir, missingRun.runId, twoStepPlan);
+    expect(missingLoaded.gaps).not.toContainEqual(
+      expect.objectContaining({ kind: "file-corrupt", relPath }),
+    );
   });
 });

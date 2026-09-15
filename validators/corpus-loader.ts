@@ -35,140 +35,215 @@ export interface StepEvidence {
   evidence: ContractEvidence;
 }
 
-/**
- * Rebuild each step's ContractEvidence from a recorded run, guided by its
- * run-manifest.json `files` list and the test plan's step ordering.
- *
- * Returns `[]` when the runId/dir is absent from corpusDir (UNKNOWN_RUN) —
- * an explicit empty set, never a crash. A step whose post-snapshot or probe
- * collector gaped (file absent from the manifest) yields undefined evidence,
- * mirroring 3.1's missing-evidence path.
- */
-export function loadCorpusSteps(corpusDir: string, runId: string, plan: TestPlan): StepEvidence[] {
-  // --- Read the manifest (source of what exists). Absent run → empty. ---
-  // Note: since the planModelVersion provenance field became required on
-  // runManifestSchema (story 6), a LEGACY manifest lacking it fails this
-  // safeParse and yields `[]` here too — the library-visible ripple of the
-  // plan-version guard. The operator CLIs guard earlier and refuse with a
-  // clear re-record message; this comment documents the loader-side behavior.
+export interface CorpusGap {
+  kind: "manifest-invalid" | "unknown-run" | "plan-malformed" | "file-corrupt";
+  stepIndex?: number;
+  contractId?: string;
+  relPath?: string;
+  scenarioIndex?: number;
+  detail?: string;
+}
+
+interface PlanStep {
+  stepIndex: number;
+  contractId: string;
+}
+
+interface PlanShape {
+  steps: PlanStep[];
+  gaps: CorpusGap[];
+}
+
+export interface CorpusRunLoad {
+  steps: StepEvidence[];
+  gaps: CorpusGap[];
+}
+
+/** Rebuild a recorded run and retain every gap that could make validation vacuous. */
+export function loadCorpusRun(corpusDir: string, runId: string, plan: TestPlan): CorpusRunLoad {
+  const planShape = planSteps(plan);
   const manifestPath = join(corpusDir, runId, "run-manifest.json");
   let manifest: RunManifest;
   try {
     const raw = readFileSync(manifestPath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (!runManifestSchema.safeParse(parsed).success) {
-      return [];
+    const parsed: unknown = JSON.parse(raw);
+    const result = runManifestSchema.safeParse(parsed);
+    if (!result.success) {
+      return {
+        steps: planShape.steps.map(({ stepIndex, contractId }) => ({
+          stepIndex,
+          contractId,
+          evidence: {},
+        })),
+        gaps: [
+          ...planShape.gaps,
+          { kind: "manifest-invalid", detail: "run manifest failed schema validation" },
+        ],
+      };
     }
-    manifest = parsed;
-  } catch {
-    return [];
+    manifest = result.data;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return { steps: [], gaps: [...planShape.gaps, { kind: "unknown-run" }] };
+    }
+    return {
+      steps: planShape.steps.map(({ stepIndex, contractId }) => ({
+        stepIndex,
+        contractId,
+        evidence: {},
+      })),
+      gaps: [
+        ...planShape.gaps,
+        { kind: "manifest-invalid", detail: "run manifest could not be read" },
+      ],
+    };
   }
 
   const files = new Set<string>(manifest.files);
-
-  // --- Reconstruct stepIndex → contractId by walking the plan (total 0..N-1). ---
-  return planSteps(plan).map(({ stepIndex, contractId }) => ({
-    stepIndex,
-    contractId,
-    evidence: loadStepEvidence(corpusDir, runId, stepIndex, files),
-  }));
+  const loadedSteps = planShape.steps.map(({ stepIndex, contractId }) => {
+    const loaded = loadStepEvidence(corpusDir, runId, stepIndex, files);
+    return {
+      step: { stepIndex, contractId, evidence: loaded.evidence },
+      gaps: loaded.gaps.map((gap) => ({ ...gap, stepIndex, contractId })),
+    };
+  });
+  return {
+    steps: loadedSteps.map(({ step }) => step),
+    gaps: [...planShape.gaps, ...loadedSteps.flatMap(({ gaps }) => gaps)],
+  };
 }
 
-/** Reconstruct stepIndex → contractId by walking the plan with the same global
- * counter the orchestrator uses. Defensive against a malformed/absent plan so
- * the loader never throws: a missing or non-array `plan.scenarios`, a scenario
- * without an iterable `steps`, or a step without a string `contractId` is
- * skipped (an absent plan yields `[]`). A well-formed plan walks unchanged. */
-function planSteps(plan: unknown): Array<{ stepIndex: number; contractId: string }> {
-  const steps: Array<{ stepIndex: number; contractId: string }> = [];
+/** Compatibility wrapper for consumers that intentionally need only evidence. */
+export function loadCorpusSteps(corpusDir: string, runId: string, plan: TestPlan): StepEvidence[] {
+  const loaded = loadCorpusRun(corpusDir, runId, plan);
+  return loaded.gaps.some(({ kind }) => kind === "manifest-invalid" || kind === "unknown-run")
+    ? []
+    : loaded.steps;
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
+/** Reconstruct plan indexes exactly as the orchestrator does, including malformed iterations. */
+function planSteps(plan: unknown): PlanShape {
+  const steps: PlanStep[] = [];
+  const gaps: CorpusGap[] = [];
   if (typeof plan !== "object" || plan === null) {
-    return steps;
+    return { steps, gaps: [{ kind: "plan-malformed", detail: "plan is not an object" }] };
   }
   const scenarios = (plan as { scenarios?: unknown }).scenarios;
   if (!Array.isArray(scenarios)) {
-    return steps;
+    return { steps, gaps: [{ kind: "plan-malformed", detail: "plan.scenarios is not an array" }] };
   }
 
   let stepIndex = 0;
-  for (const scenario of scenarios) {
+  for (let scenarioIndex = 0; scenarioIndex < scenarios.length; scenarioIndex += 1) {
+    const scenario = scenarios[scenarioIndex];
     const scenarioSteps = (scenario as { steps?: unknown } | null)?.steps;
     if (!Array.isArray(scenarioSteps)) {
+      gaps.push({
+        kind: "plan-malformed",
+        scenarioIndex,
+        detail: "scenario.steps is not an array",
+      });
       continue;
     }
-    for (const step of scenarioSteps) {
+    for (let stepPosition = 0; stepPosition < scenarioSteps.length; stepPosition += 1) {
+      const step = scenarioSteps[stepPosition];
       const contractId = (step as { contractId?: unknown } | null)?.contractId;
       if (typeof contractId !== "string") {
-        continue;
+        gaps.push({
+          kind: "plan-malformed",
+          scenarioIndex,
+          stepIndex,
+          detail: "step.contractId is not a string",
+        });
+      } else {
+        steps.push({ stepIndex, contractId });
       }
-      steps.push({ stepIndex, contractId });
       stepIndex += 1;
     }
   }
-  return steps;
+  return { steps, gaps };
 }
 
-/** Read a step's post snapshot (`{stepIndex}.json`), pre snapshot
- * (`{stepIndex}.pre.json`), and probes (`{stepIndex}.json`) — but only when the
- * manifest `files` list names them (collector gap → undefined, never a throw). */
+interface EvidenceRead<T> {
+  value: T | undefined;
+  corrupt: boolean;
+}
+
 function loadStepEvidence(
   corpusDir: string,
   runId: string,
   stepIndex: number,
   files: Set<string>,
-): ContractEvidence {
+): { evidence: ContractEvidence; gaps: CorpusGap[] } {
   const pre = readSnapshotIfListed(corpusDir, `snapshots/${runId}/${stepIndex}.pre.json`, files);
   const post = readSnapshotIfListed(corpusDir, `snapshots/${runId}/${stepIndex}.json`, files);
   const probes = readProbesIfListed(corpusDir, `probes/${runId}/${stepIndex}.json`, files);
-
+  const reads: Array<EvidenceRead<SnapshotRecord> | EvidenceRead<ProbeResult[]>> = [
+    pre,
+    post,
+    probes,
+  ];
+  const relPaths = [
+    `snapshots/${runId}/${stepIndex}.pre.json`,
+    `snapshots/${runId}/${stepIndex}.json`,
+    `probes/${runId}/${stepIndex}.json`,
+  ];
   return {
-    ...(pre !== undefined ? { pre } : {}),
-    ...(post !== undefined ? { post } : {}),
-    ...(probes !== undefined ? { probes } : {}),
+    evidence: {
+      ...(pre.value !== undefined ? { pre: pre.value } : {}),
+      ...(post.value !== undefined ? { post: post.value } : {}),
+      ...(probes.value !== undefined ? { probes: probes.value } : {}),
+    },
+    gaps: reads.flatMap((read, index) =>
+      read.corrupt ? [{ kind: "file-corrupt" as const, relPath: relPaths[index] }] : [],
+    ),
   };
 }
 
-/** Read and validate a snapshot file, but only if the manifest lists it. A
- * listed-but-unparseable file degrades to undefined (missing evidence) rather
- * than throwing — the loader stays a pure result, never an exception. */
 function readSnapshotIfListed(
   corpusDir: string,
   relPath: string,
   files: Set<string>,
-): SnapshotRecord | undefined {
+): EvidenceRead<SnapshotRecord> {
   if (!files.has(relPath)) {
-    return undefined;
+    return { value: undefined, corrupt: false };
   }
-  const abs = join(corpusDir, relPath);
   try {
-    const raw = JSON.parse(readFileSync(abs, "utf8"));
+    const raw = JSON.parse(readFileSync(join(corpusDir, relPath), "utf8"));
     const parsed = snapshotRecordSchema.safeParse(raw);
-    if (!parsed.success) {
-      return undefined;
-    }
-    return parsed.data;
-  } catch {
-    return undefined;
+    return parsed.success
+      ? { value: parsed.data, corrupt: false }
+      : { value: undefined, corrupt: true };
+  } catch (error) {
+    return {
+      value: undefined,
+      corrupt: !(isErrnoException(error) && error.code === "ENOENT"),
+    };
   }
 }
 
-/** Read and validate a probe batch, but only if the manifest lists it. */
 function readProbesIfListed(
   corpusDir: string,
   relPath: string,
   files: Set<string>,
-): ProbeResult[] | undefined {
+): EvidenceRead<ProbeResult[]> {
   if (!files.has(relPath)) {
-    return undefined;
+    return { value: undefined, corrupt: false };
   }
-  const abs = join(corpusDir, relPath);
   try {
-    const raw = JSON.parse(readFileSync(abs, "utf8"));
+    const raw = JSON.parse(readFileSync(join(corpusDir, relPath), "utf8"));
     const parsed = probeResultSchema.array().safeParse(raw);
-    if (!parsed.success) {
-      return undefined;
-    }
-    return parsed.data;
-  } catch {
-    return undefined;
+    return parsed.success
+      ? { value: parsed.data, corrupt: false }
+      : { value: undefined, corrupt: true };
+  } catch (error) {
+    return {
+      value: undefined,
+      corrupt: !(isErrnoException(error) && error.code === "ENOENT"),
+    };
   }
 }

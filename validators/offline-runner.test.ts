@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -241,6 +241,196 @@ describe("runValidatorsOffline", () => {
     }
   });
 
+  it("reports an unknown contract instead of dropping its expected check", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    finish(corpusDir, run);
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "unknown", steps: [{ stateId: "homePage", contractId: "missingContract" }] },
+      ],
+    };
+    expect(runValidatorsOffline(corpusDir, run.runId, plan)).toEqual([
+      expect.objectContaining({
+        contractId: "missingContract",
+        passed: false,
+        details: "missingContract — unvalidated gap",
+      }),
+    ]);
+  });
+
+  it("reports manifest and file corruption without vacuous passes", () => {
+    const corpusDir = makeCorpusDir();
+    const invalidRun = startCorpusRun();
+    finish(corpusDir, invalidRun);
+    writeFileSync(join(corpusDir, invalidRun.runId, "run-manifest.json"), "{not json");
+    const oneStep: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    expect(runValidatorsOffline(corpusDir, invalidRun.runId, oneStep)).toEqual([
+      expect.objectContaining({
+        contractId: "openPortfolioSummary",
+        passed: false,
+        details: "cannot validate: run manifest invalid",
+      }),
+    ]);
+
+    const corruptRun = startCorpusRun();
+    writeCorpusFile(corpusDir, corruptRun, "snapshots", 0, "json", "{not json");
+    finish(corpusDir, corruptRun);
+    const INDEPENDENT = "__independentValidator";
+    validatorMap[INDEPENDENT] = [() => ({ contractId: INDEPENDENT, passed: true, corpusRefs: [] })];
+    try {
+      const corruptPlan = {
+        ...oneStep,
+        scenarios: [{ id: "one", steps: [{ stateId: "homePage", contractId: INDEPENDENT }] }],
+      };
+      const results = runValidatorsOffline(corpusDir, corruptRun.runId, corruptPlan);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        contractId: INDEPENDENT,
+        passed: false,
+        details: expect.stringContaining(`snapshots/${corruptRun.runId}/0.json`),
+      });
+    } finally {
+      delete validatorMap[INDEPENDENT];
+    }
+  });
+
+  it("fails schema-invalid evidence and preserves missing-file validator failures", () => {
+    const corpusDir = makeCorpusDir();
+    const schemaRun = startCorpusRun();
+    writeCorpusFile(corpusDir, schemaRun, "probes", 0, "json", "{}");
+    finish(corpusDir, schemaRun);
+    const INDEPENDENT = "__schemaIndependentValidator";
+    validatorMap[INDEPENDENT] = [() => ({ contractId: INDEPENDENT, passed: true, corpusRefs: [] })];
+    try {
+      const plan: TestPlan = {
+        planId: "smoke",
+        modelVersion: "x",
+        scenarios: [{ id: "one", steps: [{ stateId: "homePage", contractId: INDEPENDENT }] }],
+      };
+      const schemaResults = runValidatorsOffline(corpusDir, schemaRun.runId, plan);
+      expect(schemaResults).toContainEqual(
+        expect.objectContaining({
+          contractId: INDEPENDENT,
+          passed: false,
+          details: expect.stringContaining(`probes/${schemaRun.runId}/0.json`),
+        }),
+      );
+    } finally {
+      delete validatorMap[INDEPENDENT];
+    }
+
+    const missingRun = startCorpusRun();
+    const relPath = writeCorpusFile(corpusDir, missingRun, "probes", 0, "json", "[]");
+    finish(corpusDir, missingRun);
+    rmSync(join(corpusDir, relPath), { force: true });
+    const missingPlan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    const missingResults = runValidatorsOffline(corpusDir, missingRun.runId, missingPlan);
+    expect(missingResults).toHaveLength(1);
+    expect(missingResults[0]?.details).toContain("missing snapshot evidence");
+    expect(missingResults[0]?.details).not.toContain("corrupt file");
+  });
+
+  it("suppresses all passing results when plan alignment is malformed", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    writeSnapshot(
+      corpusDir,
+      run,
+      0,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "0.pre",
+    );
+    writeSnapshot(corpusDir, run, 0, {
+      stateId: "portfolioSummaryDialog",
+      url: "https://pro.kraken.com/app/home",
+    });
+    writeSnapshot(
+      corpusDir,
+      run,
+      1,
+      { stateId: "homePage", url: "https://pro.kraken.com/app/home" },
+      "1.pre",
+    );
+    writeSnapshot(corpusDir, run, 1, {
+      stateId: "portfolioSummaryDialog",
+      url: "https://pro.kraken.com/app/home",
+    });
+    writeFileSync(
+      join(corpusDir, "snapshots", run.runId, "0.json"),
+      JSON.stringify({
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">portfolio</div>',
+        capturedAt: "t",
+      }),
+    );
+    writeFileSync(
+      join(corpusDir, "snapshots", run.runId, "1.json"),
+      JSON.stringify({
+        stateId: "portfolioSummaryDialog",
+        url: "https://pro.kraken.com/app/home",
+        snapshot: '<div role="dialog">portfolio</div>',
+        capturedAt: "t",
+      }),
+    );
+    finish(corpusDir, run);
+    const plan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "bad", steps: [{ stateId: "homePage", contractId: 42 }] },
+        { id: "good", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    } as unknown as TestPlan;
+    const wellFormedPlan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "good", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    expect(runValidatorsOffline(corpusDir, run.runId, wellFormedPlan)).toEqual([
+      expect.objectContaining({ contractId: "openPortfolioSummary", passed: true }),
+    ]);
+    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every(({ contractId, passed }) => contractId === "(corpus)" && !passed)).toBe(
+      true,
+    );
+  });
+
+  it("does not report a collector gap as a reconciliation gap", () => {
+    const corpusDir = makeCorpusDir();
+    const run = startCorpusRun();
+    finish(corpusDir, run);
+    const plan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "x",
+      scenarios: [
+        { id: "one", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      ],
+    };
+    const results = runValidatorsOffline(corpusDir, run.runId, plan);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.contractId).toBe("openPortfolioSummary");
+    expect(results[0]?.details).not.toContain("corrupt");
+  });
+
   it("does not throw when a validator throws, and still returns the non-throwing results (PATCH 4)", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
@@ -296,8 +486,13 @@ describe("runValidatorsOffline", () => {
       expect(() => runValidatorsOffline(corpusDir, run.runId, plan)).not.toThrow();
 
       const results = runValidatorsOffline(corpusDir, run.runId, plan);
-      // The throwing validator's step yields no result; the non-throwing one does.
-      expect(results.some((r) => r.contractId === THROWING)).toBe(false);
+      expect(results).toContainEqual(
+        expect.objectContaining({
+          contractId: THROWING,
+          passed: false,
+          details: expect.stringContaining("validator threw"),
+        }),
+      );
       expect(results.some((r) => r.contractId === "clickPortfolioMenuOverview")).toBe(true);
     } finally {
       delete validatorMap[THROWING];
