@@ -94,33 +94,22 @@ export function isKnownRun(corpusDir: string, runId: string): boolean {
 }
 
 /** The ONE shared raw-manifest reader for both operator CLIs (story 6 review):
- * the run manifest parsed leniently — `{ timestamp?, planModelVersion? }` with
- * only string-valued fields kept, when the file parses to a non-null object;
- * `undefined` when it is absent, unparseable, or not an object (both guards
- * step aside and the existing zero-checks error family applies, unchanged).
- * Read raw — not via `runManifestSchema` — precisely because the schema now
- * REQUIRES a non-empty `planModelVersion`: a legacy manifest must reach the
- * guard and be refused with its own re-record message, never fail a parse. */
-export function readRawRunManifest(
-  corpusDir: string,
-  runId: string,
-): { timestamp?: string; planModelVersion?: string } | undefined {
-  let parsed: unknown;
+ * the manifest's raw JSON text, or `undefined` when it is absent, unparseable,
+ * or not an object. Callers parse the one returned string for their own
+ * validation needs; this avoids a second filesystem read. */
+export function readRawRunManifest(corpusDir: string, runId: string): string | undefined {
+  let raw: string;
   try {
-    parsed = JSON.parse(readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"));
+    raw = readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8");
   } catch {
     return undefined;
   }
-  if (typeof parsed !== "object" || parsed === null) {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? raw : undefined;
+  } catch {
     return undefined;
   }
-  const fields = parsed as { timestamp?: unknown; planModelVersion?: unknown };
-  return {
-    ...(typeof fields.timestamp === "string" ? { timestamp: fields.timestamp } : {}),
-    ...(typeof fields.planModelVersion === "string"
-      ? { planModelVersion: fields.planModelVersion }
-      : {}),
-  };
 }
 
 /** The recorded `planModelVersion` from the run's raw manifest, or `undefined`
@@ -128,7 +117,12 @@ export function readRawRunManifest(
  * the manifest unreadable/non-object). Exported so the guard's refusal cases
  * are covered directly by tests. */
 export function readPlanModelVersion(corpusDir: string, runId: string): string | undefined {
-  return readRawRunManifest(corpusDir, runId)?.planModelVersion;
+  const raw = readRawRunManifest(corpusDir, runId);
+  if (raw === undefined) {
+    return undefined;
+  }
+  const parsed = JSON.parse(raw) as { planModelVersion?: unknown };
+  return typeof parsed.planModelVersion === "string" ? parsed.planModelVersion : undefined;
 }
 
 /** The plan-version guard's refusal message (story 6), or `undefined` when the

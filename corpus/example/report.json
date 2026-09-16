@@ -1,5 +1,5 @@
 {
-  "schema": "report.v1",
+  "schema": "report.v2",
   "runId": "example",
   "timestamp": "2026-09-11T00:00:00.000Z",
   "planId": "smoke",

@@ -10,10 +10,22 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
-import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
+import type {
+  RunMetadata,
+  ScenarioResult,
+  ScreenshotRef,
+  StepEvidence,
+  TestPlan,
+} from "../model/schemas.js";
 import { assertSafeRunId } from "../orchestrator/corpus.js";
 
-/** Inputs to `emitHtmlReport`. */
+/** Corpus-relative failure refs aligned to a scenario's global step indexes.
+ * Entries are omitted-safe; callers must not render them for passing scenarios. */
+export interface FailureEvidenceRefs {
+  failureSnapshot?: string;
+  failureScreenshot?: ScreenshotRef;
+}
+
 export interface EmitHtmlReportInput {
   /** Absolute path to the corpus output directory. */
   corpusDir: string;
@@ -49,6 +61,8 @@ export interface EmitHtmlReportInput {
    * renderable), the step renders as it did in Story 2.
    */
   stepEvidence?: Readonly<Record<string, StepEvidence[]>>;
+  /** Corpus-relative failure refs, aligned by global step-index order across scenarios. */
+  failureEvidence?: Readonly<Record<string, (FailureEvidenceRefs | undefined)[]>>;
 }
 
 /**
@@ -66,9 +80,18 @@ export function emitHtmlReport({
   relations,
   gherkinSource,
   stepEvidence,
+  failureEvidence,
 }: EmitHtmlReportInput): string {
   assertSafeRunId(run.runId);
-  const html = renderHtmlReport({ run, plan, results, relations, gherkinSource, stepEvidence });
+  const html = renderHtmlReport({
+    run,
+    plan,
+    results,
+    relations,
+    gherkinSource,
+    stepEvidence,
+    failureEvidence,
+  });
   const relPath = `${run.runId}/report.html`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
   writeFileSync(join(corpusDir, relPath), html);
@@ -83,6 +106,7 @@ export function renderHtmlReport({
   relations,
   gherkinSource,
   stepEvidence,
+  failureEvidence,
 }: Omit<EmitHtmlReportInput, "corpusDir">): string {
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
@@ -105,30 +129,35 @@ export function renderHtmlReport({
         : "";
 
     const evidence = stepEvidence?.[scenario.id];
+    const failures = failureEvidence?.[scenario.id];
     const stepsHtml = scenario.steps
       .map((step, idx) => {
         const ev = evidence?.[idx];
-        if (!ev) {
+        const failure = failures?.[idx];
+        if (!ev && !failure) {
           return plainStepRow(step);
         }
-        const linksHtml = renderEvidenceLinks(ev);
-        // Timing-only evidence renders nothing visible — fall back to the
-        // plain Story-2 row instead of a details block reading "0 ms".
-        if (ev.screenshot === undefined && linksHtml.length === 0) {
-          return plainStepRow(step);
-        }
-        const filePath = ev.screenshot?.filePath;
+        const linksHtml = ev ? renderEvidenceLinks(ev) : "";
+        const filePath = ev?.screenshot?.filePath;
         const hasScreenshot = filePath !== undefined && isSafeRelPath(filePath);
         const imgHtml = hasScreenshot
           ? `<div class="step-screenshot"><img src="../${escapeHtml(filePath)}" alt="Step screenshot" /></div>`
           : "";
+        const failureHtml =
+          result && !result.passed && failure ? renderFailureEvidence(failure) : "";
+        if (
+          (!ev && failureHtml.length === 0) ||
+          (ev && ev.screenshot === undefined && linksHtml.length === 0 && failureHtml.length === 0)
+        ) {
+          return plainStepRow(step);
+        }
         return `<li>
             <details>
               <summary><span class="keyword">Given</span> <span class="state">${escapeHtml(step.stateId)}</span> → <span class="keyword">When</span> <span class="contract">${escapeHtml(step.contractId)}</span></summary>
               <div class="step-evidence">
-                <span class="step-timing">${escapeHtml(String(ev.timingMs))} ms</span>
+                ${ev ? `<span class="step-timing">${escapeHtml(String(ev.timingMs))} ms</span>` : ""}
                 ${linksHtml}
-                ${imgHtml}
+                ${imgHtml}${failureHtml}
               </div>
             </details>
           </li>`;
@@ -281,6 +310,27 @@ function isSafeRelPath(filePath: string): boolean {
  * corpus-root-relative); `rel="noopener noreferrer"` accompanies
  * `target="_blank"`. Absent (or unsafe) refs render nothing — no dangling
  * links, no injection. */
+function renderFailureEvidence(ev: FailureEvidenceRefs): string {
+  // New failure links reject traversal; legacy evidence links retain their tracked tolerance.
+  const snapshotLink =
+    ev.failureSnapshot !== undefined &&
+    SAFE_HREF_PATTERN.test(ev.failureSnapshot) &&
+    !ev.failureSnapshot.split("/").includes("..")
+      ? `<a class="step-link" href="../${escapeHtml(ev.failureSnapshot)}" target="_blank" rel="noopener noreferrer">failure snapshot</a>`
+      : "";
+  const filePath = ev.failureScreenshot?.filePath;
+  const screenshotHtml =
+    filePath !== undefined && isSafeRelPath(filePath)
+      ? `<div class="step-screenshot"><img src="../${escapeHtml(filePath)}" alt="Failure screenshot" /></div>`
+      : "";
+  if (snapshotLink.length === 0 && screenshotHtml.length === 0) {
+    return "";
+  }
+  return `<div class="failure-evidence"><span class="failure-label">failure evidence</span>${
+    snapshotLink.length > 0 ? `<div class="step-links">${snapshotLink}</div>` : ""
+  }${screenshotHtml}</div>`;
+}
+
 function renderEvidenceLinks(ev: StepEvidence): string {
   const links: string[] = [];
   for (const [label, ref] of [

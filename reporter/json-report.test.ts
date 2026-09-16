@@ -72,7 +72,7 @@ describe("renderJsonReport", () => {
     const json = renderJsonReport({ run, plan, results, stepEvidence });
 
     expect(json).toBe(`{
-  "schema": "report.v1",
+  "schema": "report.v2",
   "runId": "run-abc123",
   "timestamp": "2026-09-11T09:00:00.000Z",
   "planId": "smoke",
@@ -267,8 +267,8 @@ describe("renderJsonReport", () => {
       schema: string;
     };
 
-    expect(parsed.schema).toBe("report.v1");
-    expect(REPORT_SCHEMA).toBe("report.v1");
+    expect(parsed.schema).toBe("report.v2");
+    expect(REPORT_SCHEMA).toBe("report.v2");
   });
 });
 
@@ -288,7 +288,7 @@ describe("emitJsonReport", () => {
     expect(relPath).toBe(`${run.runId}/report.json`);
     const written = readFileSync(join(corpusDir, run.runId, "report.json"), "utf8");
     const parsed = JSON.parse(written) as { schema: string; summary: unknown };
-    expect(parsed.schema).toBe("report.v1");
+    expect(parsed.schema).toBe("report.v2");
     expect(parsed.summary).toEqual({ total: 1, passed: 1, failed: 0 });
     expect(existsSync(join(corpusDir, run.runId, "report.json"))).toBe(true);
   });
@@ -321,5 +321,75 @@ describe("emitJsonReport", () => {
     const second = readFileSync(join(secondDir, run.runId, "report.json"), "utf8");
 
     expect(second).toBe(first);
+  });
+
+  it("FAILURE_EVIDENCE — emits failure refs alongside normal step fields", () => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const parsed = JSON.parse(
+      renderJsonReport({
+        run,
+        plan,
+        results: [result("sc", false)],
+        failureEvidence: {
+          sc: [
+            {
+              failureSnapshot: "snapshots/run1/0.failure.json",
+              failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" },
+            },
+          ],
+        },
+      }),
+    ) as { scenarios: Array<{ steps: Array<Record<string, unknown>> }> };
+
+    expect(parsed.scenarios[0]?.steps[0]).toEqual({
+      stateId: "home",
+      contractId: "openLogin",
+      failureSnapshot: "snapshots/run1/0.failure.json",
+      failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" },
+    });
+  });
+
+  it.each([
+    ["snapshot-only", { failureSnapshot: "snapshots/run1/0.failure.json" }],
+    [
+      "screenshot-only",
+      { failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" } },
+    ],
+    ["missing-file", {}],
+    ["unsafe-path", { failureSnapshot: "../outside.json" }],
+    ["empty", undefined],
+  ])(
+    "FAILURE_VARIANT_%s — preserves JSON refs without HTML path filtering",
+    (_name, failureEvidence) => {
+      const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+      const parsed = JSON.parse(
+        renderJsonReport({
+          run,
+          plan,
+          results: [result("sc", false)],
+          failureEvidence: { sc: [failureEvidence] },
+        }),
+      ) as { scenarios: Array<{ steps: Array<Record<string, unknown>> }> };
+
+      expect(parsed.scenarios[0]?.steps[0]).toMatchObject({
+        stateId: "home",
+        contractId: "openLogin",
+      });
+    },
+  );
+
+  it("PASSING_SCENARIO — omits failure refs even when supplied", () => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const parsed = JSON.parse(
+      renderJsonReport({
+        run,
+        plan,
+        results: [result("sc", true)],
+        failureEvidence: { sc: [{ failureSnapshot: "snapshots/run1/0.failure.json" }] },
+      }),
+    ) as { scenarios: Array<{ steps: Array<Record<string, unknown>> }> };
+
+    expect(parsed.scenarios[0]?.steps[0]).not.toHaveProperty("failureSnapshot");
+    expect(parsed.scenarios[0]?.steps[0]).not.toHaveProperty("failureScreenshot");
   });
 });

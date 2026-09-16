@@ -46,10 +46,11 @@ import type {
   TestPlan,
   ValidationResult,
 } from "../model/schemas.js";
-import { screenshotRefSchema } from "../model/schemas.js";
+import { runManifestSchema, screenshotRefSchema } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { RUN_ID_PATTERN } from "../orchestrator/handlinks.js";
 import { buildGherkinSnapshot } from "../reporter/gherkin-snapshot.js";
+import type { FailureEvidenceRefs } from "../reporter/html-report.js";
 import { emitHtmlReport } from "../reporter/html-report.js";
 import { emitJsonReport } from "../reporter/json-report.js";
 import { crossViewInvariants } from "../validators/cross-view.js";
@@ -149,12 +150,24 @@ function readRunMetadata(
   manifestReadable: boolean;
   run: RunMetadata | undefined;
   planModelVersion: string | undefined;
+  failingStepIndexes: ReadonlySet<number>;
 } {
   const raw = readRawRunManifest(corpusDir, runId);
+  const rawObject = raw !== undefined ? (JSON.parse(raw) as Record<string, unknown>) : undefined;
+  const parsed = rawObject !== undefined ? runManifestSchema.safeParse(rawObject) : undefined;
+  const manifest = parsed?.success === true ? parsed.data : undefined;
   return {
     manifestReadable: raw !== undefined,
-    run: raw?.timestamp !== undefined ? { runId, timestamp: raw.timestamp } : undefined,
-    planModelVersion: raw?.planModelVersion,
+    run:
+      typeof rawObject?.timestamp === "string"
+        ? { runId, timestamp: rawObject.timestamp }
+        : undefined,
+    planModelVersion:
+      typeof rawObject?.planModelVersion === "string" ? rawObject.planModelVersion : undefined,
+    failingStepIndexes:
+      manifest === undefined
+        ? new Set<number>()
+        : new Set(manifest.failures.map(({ stepIndex }) => stepIndex)),
   };
 }
 
@@ -181,6 +194,46 @@ export function buildStepEvidence(
       scenario.steps.map(() => stepEvidenceFor(corpusDir, runId, stepIndex++)),
     ]),
   );
+}
+
+/** Builds corpus-relative failure refs aligned by global step-index order across scenarios.
+ * Missing or unusable refs are omitted; callers must not render them for passing scenarios. */
+export function buildFailureEvidence(
+  plan: TestPlan,
+  corpusDir: string,
+  runId: string,
+  failingStepIndexes: ReadonlySet<number>,
+): Record<string, (FailureEvidenceRefs | undefined)[]> {
+  let stepIndex = 0;
+  return Object.fromEntries(
+    plan.scenarios.map((scenario) => [
+      scenario.id,
+      scenario.steps.map(() =>
+        failureStepEvidenceFor(corpusDir, runId, stepIndex++, failingStepIndexes),
+      ),
+    ]),
+  );
+}
+
+function failureStepEvidenceFor(
+  corpusDir: string,
+  runId: string,
+  stepIndex: number,
+  failingStepIndexes: ReadonlySet<number>,
+): FailureEvidenceRefs | undefined {
+  if (!failingStepIndexes.has(stepIndex)) {
+    return undefined;
+  }
+  const failureSnapshot = `snapshots/${runId}/${stepIndex}.failure.json`;
+  const failureScreenshot = readScreenshotRef(
+    corpusDir,
+    `screenshots/${runId}/${stepIndex}.failure.json`,
+  );
+  const refs = {
+    ...(corpusRef(corpusDir, failureSnapshot) !== undefined ? { failureSnapshot } : {}),
+    ...(failureScreenshot !== undefined ? { failureScreenshot } : {}),
+  };
+  return Object.keys(refs).length > 0 ? refs : undefined;
 }
 
 /** One step's evidence: refs for the corpus files that exist, plus the timing
@@ -312,7 +365,10 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
   // parseable-but-timestampless manifest with a missing/mismatched plan
   // version is refused, never the generic zero-checks error. A manifest that
   // cannot be read at all keeps the existing zero-checks path (unchanged).
-  const { manifestReadable, run, planModelVersion } = readRunMetadata(corpusDir, runId);
+  const { manifestReadable, run, planModelVersion, failingStepIndexes } = readRunMetadata(
+    corpusDir,
+    runId,
+  );
   if (manifestReadable) {
     const refusal = planVersionRefusal(planModelVersion, plan.modelVersion);
     if (refusal !== undefined) {
@@ -339,6 +395,7 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
       ? plan
       : { ...plan, scenarios: [...plan.scenarios, { id: "cross-view-invariants", steps: [] }] };
   const stepEvidence = buildStepEvidence(reportPlan, corpusDir, runId);
+  const failureEvidence = buildFailureEvidence(reportPlan, corpusDir, runId, failingStepIndexes);
 
   // The html rel path doubles as the "html written" flag: it is set only after
   // emitHtmlReport returned (the file is on disk), so the catch can roll a
@@ -354,6 +411,7 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
       relations,
       gherkinSource: buildGherkinSnapshot("features", relations),
       stepEvidence,
+      failureEvidence,
     });
     jsonRelPath = emitJsonReport({
       corpusDir,
@@ -362,6 +420,7 @@ export function reportSmoke(argv: readonly string[], options: ReportOptions = {}
       results: scenarioResults,
       relations,
       stepEvidence,
+      failureEvidence,
     });
   } catch (error) {
     // A write failure is an error outcome with usage — never a raw stack

@@ -18,7 +18,13 @@ import type { StepEvidence, TestPlan, ValidationResult } from "../model/schemas.
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
 import { resolveLatestRun } from "./cli-shared.js";
 import { generateSampleReport } from "./generate-sample-report.js";
-import { buildStepEvidence, deriveScenarioResults, reportSmoke, USAGE } from "./report-smoke.js";
+import {
+  buildFailureEvidence,
+  buildStepEvidence,
+  deriveScenarioResults,
+  reportSmoke,
+  USAGE,
+} from "./report-smoke.js";
 
 // Ghost-result injection: the offline runner is wrapped so one test can append
 // a failing result for a contract no scenario references — proving the exit
@@ -462,6 +468,78 @@ describe("reportSmoke", () => {
     });
     // …and the html renders those refs as links.
     expect(report).toContain('class="step-link"');
+  });
+
+  it("cites manifest-named failure refs in both reports", () => {
+    writeAllPassRun(corpusDir, "run-1");
+    corruptPostUrl(corpusDir, "run-1", 0, "https://wrong.example");
+    writeFileSync(join(corpusDir, "snapshots", "run-1", "0.failure.json"), "failure");
+    mkdirSync(join(corpusDir, "screenshots", "run-1"), { recursive: true });
+    writeFileSync(
+      join(corpusDir, "screenshots", "run-1", "0.failure.json"),
+      JSON.stringify({ filePath: "screenshots/run-1/0.failure.png", capturedAt: CAPTURED_AT }),
+    );
+    writeFileSync(join(corpusDir, "screenshots", "run-1", "0.failure.png"), "png");
+    const manifestPath = join(corpusDir, "run-1", "run-manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+    manifest.failures = [
+      { stepIndex: 0, contractId: "clickHistoryMenuMain", stateId: "homePage", error: "boom" },
+    ];
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    const outcome = reportSmoke(["run-1"], { corpusDir });
+
+    expect(outcome.exitCode).toBe(1);
+    const html = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
+    expect(html).toContain("failure evidence");
+    expect(html).toContain("0.failure.json");
+    const report = JSON.parse(readFileSync(join(corpusDir, "run-1", "report.json"), "utf8")) as {
+      scenarios: Array<{ steps: Array<Record<string, unknown>> }>;
+    };
+    expect(report.scenarios[0]?.steps[0]).toMatchObject({
+      failureSnapshot: "snapshots/run-1/0.failure.json",
+      failureScreenshot: { filePath: "screenshots/run-1/0.failure.png" },
+    });
+  });
+
+  it("MANIFEST_FAILURE_NO_FILES — emits no failure block when artifacts are absent", () => {
+    writeAllPassRun(corpusDir, "run-1");
+    const manifestPath = join(corpusDir, "run-1", "run-manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+    manifest.failures = [{ stepIndex: 0, contractId: "c1", stateId: "s1", error: "boom" }];
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    reportSmoke(["run-1"], { corpusDir });
+
+    const html = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
+    const json = readFileSync(join(corpusDir, "run-1", "report.json"), "utf8");
+    expect(html).not.toContain("failure evidence");
+    expect(json).not.toContain("failureSnapshot");
+    expect(json).not.toContain("failureScreenshot");
+  });
+
+  it("FILE_NO_MANIFEST — ignores failure artifacts without a manifest failure", () => {
+    writeAllPassRun(corpusDir, "run-1");
+    writeFileSync(join(corpusDir, "snapshots", "run-1", "0.failure.json"), "failure");
+
+    reportSmoke(["run-1"], { corpusDir });
+
+    const html = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
+    const json = readFileSync(join(corpusDir, "run-1", "report.json"), "utf8");
+    expect(html).not.toContain("failure evidence");
+    expect(json).not.toContain("failureSnapshot");
+  });
+
+  it("ALL_PASS_BYTE_IDENTITY — normal all-pass reports contain no failure surface", () => {
+    writeAllPassRun(corpusDir, "run-1");
+
+    reportSmoke(["run-1"], { corpusDir });
+
+    const html = readFileSync(join(corpusDir, "run-1", "report.html"), "utf8");
+    const json = readFileSync(join(corpusDir, "run-1", "report.json"), "utf8");
+    expect(html).not.toContain("failure evidence");
+    expect(json).not.toContain("failureSnapshot");
+    expect(json).not.toContain("failureScreenshot");
   });
 
   it("reports a diverged cross-view invariant red across the summary, HTML, and JSON", () => {
@@ -1110,9 +1188,66 @@ describe("buildStepEvidence", () => {
 
     const evidence = buildStepEvidence(twoScenarioPlan, corpusDir, "run-1");
 
-    // Scenario b's step is global step 1, not 0 — no per-scenario restart.
     expect(evidence.a).toEqual([{ timingMs: 0 }]);
     expect(evidence.b).toEqual([{ timingMs: 0, network: "network/run-1/1.json" }]);
+  });
+
+  it("MULTI_SCENARIO_ALIGNMENT — failure refs use the global step index", () => {
+    const twoScenarioPlan: TestPlan = {
+      planId: "smoke",
+      modelVersion: "test-hash",
+      scenarios: [
+        { id: "first", steps: [{ stateId: "s1", contractId: "c1" }] },
+        { id: "second", steps: [{ stateId: "s2", contractId: "c2" }] },
+      ],
+    };
+    writeCorpusJson("snapshots/run-1/1.failure.json", "failure");
+
+    const evidence = buildFailureEvidence(twoScenarioPlan, corpusDir, "run-1", new Set([1]));
+
+    expect(evidence.first).toEqual([undefined]);
+    expect(evidence.second).toEqual([{ failureSnapshot: "snapshots/run-1/1.failure.json" }]);
+  });
+
+  it("collects only manifest-named failure refs and keeps aligned empty entries", () => {
+    writeCorpusJson("snapshots/run-1/0.failure.json", { failure: "boom" });
+    writeCorpusJson("screenshots/run-1/0.failure.json", {
+      filePath: "screenshots/run-1/0.failure.png",
+      capturedAt: CAPTURED_AT,
+    });
+    writeCorpusJson("screenshots/run-1/0.failure.png", "png-bytes");
+    writeCorpusJson("snapshots/run-1/1.failure.json", { failure: "ignored" });
+
+    const evidence = buildFailureEvidence(evidencePlan, corpusDir, "run-1", new Set([0]));
+
+    expect(evidence.a).toEqual([
+      {
+        failureSnapshot: "snapshots/run-1/0.failure.json",
+        failureScreenshot: {
+          filePath: "screenshots/run-1/0.failure.png",
+          capturedAt: CAPTURED_AT,
+        },
+      },
+      undefined,
+    ]);
+  });
+
+  it("omits malformed or dangling failure screenshot refs", () => {
+    writeCorpusJson("screenshots/run-1/0.failure.json", "{not json");
+    writeCorpusJson("screenshots/run-1/0.failure.png", "png-bytes");
+
+    const evidence = buildFailureEvidence(evidencePlan, corpusDir, "run-1", new Set([0]));
+
+    expect(evidence.a).toEqual([undefined, undefined]);
+  });
+
+  it("returns no failure refs for all-pass or a failed step with no files", () => {
+    expect(buildFailureEvidence(evidencePlan, corpusDir, "run-1", new Set())).toEqual({
+      a: [undefined, undefined],
+    });
+    expect(buildFailureEvidence(evidencePlan, corpusDir, "run-1", new Set([1]))).toEqual({
+      a: [undefined, undefined],
+    });
   });
 });
 
@@ -1349,6 +1484,6 @@ describe("reportSmoke against the committed sample fixture (unconditional)", () 
     );
     expect(
       JSON.parse(readFileSync(join(corpusDir, "example", "report.json"), "utf8")) as unknown,
-    ).toMatchObject({ schema: "report.v1", runId: "example" });
+    ).toMatchObject({ schema: "report.v2", runId: "example" });
   });
 });
