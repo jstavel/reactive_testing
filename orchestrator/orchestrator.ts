@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Page } from "playwright";
 import { collectors } from "../collectors/collect.js";
+import { type NetworkCaptureHandle, startNetworkCapture } from "../collectors/collect-network.js";
 import { ProbePartialError } from "../collectors/collect-probe.js";
 import type { FsmTransition } from "../model/fsm.js";
 import { homePageModel } from "../model/fsm.js";
@@ -561,125 +562,157 @@ async function executeScenario(
       // The post-action snapshot records the transition's TARGET state, not the
       // state the step left (Story 2.7 fix for the `state-is` predicate).
       const targetStateId = resolveTargetState(step);
-
-      // Action + settle, wrapped so a failure captures best-effort evidence and
-      // records a step failure before rethrowing (the scenario still fails).
-      failedStep = { stepIndex, stateId: step.stateId, contractId: step.contractId };
-      try {
-        await withTimeout(action({ page }), stepTimeout);
-        const settleSelector = config.settleSelector ?? config.readySelector;
-        await page.waitForSelector(settleSelector, { timeout: stepTimeout });
-      } catch (err) {
-        await recordStepFailure(
-          config,
-          corpus,
-          page,
-          stepIndex,
-          step,
-          stepTimeout,
-          err,
-          failures,
-          phase,
-          scenario.id,
-        );
-        throw err;
-      }
-
-      // Collect and persist after every step. Each collector runs under its own
-      // isolation boundary (AD-16): a collector THROW becomes a recorded gap in
-      // the manifest `errors` while the remaining collectors and later steps
-      // still run; a collector exceeding stepTimeout rethrows and fails the
-      // scenario exactly as it did before isolation.
-      if (planned.has("snapshot")) {
-        const snapshot = await isolateCollector("snapshot", stepIndex, stepTimeout, errors, () =>
-          collectors.snapshot(page, { stateId: targetStateId }),
-        );
-        if (snapshot.status === "ok") {
-          writeCorpusFile(
-            config.corpusDir,
-            corpus,
-            "snapshots",
+      let netHandle: NetworkCaptureHandle | undefined;
+      let netFinished = false;
+      if (planned.has("network")) {
+        try {
+          netHandle = startNetworkCapture(page);
+        } catch (err) {
+          recordCollectorGap(errors, {
+            collector: "network",
             stepIndex,
-            "json",
-            JSON.stringify(snapshot.value),
-            corpusStem(phase, scenario.id, stepIndex),
-          );
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
-      if (planned.has("network")) {
-        const network = await isolateCollector("network", stepIndex, stepTimeout, errors, () =>
-          collectors.network(page),
-        );
-        if (network.status === "ok") {
-          writeCorpusFile(
-            config.corpusDir,
+      try {
+        // Action + settle, wrapped so a failure captures best-effort evidence and
+        // records a step failure before rethrowing (the scenario still fails).
+        failedStep = { stepIndex, stateId: step.stateId, contractId: step.contractId };
+        try {
+          await withTimeout(action({ page }), stepTimeout);
+          const settleSelector = config.settleSelector ?? config.readySelector;
+          await page.waitForSelector(settleSelector, { timeout: stepTimeout });
+        } catch (err) {
+          await recordStepFailure(
+            config,
             corpus,
+            page,
+            stepIndex,
+            step,
+            stepTimeout,
+            err,
+            failures,
+            phase,
+            scenario.id,
+          );
+          throw err;
+        }
+
+        // Collect and persist after every step. Each collector runs under its own
+        // isolation boundary (AD-16): a collector THROW becomes a recorded gap in
+        // the manifest `errors` while the remaining collectors and later steps
+        // still run; a collector exceeding stepTimeout rethrows and fails the
+        // scenario exactly as it did before isolation.
+        if (planned.has("snapshot")) {
+          const snapshot = await isolateCollector("snapshot", stepIndex, stepTimeout, errors, () =>
+            collectors.snapshot(page, { stateId: targetStateId }),
+          );
+          if (snapshot.status === "ok") {
+            writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "snapshots",
+              stepIndex,
+              "json",
+              JSON.stringify(snapshot.value),
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+          }
+        }
+
+        if (planned.has("network") && netHandle) {
+          const handle = netHandle;
+          const network = await isolateCollector(
             "network",
             stepIndex,
-            "json",
-            JSON.stringify(network.value),
-            corpusStem(phase, scenario.id, stepIndex),
+            stepTimeout,
+            errors,
+            async () => {
+              const events = await handle.finish();
+              netFinished = true;
+              return events;
+            },
           );
+          if (network.status === "ok") {
+            writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "network",
+              stepIndex,
+              "json",
+              JSON.stringify(network.value),
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+          }
         }
-      }
 
-      if (planned.has("screenshot")) {
-        const capture = await isolateCollector("screenshot", stepIndex, stepTimeout, errors, () =>
-          collectors.screenshot(page),
-        );
-        if (capture.status === "ok") {
-          const pngPath = writeCorpusFile(
-            config.corpusDir,
-            corpus,
-            "screenshots",
-            stepIndex,
-            "png",
-            capture.value.buffer,
-            corpusStem(phase, scenario.id, stepIndex),
+        if (planned.has("screenshot")) {
+          const capture = await isolateCollector("screenshot", stepIndex, stepTimeout, errors, () =>
+            collectors.screenshot(page),
           );
-          const screenshotRef: ScreenshotRef = {
-            filePath: pngPath,
-            capturedAt: capture.value.capturedAt,
-          };
-          writeCorpusFile(
-            config.corpusDir,
-            corpus,
-            "screenshots",
-            stepIndex,
-            "json",
-            JSON.stringify(screenshotRef),
-            corpusStem(phase, scenario.id, stepIndex),
-          );
+          if (capture.status === "ok") {
+            const pngPath = writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "screenshots",
+              stepIndex,
+              "png",
+              capture.value.buffer,
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+            const screenshotRef: ScreenshotRef = {
+              filePath: pngPath,
+              capturedAt: capture.value.capturedAt,
+            };
+            writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "screenshots",
+              stepIndex,
+              "json",
+              JSON.stringify(screenshotRef),
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+          }
         }
-      }
 
-      if (planned.has("probe")) {
-        const probes = await isolateCollector("probe", stepIndex, stepTimeout, errors, () =>
-          collectors.probe(page, config.probes),
-        );
-        if (probes.status === "ok") {
-          writeCorpusFile(
-            config.corpusDir,
-            corpus,
-            "probes",
-            stepIndex,
-            "json",
-            JSON.stringify(probes.value),
-            corpusStem(phase, scenario.id, stepIndex),
+        if (planned.has("probe")) {
+          const probes = await isolateCollector("probe", stepIndex, stepTimeout, errors, () =>
+            collectors.probe(page, config.probes),
           );
-        } else if (probes.partialProbes !== undefined) {
-          // A probe batch failed partway: persist the results already collected
-          // as partial corpus instead of discarding them.
-          writeCorpusFile(
-            config.corpusDir,
-            corpus,
-            "probes",
-            stepIndex,
-            "json",
-            JSON.stringify(probes.partialProbes),
-            corpusStem(phase, scenario.id, stepIndex),
-          );
+          if (probes.status === "ok") {
+            writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "probes",
+              stepIndex,
+              "json",
+              JSON.stringify(probes.value),
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+          } else if (probes.partialProbes !== undefined) {
+            // A probe batch failed partway: persist the results already collected
+            // as partial corpus instead of discarding them.
+            writeCorpusFile(
+              config.corpusDir,
+              corpus,
+              "probes",
+              stepIndex,
+              "json",
+              JSON.stringify(probes.partialProbes),
+              corpusStem(phase, scenario.id, stepIndex),
+            );
+          }
+        }
+      } finally {
+        if (netHandle && !netFinished) {
+          try {
+            netHandle.close();
+          } catch {
+            // Preserve the original step error.
+          }
         }
       }
     }
@@ -795,6 +828,10 @@ async function recordStepFailure(
   });
 }
 
+function recordCollectorGap(errors: CollectorError[], gap: CollectorError): void {
+  errors.push(gap);
+}
+
 /** Result of one isolated collector call: its value, or a recorded gap. */
 type CollectorOutcome<T> =
   | { status: "ok"; value: T }
@@ -823,7 +860,7 @@ async function isolateCollector<T>(
       // Name the collector that hung so the symptom is diagnosable.
       throw new StepTimeoutError(stepTimeout, name);
     }
-    errors.push({
+    recordCollectorGap(errors, {
       collector: name,
       stepIndex,
       error: err instanceof Error ? err.message : String(err),

@@ -5,6 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const MODEL_VERSION = "test-hash-abc123";
 
+const networkMocks = vi.hoisted(() => ({
+  finish: vi.fn(async () => []),
+  close: vi.fn(),
+  start: vi.fn(),
+}));
+const writeOrder = vi.hoisted(() => ({ current: undefined as string[] | undefined }));
+const networkContractIds = vi.hoisted(() => new Set<string>());
+
 vi.mock("../model/model-version.js", () => ({
   computeModelVersion: vi.fn(() => MODEL_VERSION),
 }));
@@ -72,6 +80,9 @@ vi.mock("./corpus.js", async (importOriginal) => ({
       _data: unknown,
       stem?: string,
     ) => {
+      if (writeOrder.current !== undefined && kind === "snapshots" && stem?.endsWith(".pre")) {
+        writeOrder.current.push("snapshotWrite");
+      }
       const name = stem ?? String(stepIndex);
       const path = `${kind}/${run.runId}/${name}.${ext}`;
       run.files.push(path);
@@ -89,6 +100,26 @@ vi.mock("../collectors/collect.js", () => ({
     probe: vi.fn(async () => []),
   },
 }));
+
+networkMocks.start.mockImplementation(() => ({
+  finish: networkMocks.finish,
+  close: networkMocks.close,
+}));
+
+vi.mock("../collectors/collect-network.js", () => ({
+  startNetworkCapture: networkMocks.start,
+}));
+
+vi.mock("../validators/dependencies.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../validators/dependencies.js")>();
+  return {
+    ...actual,
+    corpusDependenciesFor: vi.fn((contractId: string) => [
+      ...actual.corpusDependenciesFor(contractId),
+      ...(networkContractIds.has(contractId) ? (["network"] as const) : []),
+    ]),
+  };
+});
 
 import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
 import { runTestPlan, validatePlan } from "./orchestrator.js";
@@ -135,6 +166,16 @@ function makeCdpBrowserForOrchestrator() {
 
 afterEach(() => {
   vi.clearAllMocks();
+  writeOrder.current = undefined;
+  networkContractIds.clear();
+  mockGetByRole.mockImplementation(() => fluentLocator());
+  mockWaitForSelector.mockReset();
+  networkMocks.start.mockImplementation(() => ({
+    finish: networkMocks.finish,
+    close: networkMocks.close,
+  }));
+  networkMocks.finish.mockResolvedValue([]);
+  networkMocks.close.mockImplementation(() => {});
   mockCorpusRun.files.length = 0;
 });
 
@@ -788,7 +829,6 @@ describe("corpus wiring", () => {
     await runTestPlan(plan, baseConfig);
 
     expect(collectors.snapshot).toHaveBeenCalledTimes(2);
-    expect(collectors.network).toHaveBeenCalledTimes(0);
     expect(collectors.screenshot).toHaveBeenCalledTimes(0);
     expect(collectors.probe).toHaveBeenCalledTimes(1);
 
@@ -800,6 +840,313 @@ describe("corpus wiring", () => {
 
     expect(finishRun).toHaveBeenCalledTimes(1);
     expect(mockCorpusRun.files).toHaveLength(3);
+  });
+
+  it("starts network capture before the action and finishes after settle", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { writeCorpusFile } = await import("./corpus.js");
+    const order: string[] = [];
+    let actionCalls = 0;
+    let waitCalls = 0;
+    writeOrder.current = order;
+    networkMocks.finish.mockImplementation(async () => {
+      order.push("finish");
+      return [];
+    });
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(async () => {
+        actionCalls += 1;
+        if (actionCalls === 1) order.push("action");
+      }),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+    mockWaitForSelector.mockImplementation(async () => {
+      waitCalls += 1;
+      if (waitCalls === 2) order.push("settle");
+    });
+    networkMocks.start.mockImplementation(() => {
+      order.push("start");
+      return { finish: networkMocks.finish, close: networkMocks.close };
+    });
+
+    await runTestPlan(
+      makePlan([
+        {
+          id: "network-step",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+    expect(order).toEqual(["snapshotWrite", "start", "action", "settle", "finish"]);
+    expect(writeCorpusFile).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      expect.anything(),
+      "network",
+      0,
+      "json",
+      expect.any(String),
+      undefined,
+    );
+    expect(networkMocks.start).toHaveBeenCalledWith(expect.anything());
+    expect(networkMocks.close).not.toHaveBeenCalled();
+  });
+
+  it("closes network capture after an action failure without finishing or writing", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { writeCorpusFile } = await import("./corpus.js");
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => Promise.reject(new Error("action boom"))),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+
+    const result = await runTestPlan(
+      makePlan([
+        {
+          id: "network-failure",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(networkMocks.close).toHaveBeenCalledOnce();
+    expect(networkMocks.finish).not.toHaveBeenCalled();
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[2] === "network",
+      ),
+    ).toBe(false);
+  });
+
+  it("records a network start gap and continues without writing network evidence", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    networkMocks.start.mockImplementationOnce(() => {
+      throw new Error("page closed");
+    });
+
+    const result = await runTestPlan(
+      makePlan([
+        {
+          id: "network-start-gap",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(networkMocks.finish).not.toHaveBeenCalled();
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[2] === "network",
+      ),
+    ).toBe(false);
+    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![4]).toEqual([
+      expect.objectContaining({ collector: "network", stepIndex: 0, error: "page closed" }),
+    ]);
+  });
+
+  it("isolates a network finish failure as a gap", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { finishRun, writeCorpusFile } = await import("./corpus.js");
+    networkMocks.finish.mockRejectedValueOnce(new Error("finish boom"));
+
+    const result = await runTestPlan(
+      makePlan([
+        {
+          id: "network-finish-gap",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[2] === "network",
+      ),
+    ).toBe(false);
+    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![4]).toEqual([
+      expect.objectContaining({ collector: "network", stepIndex: 0, error: "finish boom" }),
+    ]);
+  });
+
+  it("does not touch network capture when it is unplanned", async () => {
+    await runTestPlan(
+      makePlan([
+        { id: "no-network", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      ]),
+      baseConfig,
+    );
+
+    expect(networkMocks.start).not.toHaveBeenCalled();
+    expect(networkMocks.finish).not.toHaveBeenCalled();
+    expect(networkMocks.close).not.toHaveBeenCalled();
+  });
+
+  it("closes on settle failure without finishing or writing network evidence", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { writeCorpusFile } = await import("./corpus.js");
+    mockWaitForSelector
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("settle boom"));
+
+    const result = await runTestPlan(
+      makePlan([
+        {
+          id: "network-settle-failure",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(result.scenarios[0]!.passed).toBe(false);
+    expect(networkMocks.close).toHaveBeenCalledOnce();
+    expect(networkMocks.finish).not.toHaveBeenCalled();
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[2] === "network",
+      ),
+    ).toBe(false);
+  });
+
+  it("creates and finishes a fresh network handle for every step", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    networkContractIds.add("filterHistoryByAsset");
+    const { writeCorpusFile } = await import("./corpus.js");
+    const plan = makePlan([
+      {
+        id: "network-multi-step",
+        steps: [
+          { stateId: "homePage", contractId: "clickHistoryMenuMain" },
+          { stateId: "historyMain", contractId: "filterHistoryByAsset" },
+        ],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.scenarios[0]!.passed).toBe(true);
+    expect(networkMocks.start).toHaveBeenCalledTimes(2);
+    expect(networkMocks.finish).toHaveBeenCalledTimes(2);
+    expect(networkMocks.close).not.toHaveBeenCalled();
+    expect(mockCorpusRun.files).toContain("network/mock-run-id/0.json");
+    expect(mockCorpusRun.files).toContain("network/mock-run-id/1.json");
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => call[2] === "network",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("preserves a start gap when the action also fails", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { finishRun } = await import("./corpus.js");
+    mockGetByRole.mockImplementation(() => ({
+      click: vi.fn(() => Promise.reject(new Error("action boom"))),
+      first: vi.fn(() => ({ click: vi.fn() })),
+    }));
+    networkMocks.start.mockImplementationOnce(() => {
+      throw new Error("start boom");
+    });
+
+    const result = await runTestPlan(
+      makePlan([
+        {
+          id: "network-start-action-failure",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(result.scenarios[0]!.passed).toBe(false);
+    const finishArgs = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(finishArgs[4]).toEqual([
+      expect.objectContaining({ collector: "network", error: "start boom" }),
+    ]);
+    expect(finishArgs[5]).toEqual([expect.objectContaining({ error: "action boom" })]);
+  });
+
+  it("persists the exact events returned by finish", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    const { writeCorpusFile } = await import("./corpus.js");
+    const events = [
+      {
+        url: "https://example.test/a",
+        method: "GET",
+        status: 200,
+        capturedAt: "2026-09-17T00:00:00.000Z",
+      },
+      {
+        url: "https://example.test/b",
+        method: "POST",
+        error: "reset",
+        capturedAt: "2026-09-17T00:00:01.000Z",
+      },
+    ] as never[];
+    networkMocks.finish.mockResolvedValueOnce(events);
+
+    await runTestPlan(
+      makePlan([
+        {
+          id: "network-persistence",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    const networkCall = (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[2] === "network",
+    );
+    expect(networkCall?.[5]).toBe(JSON.stringify(events));
+  });
+
+  it("passes the live page to startNetworkCapture", async () => {
+    networkContractIds.add("clickHistoryMenuMain");
+    let capturedPage: unknown;
+    networkMocks.start.mockImplementation((page: unknown) => {
+      capturedPage = page;
+      return { finish: networkMocks.finish, close: networkMocks.close };
+    });
+
+    await runTestPlan(
+      makePlan([
+        {
+          id: "network-page-reference",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(networkMocks.start).toHaveBeenCalledWith(capturedPage);
+    expect(capturedPage).toEqual(expect.objectContaining({ getByRole: mockGetByRole }));
+  });
+
+  it("does not create network capture for a non-network contract", async () => {
+    const { writeCorpusFile } = await import("./corpus.js");
+    await runTestPlan(
+      makePlan([
+        {
+          id: "no-network",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }],
+        },
+      ]),
+      baseConfig,
+    );
+
+    expect(networkMocks.start).not.toHaveBeenCalled();
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[2] === "network",
+      ),
+    ).toBe(false);
   });
 
   it("increments stepIndex globally across steps and scenarios with no collisions", async () => {
@@ -1277,7 +1624,6 @@ describe("corpus wiring", () => {
     await runTestPlan(plan, baseConfig);
 
     // network + screenshot are never declared by any contract, so they are skipped.
-    expect(collectors.network).not.toHaveBeenCalled();
     expect(collectors.screenshot).not.toHaveBeenCalled();
     // The manifest records the planned post-step set.
     expect(finishRun).toHaveBeenCalledWith(
