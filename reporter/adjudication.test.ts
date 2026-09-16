@@ -65,7 +65,7 @@ const APPROVED_AT = "2026-09-01T14:05:00Z";
 describe("emitAdjudicationRecord", () => {
   it("writes adjudication.json for APP_BUG with correct record fields", () => {
     const corpusDir = makeCorpusDir();
-    const runId = "2026-09-01T10:00:00Z";
+    const runId = "run-2026-09-01-10-00-00Z";
 
     const written = emitAdjudicationRecord({
       corpusDir,
@@ -93,7 +93,7 @@ describe("emitAdjudicationRecord", () => {
 
   it("writes adjudication.json for SPEC_DRIFT with proposal and no bugReportRef", () => {
     const corpusDir = makeCorpusDir();
-    const runId = "2026-09-01T10:00:00Z";
+    const runId = "run-2026-09-01-10-00-00Z";
 
     const written = emitAdjudicationRecord({
       corpusDir,
@@ -117,7 +117,7 @@ describe("emitAdjudicationRecord", () => {
 
   it("does not modify any model file (model untouched invariant)", () => {
     const corpusDir = makeCorpusDir();
-    const runId = "2026-09-01T10:00:00Z";
+    const runId = "run-2026-09-01-10-00-00Z";
 
     emitAdjudicationRecord({
       corpusDir,
@@ -134,6 +134,23 @@ describe("emitAdjudicationRecord", () => {
     expect(existsSync(join(runDir, "adjudication.json"))).toBe(true);
     expect(existsSync(join(runDir, "run-manifest.json"))).toBe(false);
     expect(existsSync(join(runDir, "failure.feature"))).toBe(false);
+  });
+
+  it.each(["../evil", "evil/run"])("rejects an unsafe runId before writing: %s", (runId) => {
+    const corpusDir = makeCorpusDir();
+
+    expect(() =>
+      emitAdjudicationRecord({
+        corpusDir,
+        runId,
+        plan,
+        results: [failing()],
+        decision: APP_BUG_DECISION,
+        approvedBy: APPROVED_BY,
+        approvedAt: APPROVED_AT,
+      }),
+    ).toThrow("Invalid runId");
+    expect(existsSync(join(corpusDir, "evil"))).toBe(false);
   });
 
   it("returns [] and writes nothing when all results pass (PASS_ONLY)", () => {

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -14,7 +14,13 @@ import {
   snapshotRecordSchema,
   stepFailureSchema,
 } from "../model/schemas.js";
-import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
+import {
+  assertSafeRunId,
+  assertSafeSegment,
+  finishRun,
+  startCorpusRun,
+  writeCorpusFile,
+} from "./corpus.js";
 
 // Wrap (don't replace) the real handoff module so the try/catch failure path
 // in finishRun can be driven deterministically.
@@ -42,6 +48,31 @@ function makeCorpusDir(): string {
   tempDirs.push(dir);
   return dir;
 }
+
+describe("path guards", () => {
+  it.each(["", ".", "..", "../evil", "run/x", "bad\0id"])("assertSafeRunId rejects %j", (runId) => {
+    expect(() => assertSafeRunId(runId)).toThrow(/Invalid/);
+  });
+
+  it("assertSafeRunId rejects non-strings", () => {
+    expect(() => assertSafeRunId(42 as unknown as string)).toThrow(/Invalid/);
+  });
+
+  it("assertSafeRunId accepts a nominal value", () => {
+    expect(() => assertSafeRunId("run-abc123")).not.toThrow();
+  });
+
+  it.each(["", ".", "..", ".. ", "a/b", "a\\b", "a\0b"])(
+    "assertSafeSegment rejects %j",
+    (value) => {
+      expect(() => assertSafeSegment("segment", value)).toThrow(/Invalid/);
+    },
+  );
+
+  it("assertSafeSegment accepts a nominal value", () => {
+    expect(() => assertSafeSegment("segment", "screenshots")).not.toThrow();
+  });
+});
 
 describe("startCorpusRun", () => {
   it("assigns a unique run-id per run", () => {
@@ -120,6 +151,30 @@ describe("writeCorpusFile", () => {
     expect(failure).toBe(`snapshots/${run.runId}/0.failure.json`);
     expect(bootstrapFailure).toBe(`snapshots/${run.runId}/b.history-nav.5.failure.json`);
     expect(run.files).toEqual([pre, failure, bootstrapFailure]);
+  });
+
+  it.each([
+    ["runId", "../evil", "snapshots", "json", undefined],
+    ["runId", "run/x", "snapshots", "json", undefined],
+    ["kind", "safe-run", "../evil", "json", undefined],
+    ["kind", "safe-run", "snapshots/..", "json", undefined],
+    ["kind", "safe-run", "../../evil", "json", undefined],
+    ["stem", "safe-run", "snapshots", "json", ".."],
+    ["stem", "safe-run", "snapshots", "json", "a/.."],
+    ["ext", "safe-run", "snapshots", "json/..", undefined],
+    ["ext", "safe-run", "snapshots", "png\\..", undefined],
+  ])("rejects an unsafe %s before writing", (_, runId, kind, ext, stem) => {
+    const parentDir = mkdtempSync(join(tmpdir(), "corpus-parent-"));
+    const nestedDir = join(parentDir, "nested");
+    mkdirSync(nestedDir);
+    const corpusDir = mkdtempSync(join(nestedDir, "corpus-test-"));
+    tempDirs.push(parentDir);
+    const run = { runId, files: [] };
+
+    expect(() => writeCorpusFile(corpusDir, run, kind, 0, ext, "{}", stem)).toThrow(/Invalid/);
+    expect(run.files).toEqual([]);
+    expect(existsSync(join(parentDir, "evil"))).toBe(false);
+    expect(existsSync(join(nestedDir, "evil"))).toBe(false);
   });
 });
 
@@ -245,6 +300,20 @@ describe("finishRun", () => {
       false,
     );
   });
+
+  it.each(["../evil", "evil/run"])(
+    "rejects an unsafe runId before manifest writes: %s",
+    (runId) => {
+      const corpusDir = makeCorpusDir();
+      const run = { runId, files: [] };
+
+      expect(() => finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], [])).toThrow(
+        "Invalid runId",
+      );
+      expect(existsSync(corpusDir)).toBe(true);
+      expect(existsSync(join(corpusDir, runId, "run-manifest.json"))).toBe(false);
+    },
+  );
 
   it("cannot record an empty planModelVersion — the schema refuses a blank provenance (story 6 review)", () => {
     const corpusDir = makeCorpusDir();

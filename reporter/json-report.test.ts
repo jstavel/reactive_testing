@@ -280,6 +280,16 @@ describe("emitJsonReport", () => {
     expect(existsSync(join(corpusDir, run.runId, "report.json"))).toBe(true);
   });
 
+  it.each(["../evil", "run/x"])("rejects an unsafe runId before writing: %s", (runId) => {
+    const corpusDir = makeCorpusDir();
+    const unsafeRun = { ...run, runId };
+
+    expect(() =>
+      emitJsonReport({ corpusDir, run: unsafeRun, plan: makePlan([]), results: [] }),
+    ).toThrow("Invalid runId");
+    expect(existsSync(join(corpusDir, "evil"))).toBe(false);
+  });
+
   it("DETERMINISTIC_EMIT — same inputs in a fresh dir produce byte-identical files", () => {
     const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const input = {

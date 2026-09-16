@@ -25,7 +25,7 @@ function makeCorpusDir(): string {
 const MODEL_VERSION = "fab621435d1cbcad3cd10e730f56decf9fc62bc7e50648fb27b100b25348da7d";
 
 const run: RunMetadata = {
-  runId: "2026-09-02T10:00:00Z",
+  runId: "run-2026-09-02-10-00-00Z",
   timestamp: "2026-09-02T10:00:00.000Z",
 };
 
@@ -433,6 +433,76 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     expect(html).toContain('<img src="../screenshots/run1/0.png"');
   });
 
+  it.each([
+    ["javascript:alert(1).png", "scheme"],
+    ["../outside.png", "traversal"],
+    ["a/../../b.png", "nested traversal"],
+    ["screenshots/run 1/0.png", "space"],
+    ['screenshots/run"1/0.png', "quote"],
+    ["screenshots/run`1/0.png", "backtick"],
+    ["a\\..\\b.png", "backslash traversal"],
+    ["screenshots/0.png/..", "trailing dot-dot"],
+  ])("omits an unsafe screenshot %s but keeps the step row", (filePath) => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", true)],
+      stepEvidence: { sc: [{ timingMs: 55, screenshot: { filePath, capturedAt: "t" } }] },
+    });
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain("55 ms");
+    expect(html).toContain("openLogin");
+  });
+
+  it("SAFE_NESTED_SCREENSHOT — safe nested paths still render", () => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", true)],
+      stepEvidence: {
+        sc: [
+          {
+            timingMs: 55,
+            screenshot: {
+              filePath: "screenshots/550e8400-e29b-41d4-a716-446655440000/sub/0.png",
+              capturedAt: "t",
+            },
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain(
+      '<img src="../screenshots/550e8400-e29b-41d4-a716-446655440000/sub/0.png"',
+    );
+  });
+
+  it("UNSAFE_SCREENSHOT_WITH_LINKS — unsafe image does not suppress safe corpus links", () => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", true)],
+      stepEvidence: {
+        sc: [
+          {
+            timingMs: 55,
+            screenshot: { filePath: "../outside.png", capturedAt: "t" },
+            probes: "probes/run1/0.json",
+          },
+        ],
+      },
+    });
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain(
+      '<a class="step-link" href="../probes/run1/0.json" target="_blank" rel="noopener noreferrer">probes</a>',
+    );
+  });
+
   it("MISSING_EVIDENCE — step absent from stepEvidence renders as plain line", () => {
     const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", true)];
@@ -526,6 +596,16 @@ describe("renderHtmlReport with stepEvidence (Story 3)", () => {
     // <details open>).
     expect(html).toContain("<details>\n              <summary>");
     expect(html).not.toContain("<details open>\n              <summary>");
+  });
+
+  it.each(["../evil", "run/x"])("rejects an unsafe runId before writing: %s", (runId) => {
+    const corpusDir = makeCorpusDir();
+    const unsafeRun = { ...run, runId };
+
+    expect(() =>
+      emitHtmlReport({ corpusDir, run: unsafeRun, plan: makePlan([]), results: [] }),
+    ).toThrow("Invalid runId");
+    expect(existsSync(join(corpusDir, "evil"))).toBe(false);
   });
 
   it("EMIT_FORWARDS — emitHtmlReport writes stepEvidence into the report file", () => {

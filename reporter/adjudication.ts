@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
+import { assertSafeRunId } from "../orchestrator/corpus.js";
 
 /** The two valid adjudication decisions — a discriminated union. */
 export type AdjudicationDecision =
@@ -141,6 +142,7 @@ function renderRecord(record: AdjudicationRecord): string {
  *   when nothing was written.
  */
 export function emitAdjudicationRecord(input: EmitAdjudicationRecordInput): string[] {
+  assertSafeRunId(input.runId);
   const failures = input.results.filter((r) => !r.passed);
   if (failures.length === 0) {
     return [];

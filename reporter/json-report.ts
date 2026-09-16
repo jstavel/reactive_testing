@@ -16,6 +16,7 @@ import { join } from "node:path";
 import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
 import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
+import { assertSafeRunId } from "../orchestrator/corpus.js";
 
 /** Top-level schema tag — bumped when the report shape changes (CI consumes it). */
 export const REPORT_SCHEMA = "report.v1";
@@ -123,6 +124,7 @@ export function emitJsonReport({
   relations,
   stepEvidence,
 }: EmitJsonReportInput): string {
+  assertSafeRunId(run.runId);
   const json = renderJsonReport({ run, plan, results, relations, stepEvidence });
   const relPath = `${run.runId}/report.json`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
