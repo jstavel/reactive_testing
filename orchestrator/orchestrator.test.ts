@@ -1208,6 +1208,8 @@ describe("corpus wiring", () => {
     await expect(runTestPlan(plan, { ...baseConfig, probes: [] })).rejects.toThrow(
       /not configured: selected-view/,
     );
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
+    expect(mockConnectOverCDP).not.toHaveBeenCalled();
   });
 
   it("fails preflight before CDP launch when the configured probes omit the registry-derived portfolio-value probe", async () => {
@@ -1225,5 +1227,176 @@ describe("corpus wiring", () => {
     await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
       /not configured: portfolio-value/,
     );
+  });
+
+  it("rejects a duplicate probe name before browser launch", async () => {
+    const plan = makePlan([
+      {
+        id: "duplicate-probe",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-b]" },
+      { name: "x", selector: "[data-x]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "a"\.$/,
+    );
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
+    expect(mockConnectOverCDP).not.toHaveBeenCalled();
+  });
+
+  it("reports multiple duplicate probe names in first-occurrence order", async () => {
+    const plan = makePlan([
+      {
+        id: "duplicate-probes",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-a-2]" },
+      { name: "b", selector: "[data-b]" },
+      { name: "b", selector: "[data-b-2]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "a", "b"\.$/,
+    );
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
+    expect(mockConnectOverCDP).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate names even when one probe is optional", async () => {
+    const plan = makePlan([
+      {
+        id: "optional-duplicate-probe",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-a-optional]", optional: true },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "a"\.$/,
+    );
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
+    expect(mockConnectOverCDP).not.toHaveBeenCalled();
+  });
+
+  it("reports a duplicate required probe name instead of missing it", async () => {
+    const plan = makePlan([
+      {
+        id: "duplicate-required-probe",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "selected-view", selector: "[data-selected-view]" },
+      { name: "selected-view", selector: "[data-selected-view-2]" },
+      { name: "portfolio-value", selector: "[data-portfolio-value]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "selected-view"\.$/,
+    );
+    expect((await import("playwright")).chromium.launch).not.toHaveBeenCalled();
+    expect(mockConnectOverCDP).not.toHaveBeenCalled();
+  });
+
+  it("reports interleaved duplicate names in first-occurrence order", async () => {
+    const plan = makePlan([
+      {
+        id: "interleaved-duplicates",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "b", selector: "[data-b]" },
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-a-2]" },
+      { name: "b", selector: "[data-b-2]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "b", "a"\.$/,
+    );
+  });
+
+  it("reports a triple-occurring duplicate once", async () => {
+    const plan = makePlan([
+      {
+        id: "triple-duplicate",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-a-2]" },
+      { name: "a", selector: "[data-a-3]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "a"\.$/,
+    );
+  });
+
+  it("rejects duplicate names when both probes are optional", async () => {
+    const plan = makePlan([
+      {
+        id: "two-optional-duplicates",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]", optional: true },
+      { name: "a", selector: "[data-a-2]", optional: true },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(
+      /^Duplicate probe name\(s\) configured: "a"\.$/,
+    );
+  });
+
+  it("reports duplicate names before unrelated missing required probes", async () => {
+    const plan = makePlan([
+      {
+        id: "duplicate-before-missing",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "a", selector: "[data-a]" },
+      { name: "a", selector: "[data-a-2]" },
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.toThrow(/Duplicate probe/);
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).rejects.not.toThrow(
+      /not configured/,
+    );
+  });
+
+  it("allows distinct probe names that differ only by case", async () => {
+    const plan = makePlan([
+      {
+        id: "case-sensitive-probes",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+    const probes = [
+      { name: "Portfolio", selector: "[data-portfolio-upper]" },
+      { name: "portfolio", selector: "[data-portfolio-lower]" },
+      ...baseConfig.probes.filter(({ name }) => name !== "portfolio" && name !== "Portfolio"),
+    ];
+
+    await expect(runTestPlan(plan, { ...baseConfig, probes })).resolves.toMatchObject({
+      planId: "smoke",
+    });
+    expect((await import("playwright")).chromium.launch).toHaveBeenCalledTimes(1);
   });
 });

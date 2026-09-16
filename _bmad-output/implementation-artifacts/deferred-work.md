@@ -62,6 +62,7 @@
 - Probe collection fail-fasts at the first missing selector, so probes ordered after the failure are never evaluated and their evidence is lost; probe-batch continuation (evaluate all, report the missing set) is a focused future design item.
 - `capturedAt` is an unvalidated `z.string()` across ALL corpus schemas (pre-existing since offer/snapshot shapes), so non-ISO timestamps parse; schema-wide ISO validation belongs with the field-level contract tightening already tracked for Epic 2 collectors.
 - `probeSchema.name` has no uniqueness enforcement among the probes of a plan, so two probes sharing a name silently both run; duplicate-name detection belongs at plan-config time in a later story.
+  RESOLVED (2026-09-16): `validateProbeDependencies` rejects duplicate configured probe names before the missing-probe check and browser launch.
 
 ## Deferred from: plan split of spec-2-6-ai-assisted-action-specification (2026-08-29)
 
@@ -360,12 +361,13 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 22 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 15 buildable entries grouped into 12 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 23 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 14 buildable entries grouped into 11 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
 - `fsm-contract-shape-validation` — L5 (residual half of FSM/contract referential integrity: runtime validation of `fsm.ts`/`contracts.ts` shapes, URL discriminator, contract-state scoping). Touchpoints: model/fsm.ts, model/contracts.ts.
 - `probe-name-uniqueness` — L54 (reject duplicate configured probe names at plan preflight). Touchpoint: orchestrator/orchestrator.ts `validateProbeDependencies`.
+  RESOLVED (2026-09-16): shipped as spec-probe-name-uniqueness — duplicate names are rejected deterministically before missing-probe validation or browser launch.
 - `gherkin-snapshot-fidelity` — L142 (Scenario Outline extraction), L146 (`@` tags kept verbatim), L150 (outline/tag tests), L154 (derive `scenarioId` from title), L158 (duplicate scenarioId dedup/validation). Touchpoints: reporter/gherkin-snapshot.ts, model/relations.ts.
   RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — all five entries annotated RESOLVED above; the L-numbers here refer to the sweep-triage revision of this file.
 - `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.

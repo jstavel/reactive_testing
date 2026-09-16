@@ -327,6 +327,16 @@ function validateProbeDependencies(plan: TestPlan, probes: Probe[]): void {
   for (const name of requiredCrossViewProbeNames()) {
     required.add(name);
   }
+  const counts = new Map<string, number>();
+  for (const { name } of probes) {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const duplicates = [...counts].filter(([, count]) => count > 1).map(([name]) => name);
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Duplicate probe name(s) configured: ${duplicates.map((name) => JSON.stringify(name)).join(", ")}.`,
+    );
+  }
   const configured = new Set(probes.map((p) => p.name));
   const missing = [...required].filter((n) => !configured.has(n));
   if (missing.length > 0) {
