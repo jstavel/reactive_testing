@@ -359,10 +359,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-cross-view-live-wiring.md`
   summary: validate:smoke accepts a mixed or mistyped invariant-id filter without dedicated coverage, and the unknown-id error still speaks in contract terms ("Unknown contract id(s)") even though invariant ids are now valid filter values — a hint-wording/coverage refinement for the next CLI-touching story.
   evidence: Review of the wiring diff: a new test pins a single invariant-id filter and the committed fixture, but no test mixes a contract id with an invariant id, and the filter error message names only "contract id(s)" while `resolveContractIds` now accepts both families.
+  RESOLVED (2026-09-16): shipped as spec-cli-invariant-filter-testing — filter errors use the dual contract/invariant vocabulary and CLI coverage pins mixed, typo, and mixed-unknown filters.
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 24 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 13 buildable entries grouped into 10 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 25 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 12 buildable entries grouped into 9 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
@@ -374,7 +375,6 @@ Interactive triage of every open entry against the current code. Result: 53 open
 - `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.
 - `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
 - `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
-- `cli-invariant-filter-testing` — L329 (mixed contract+invariant filter tests; reword "Unknown contract id(s)"). Touchpoint: bin/validate-smoke.ts, bin/validate-smoke.test.ts.
 - `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
 - `failure-evidence-citation` — L285 (reporter cites `<i>.failure` snapshots/screenshots for failed steps). Touchpoint: bin/report-smoke.ts `stepEvidenceFor`.
 - `fixture-gitignore-test` — L297 (automated `git check-ignore` trackability test for the example fixture vs real-run paths). Touchpoint: test suite (+ `.gitignore`).
@@ -410,3 +410,9 @@ The 13 resolved and 5 skipped entries carry per-entry annotations above. The 24 
 - source_spec: `_bmad-output/implementation-artifacts/spec-gherkin-snapshot-fidelity.md`
   summary: `extractScenario` scans keyword/`@` lines without tracking Gherkin `"""` doc-string fences, so a `Scenario:`/`@`-prefixed line inside a doc string can truncate or reattribute a block — a pre-existing rapid-parse limitation the tag-folding makes slightly more likely; pin before any feature uses doc strings.
   evidence: Blind-hunter and edge-case reviews of the fidelity diff; no committed `.feature` uses doc strings today, so the gap is latent.
+
+## Deferred from: review of spec-cli-invariant-filter-testing (2026-09-16)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-cli-invariant-filter-testing.md`
+  summary: `UnknownContractIdError` keeps its class name even though its message now uses the filter / contract-and-invariant vocabulary — programmatic consumers matching on `this.name` get contract-only semantics; revisit the name when the exported class next changes (rename is churn without functional value today).
+  evidence: Blind-hunter review of the cli-invariant-filter-testing diff; the spec's Design Notes recorded the deliberate keep, and the name/string mismatch should not silently persist without a tracked note.

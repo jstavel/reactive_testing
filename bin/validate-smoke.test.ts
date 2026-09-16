@@ -45,6 +45,11 @@ const testPlan: TestPlan = {
   ],
 };
 
+const unknownFilterErrorPattern = (unknownId: string): RegExp =>
+  new RegExp(
+    `^Unknown filter id\\(s\\): ${unknownId}\\. Valid filter ids \\(contract ids and cross-view invariants\\): .*clickHistoryMenuMain.*filterHistoryByAsset.*current-portfolio-value-agrees-across-surfaces.*$`,
+  );
+
 const filterOnlyPlan: TestPlan = {
   planId: "smoke",
   modelVersion: "test-hash",
@@ -411,9 +416,7 @@ describe("validateSmoke", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
-    expect(outcome.err.join(" ")).toMatch(
-      /Unknown contract id\(s\): notAContract\. Valid contract ids: clickHistoryMenuMain, filterHistoryByAsset/,
-    );
+    expect(outcome.err[0]).toMatch(unknownFilterErrorPattern("notAContract"));
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
 
@@ -441,7 +444,24 @@ describe("validateSmoke", () => {
         "/.",
     );
     expect(outcome.err).toContainEqual(
-      expect.stringContaining("the first argument is the runId; contract filters come after it"),
+      expect.stringContaining(
+        "the first argument is the runId; filter ids come after it (contract ids and cross-view invariant ids)",
+      ),
+    );
+  });
+
+  it("exits 1 with a hint when the first positional is an invariant id given without a runId", () => {
+    const outcome = validateSmoke(["current-portfolio-value-agrees-across-surfaces"], {
+      corpusDir,
+      plan: testPlan,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err).toContainEqual(
+      expect.stringContaining(
+        "the first argument is the runId; filter ids come after it (contract ids and cross-view invariant ids)",
+      ),
     );
   });
 
@@ -795,6 +815,79 @@ describe("validateSmoke against the committed sample fixture (unconditional)", (
     ]);
   });
 
+  it("accepts a single contract filter against the committed fixture", () => {
+    const outcome = validateSmoke(["example", "clickHistoryMenuMain"], { corpusDir });
+
+    expect(outcome).toEqual({
+      exitCode: 0,
+      out: ["[PASS] clickHistoryMenuMain", "1/1 checks passed in example"],
+      err: [],
+    });
+  });
+
+  it("accepts mixed contract and cross-view invariant filters", () => {
+    const outcome = validateSmoke(
+      ["example", "clickHistoryMenuMain", "current-portfolio-value-agrees-across-surfaces"],
+      { corpusDir },
+    );
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.err).toEqual([]);
+    expect(outcome.out).toEqual([
+      "[PASS] clickHistoryMenuMain",
+      "[PASS] current-portfolio-value-agrees-across-surfaces",
+      "2/2 checks passed in example",
+    ]);
+  });
+
+  it("rejects a mistyped cross-view invariant filter and lists contract and invariant ids", () => {
+    const outcome = validateSmoke(["example", "current-portfolio-value-agrees-across-surface"], {
+      corpusDir,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toMatch(
+      unknownFilterErrorPattern("current-portfolio-value-agrees-across-surface"),
+    );
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
+  it("rejects mixed filters when one id is unknown and names only the unknown id", () => {
+    const outcome = validateSmoke(["example", "filterHistoryByAsset", "notAFilter"], {
+      corpusDir,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toMatch(unknownFilterErrorPattern("notAFilter"));
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
+  it("rejects a valid invariant paired with an unknown filter", () => {
+    const outcome = validateSmoke(
+      ["example", "current-portfolio-value-agrees-across-surfaces", "notAFilter"],
+      { corpusDir },
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toMatch(unknownFilterErrorPattern("notAFilter"));
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
+  it("deduplicates repeated unknown filters in the error", () => {
+    const outcome = validateSmoke(["example", "repeatedUnknown", "repeatedUnknown"], {
+      corpusDir,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.out).toEqual([]);
+    expect(outcome.err[0]).toMatch(unknownFilterErrorPattern("repeatedUnknown"));
+    expect(outcome.err[0]).not.toContain("repeatedUnknown, repeatedUnknown");
+    expect(outcome.err.at(-1)).toBe(USAGE);
+  });
+
   it("validates the committed example fixture 19/19, exit 0", () => {
     const outcome = validateSmoke(["example"], { corpusDir });
 
@@ -906,7 +999,7 @@ describe("validateSmoke --corpus-dir (CLI_CORPUS_DIR / FLAG_PRECEDENCE / UNKNOWN
     expect(outcome.exitCode).toBe(1);
     expect(outcome.out).toEqual([]);
     expect(outcome.err[0]).toBe(
-      "Invalid argument(s): --bogus — only positional [<runId>] [<contractId>…] are accepted.",
+      "Invalid argument(s): --bogus — only positional [<runId>] [<filterId>…] are accepted.",
     );
     expect(outcome.err.at(-1)).toBe(USAGE);
   });
