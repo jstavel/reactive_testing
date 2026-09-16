@@ -208,6 +208,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-assertions.md`
   summary: Show the runId (UUID) and a human-readable timestamp in the console output when a test plan starts, so the operator can correlate the corpus directory with the run. UUIDs lack temporal information, making it impossible to tell what corpus corresponds to which run without inspecting `run-manifest.json`.
   evidence: User observation: `bin/run-smoke.ts` logs `plan "smoke", modelVersion <hash>` but omits the `runId`. The corpus directory is named by `runId` (UUID), so the operator has no immediate way to know when a run happened or which directory belongs to which execution.
+  RESOLVED (2026-09-16): `bin/run-smoke.ts` generates and logs the runId with an ISO start timestamp and passes it through `runTestPlan`; the orchestrator validates and uses the provided id.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-3-new-validation-rule-without-re-running-the-scenario.md`
   summary: Add an `npm run validate:smoke` script as the validation counterpart to `npm run run:smoke`. The offline validator runner exists (`validators/offline-runner.ts` `runValidatorsOffline(corpusDir, runId, plan, contractIds?)`), but there is no CLI entry point: `package.json` scripts list only `typecheck`/`test`/`run:smoke`, and `bin/` holds only `run-smoke.ts`. The script needs proper arguments — corpus dir, the `runId` to validate, and which `plan` — and surfaces the resulting `ValidationResult`s.
@@ -361,7 +362,7 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 23 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 14 buildable entries grouped into 11 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 24 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 13 buildable entries grouped into 10 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
@@ -377,7 +378,6 @@ Interactive triage of every open entry against the current code. Result: 53 open
 - `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
 - `failure-evidence-citation` — L285 (reporter cites `<i>.failure` snapshots/screenshots for failed steps). Touchpoint: bin/report-smoke.ts `stepEvidenceFor`.
 - `fixture-gitignore-test` — L297 (automated `git check-ignore` trackability test for the example fixture vs real-run paths). Touchpoint: test suite (+ `.gitignore`).
-- `run-console-correlation` — L184 (log runId + timestamp at plan start; plumb runId out of the orchestrator or log on a callback). Touchpoints: bin/run-smoke.ts, orchestrator/orchestrator.ts.
 - `finishRun-params-object` — L222 (refactor the growing positional `finishRun` signature to an options object). Touchpoint: orchestrator/corpus.ts.
 
 **Decisions (human-owned, left open):**

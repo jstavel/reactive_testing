@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import type { Page } from "playwright";
 import { collectors } from "../collectors/collect.js";
 import { ProbePartialError } from "../collectors/collect-probe.js";
@@ -29,21 +32,24 @@ import { actionMap } from "./action-map.js";
 import { resolveBootstrapPath } from "./bootstrap.js";
 import type { BrowserSession } from "./browser.js";
 import { closeBrowser, launchBrowser } from "./browser.js";
-import { finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
+import { assertSafeRunId, finishRun, startCorpusRun, writeCorpusFile } from "./corpus.js";
 
 const DEFAULT_STEP_TIMEOUT = 30_000;
 const DEFAULT_RUN_TIMEOUT = 300_000;
 
+export type RunTestPlanConfig = OrchestratorConfig & { runId?: string };
+
 /**
  * Run a test plan against a live app. No AI in the loop — fully deterministic.
  *
- * Pre-execution: Zod parse, modelVersion check, FSM state/contract existence, path validity.
+ * Pre-execution: Zod parse, runId shape/collision checks, modelVersion check,
+ * FSM state/contract existence, and path validity.
  * Execution: initial-state bootstrap, then step-by-step with settling.
  * Failure: step timeout → abort scenario; run timeout → abort all.
  */
 export async function runTestPlan(
   plan: TestPlan,
-  config: OrchestratorConfig,
+  config: RunTestPlanConfig,
   onScenario?: (result: ScenarioResult) => void,
 ): Promise<RunResult> {
   const stepTimeout = config.stepTimeout ?? DEFAULT_STEP_TIMEOUT;
@@ -51,12 +57,21 @@ export async function runTestPlan(
 
   // --- Pre-execution validation ---
   const parsed = testPlanSchema.parse(plan);
+  if (config.runId !== undefined) {
+    assertSafeRunId(config.runId);
+    if (existsSync(join(config.corpusDir, config.runId))) {
+      throw new Error(
+        `runId "${config.runId}" already exists in the corpus — reusing a runId would merge into the previous run`,
+      );
+    }
+  }
 
   if (parsed.modelVersion !== computeModelVersion()) {
     return {
       planId: parsed.planId,
       modelVersion: parsed.modelVersion,
       scenarios: [],
+      ...(config.runId !== undefined ? { runId: config.runId } : {}),
     };
   }
 
@@ -83,6 +98,7 @@ export async function runTestPlan(
         passed: false,
         error: `Browser launch failed: ${err instanceof Error ? err.message : String(err)}`,
       })),
+      ...(config.runId !== undefined ? { runId: config.runId } : {}),
     };
   }
 
@@ -94,7 +110,7 @@ export async function runTestPlan(
   const stepFailures: StepFailure[] = [];
   const runStart = Date.now();
   const runTimestamp = new Date().toISOString();
-  const corpus = startCorpusRun();
+  const corpus = startCorpusRun(config.runId);
   const scenarioStepCount = parsed.scenarios.reduce(
     (count, scenario) => count + scenario.steps.length,
     0,

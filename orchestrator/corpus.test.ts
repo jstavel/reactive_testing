@@ -88,6 +88,10 @@ describe("startCorpusRun", () => {
     const run = startCorpusRun();
     expect(run.files).toEqual([]);
   });
+
+  it("uses a provided run-id", () => {
+    expect(startCorpusRun("run-1234")).toEqual({ runId: "run-1234", files: [] });
+  });
 });
 
 describe("writeCorpusFile", () => {

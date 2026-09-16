@@ -38,10 +38,10 @@ export function assertSafeSegment(label: string, value: string): void {
 }
 
 /**
- * Start a new corpus run — assigns a unique run-id and initializes the file list.
+ * Start a new corpus run with a provided run-id or a newly generated UUID.
  */
-export function startCorpusRun(): CorpusRun {
-  return { runId: randomUUID(), files: [] };
+export function startCorpusRun(runId?: string): CorpusRun {
+  return { runId: runId ?? randomUUID(), files: [] };
 }
 
 /**
