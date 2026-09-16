@@ -97,6 +97,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-decision-1a-network-capture-window.md`
   summary: Orchestrator wiring of the two-phase network capture — start `startNetworkCapture` before the action when `planned.has("network")`, call `capture.finish()` after the settle (isolated, then corpus write), `capture.close()` on the action-failure path — plus the orchestrator wiring tests (mock the imported `startNetworkCapture`; assert start-before-action, finish-after-settle, close-on-failure, no corpus write when start gaps).
   evidence: Split during planning of decision 1a by the SCOPE STANDARD token gate ([S]). The collector two-phase handle is independently shippable and testable at the unit level and is the narrower goal; the orchestrator wiring only becomes observable once a contract declares a network dependency, so it is deferred as its own focused change rather than inflating the current spec.
+  RESOLVED (2026-09-17): orchestrator wiring and isolated lifecycle tests shipped in orchestrator/orchestrator.ts and orchestrator/orchestrator.test.ts.
 
 ## Discussion (parked 2026-09-01): how to load app state before verifications use values
 
@@ -363,7 +364,7 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 25 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 12 buildable entries grouped into 9 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 26 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 11 buildable entries grouped into 8 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
@@ -372,7 +373,7 @@ Interactive triage of every open entry against the current code. Result: 53 open
   RESOLVED (2026-09-16): shipped as spec-probe-name-uniqueness — duplicate names are rejected deterministically before missing-probe validation or browser launch.
 - `gherkin-snapshot-fidelity` — L142 (Scenario Outline extraction), L146 (`@` tags kept verbatim), L150 (outline/tag tests), L154 (derive `scenarioId` from title), L158 (duplicate scenarioId dedup/validation). Touchpoints: reporter/gherkin-snapshot.ts, model/relations.ts.
   RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — all five entries annotated RESOLVED above; the L-numbers here refer to the sweep-triage revision of this file.
-- `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.
+- `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts. RESOLVED (2026-09-17).
 - `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
 - `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
 - `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
