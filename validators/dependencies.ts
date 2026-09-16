@@ -30,6 +30,11 @@ export function corpusDependenciesFor(contractId: string): CollectorName[] {
       case "dialog-closed":
         deps.add("snapshot");
         break;
+      default: {
+        // Unreachable with schema-valid predicates; an unknown assert
+        // contributes no derivable dependency (cf. unknown contractId → []).
+        break;
+      }
     }
   }
   return [...deps];

@@ -266,6 +266,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-portfolio-summary-eye-toggle.md`
   summary: Add a `default:` fallthrough guard to the `evaluate()` switch in validator-map.ts (and the predicate switch in dependencies.ts) returning a failed "unknown predicate" result instead of falling off the switch — unreachable today because the schema restricts `assert` to the 5-predicate union, but a binding against a hand-rolled predicate would otherwise return `undefined` and violate FR-5 (never throw) at the `r.passed` dereference.
   evidence: Edge-case-hunter review of the 5-3 diff flagged the missing default; pre-existing pattern (no default ever existed), surfaced incidentally by adding the dialog cases.
+  RESOLVED (2026-09-16): shipped as spec-unknown-predicate-guard — `evaluate()` returns a failed `unknown predicate "<assert>"` result (exported for direct unit testing), and `corpusDependenciesFor`'s predicate switch gains an explicit no-op default; no modelVersion impact (AD-17).
 ## Deferred from: review of spec-test-run-report story 6 — report:smoke CLI (2026-09-10)
 
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
