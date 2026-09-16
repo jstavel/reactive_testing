@@ -170,7 +170,7 @@ describe("generateSampleReport", () => {
     expect(resolveLatestRun(corpusRoot)).toBe("example");
   });
 
-  it("report.json carries schema report.v1 with the all-pass scenario summary", () => {
+  it("report.json carries schema report.v2 with the all-pass scenario summary", () => {
     generateSampleReport(corpusRoot);
 
     const report = JSON.parse(readFileSync(join(corpusRoot, "example", "report.json"), "utf8")) as {
@@ -179,7 +179,7 @@ describe("generateSampleReport", () => {
       summary: { total: number; passed: number; failed: number };
       scenarios: Array<{ id: string; passed: boolean; steps: Array<Record<string, unknown>> }>;
     };
-    expect(report.schema).toBe("report.v1");
+    expect(report.schema).toBe("report.v2");
     expect(report.runId).toBe("example");
     expect(report.summary).toEqual({ total: 14, passed: 14, failed: 0 });
     expect(report.scenarios.every((s) => s.passed)).toBe(true);
@@ -448,7 +448,7 @@ describe("generateSampleReport --fail (failure demo)", () => {
     expect(other.url).toBe("https://pro.kraken.com/app/portfolio/overview");
   });
 
-  it("HAPPY_DEMO — report.json is the same report.v1 contract with the one failing scenario", () => {
+  it("HAPPY_DEMO — report.json is the same report.v2 contract with the one failing scenario", () => {
     const outcome = generateSampleReport(corpusRoot, { fail: true });
     expect(outcome.exitCode).toBe(0);
 
@@ -460,7 +460,7 @@ describe("generateSampleReport --fail (failure demo)", () => {
       summary: { total: number; passed: number; failed: number };
       scenarios: Array<{ id: string; passed: boolean; error?: string }>;
     };
-    expect(report.schema).toBe("report.v1");
+    expect(report.schema).toBe("report.v2");
     expect(report.runId).toBe("fail-demo");
     expect(report.summary).toEqual({ total: 14, passed: 13, failed: 1 });
     const failed = report.scenarios.filter((s) => !s.passed);

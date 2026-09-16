@@ -315,6 +315,7 @@
 - source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/1-reporter-report-json-sibling-and-corpus-evidence-links.md`
   summary: Failed-step `.failure` evidence (`snapshots|screenshots/<runId>/<i>.failure(.json|.png)`) is not cited by `buildStepEvidence` — normal-stem refs only(per the story spec's candidate list; the committed fixture is all-pass, so the Pages demo never needs it.) 
   evidence: Edge-case-hunter review of the S1 diff: pre/post-post captures don't run for a failed step (orchestrator rethrows before them,, so a failed step's report entry cites at most its pre-step snapshot plus any normal probes/network — the story-2.7 failure captures stay invisible in both reports.
+  RESOLVED (2026-09-17): shipped as spec-failure-evidence-citation — reporters cite `snapshots|screenshots/<runId>/<i>.failure(.json|.png)` for manifest-recorded failed steps via a parallel failure-ref channel (model hash untouched).
 
 - source_spec: `_bmad-output/specs/spec-report-gherkin-corpus-links/stories/1-reporter-report-json-sibling-and-corpus-evidence-links.md`
   summary: Offline `validate:smoke`/`report:smoke` CLIs have no run↔plan modelVersion guard — plan drift since recording misaligns offline validation and step-indexed evidence refs (`buildStepEvidence` inherits the risk);the run manifest doesn't record the plan version it ran. Pre-existing;, surfaced by the S1 review。
@@ -364,7 +365,7 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 26 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 11 buildable entries grouped into 8 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 27 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 10 buildable entries grouped into 7 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
@@ -377,7 +378,6 @@ Interactive triage of every open entry against the current code. Result: 53 open
 - `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
 - `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
 - `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
-- `failure-evidence-citation` — L285 (reporter cites `<i>.failure` snapshots/screenshots for failed steps). Touchpoint: bin/report-smoke.ts `stepEvidenceFor`.
 - `fixture-gitignore-test` — L297 (automated `git check-ignore` trackability test for the example fixture vs real-run paths). Touchpoint: test suite (+ `.gitignore`).
 - `finishRun-params-object` — L222 (refactor the growing positional `finishRun` signature to an options object). Touchpoint: orchestrator/corpus.ts.
 

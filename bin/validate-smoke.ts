@@ -172,7 +172,11 @@ function planVersionGuardOutcome(
   if (raw === undefined) {
     return undefined;
   }
-  const refusal = planVersionRefusal(raw.planModelVersion, plan.modelVersion);
+  const parsed = JSON.parse(raw) as { planModelVersion?: unknown };
+  const refusal = planVersionRefusal(
+    typeof parsed.planModelVersion === "string" ? parsed.planModelVersion : undefined,
+    plan.modelVersion,
+  );
   return refusal === undefined ? undefined : errorOutcome(refusal);
 }
 

@@ -17,9 +17,11 @@ import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
 import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
 import { assertSafeRunId } from "../orchestrator/corpus.js";
+import type { FailureEvidenceRefs } from "./html-report.js";
 
-/** Top-level schema tag — bumped when the report shape changes (CI consumes it). */
-export const REPORT_SCHEMA = "report.v1";
+/** Top-level schema tag — bumped when the report shape changes (CI consumes it).
+ * Version 2 adds optional failureSnapshot/failureScreenshot step keys. */
+export const REPORT_SCHEMA = "report.v2";
 
 /** Inputs to `emitJsonReport`. */
 export interface EmitJsonReportInput {
@@ -44,6 +46,8 @@ export interface EmitJsonReportInput {
    * entry lists only `stateId`+`contractId` (no ref fields).
    */
   stepEvidence?: Readonly<Record<string, StepEvidence[]>>;
+  /** Corpus-relative failure refs aligned by global step-index order; reporters omit them for passing scenarios. */
+  failureEvidence?: Readonly<Record<string, (FailureEvidenceRefs | undefined)[]>>;
 }
 
 /**
@@ -57,6 +61,7 @@ export function renderJsonReport({
   results,
   relations,
   stepEvidence,
+  failureEvidence,
 }: Omit<EmitJsonReportInput, "corpusDir">): string {
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
@@ -81,7 +86,11 @@ export function renderJsonReport({
         passed: result?.passed ?? false,
         ...(result && !result.passed && result.error ? { error: result.error } : {}),
         steps: scenario.steps.map((step, idx) =>
-          renderStep(step, stepEvidence?.[scenario.id]?.[idx]),
+          renderStep(
+            step,
+            stepEvidence?.[scenario.id]?.[idx],
+            result && !result.passed ? failureEvidence?.[scenario.id]?.[idx] : undefined,
+          ),
         ),
       };
     }),
@@ -94,19 +103,21 @@ export function renderJsonReport({
 function renderStep(
   step: TestPlan["scenarios"][number]["steps"][number],
   ev: StepEvidence | undefined,
+  failure: FailureEvidenceRefs | undefined,
 ): object {
-  if (ev === undefined) {
-    return { stateId: step.stateId, contractId: step.contractId };
-  }
   return {
     stateId: step.stateId,
     contractId: step.contractId,
-    timingMs: ev.timingMs,
-    ...(ev.snapshotPre !== undefined ? { snapshotPre: ev.snapshotPre } : {}),
-    ...(ev.snapshotPost !== undefined ? { snapshotPost: ev.snapshotPost } : {}),
-    ...(ev.probes !== undefined ? { probes: ev.probes } : {}),
-    ...(ev.network !== undefined ? { network: ev.network } : {}),
-    ...(ev.screenshot !== undefined ? { screenshot: ev.screenshot } : {}),
+    ...(ev !== undefined ? { timingMs: ev.timingMs } : {}),
+    ...(ev?.snapshotPre !== undefined ? { snapshotPre: ev.snapshotPre } : {}),
+    ...(ev?.snapshotPost !== undefined ? { snapshotPost: ev.snapshotPost } : {}),
+    ...(ev?.probes !== undefined ? { probes: ev.probes } : {}),
+    ...(ev?.network !== undefined ? { network: ev.network } : {}),
+    ...(ev?.screenshot !== undefined ? { screenshot: ev.screenshot } : {}),
+    ...(failure?.failureSnapshot !== undefined ? { failureSnapshot: failure.failureSnapshot } : {}),
+    ...(failure?.failureScreenshot !== undefined
+      ? { failureScreenshot: failure.failureScreenshot }
+      : {}),
   };
 }
 
@@ -123,9 +134,10 @@ export function emitJsonReport({
   results,
   relations,
   stepEvidence,
+  failureEvidence,
 }: EmitJsonReportInput): string {
   assertSafeRunId(run.runId);
-  const json = renderJsonReport({ run, plan, results, relations, stepEvidence });
+  const json = renderJsonReport({ run, plan, results, relations, stepEvidence, failureEvidence });
   const relPath = `${run.runId}/report.json`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
   writeFileSync(join(corpusDir, relPath), json);

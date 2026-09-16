@@ -872,3 +872,117 @@ describe("renderHtmlReport corpus evidence links (report.json sibling spec)", ()
     );
   });
 });
+
+describe("renderHtmlReport failure evidence", () => {
+  const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+
+  it("renders failure snapshot and screenshot refs", () => {
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", false, "boom")],
+      failureEvidence: {
+        sc: [
+          {
+            failureSnapshot: "snapshots/run1/0.failure.json",
+            failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" },
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain("failure evidence");
+    expect(html).toContain('href="../snapshots/run1/0.failure.json"');
+    expect(html).toContain('<img src="../screenshots/run1/0.failure.png"');
+  });
+
+  it("keeps the failure snapshot link when the screenshot path is unsafe", () => {
+    const html = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", false)],
+      failureEvidence: {
+        sc: [
+          {
+            failureSnapshot: "snapshots/run1/0.failure.json",
+            failureScreenshot: { filePath: "../outside.png", capturedAt: "t" },
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain('href="../snapshots/run1/0.failure.json"');
+    expect(html).not.toContain('<img src="../outside.png"');
+  });
+
+  it("omits absent failure evidence and preserves the normal output", () => {
+    const without = renderHtmlReport({ run, plan, results: [result("sc", true)] });
+    const withEmpty = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", true)],
+      failureEvidence: {},
+    });
+
+    expect(withEmpty).toBe(without);
+    expect(without).not.toContain("failure evidence");
+  });
+
+  it("renders snapshot-only and screenshot-only failure evidence", () => {
+    const snapshotOnly = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", false)],
+      failureEvidence: { sc: [{ failureSnapshot: "snapshots/run1/0.failure.json" }] },
+    });
+    const screenshotOnly = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", false)],
+      failureEvidence: {
+        sc: [
+          { failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" } },
+        ],
+      },
+    });
+
+    expect(snapshotOnly).toContain("failure snapshot");
+    expect(snapshotOnly).not.toContain("Failure screenshot");
+    expect(screenshotOnly).toContain('<img src="../screenshots/run1/0.failure.png"');
+    expect(screenshotOnly).not.toContain("failure snapshot");
+  });
+
+  it("omits empty, unsafe, and passing-scenario failure blocks", () => {
+    const unsafe = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", false)],
+      failureEvidence: {
+        sc: [
+          {
+            failureSnapshot: "../outside.json",
+            failureScreenshot: { filePath: "../outside.png", capturedAt: "t" },
+          },
+        ],
+      },
+    });
+    const passing = renderHtmlReport({
+      run,
+      plan,
+      results: [result("sc", true)],
+      failureEvidence: {
+        sc: [
+          {
+            failureSnapshot: "snapshots/run1/0.failure.json",
+            failureScreenshot: { filePath: "screenshots/run1/0.failure.png", capturedAt: "t" },
+          },
+        ],
+      },
+    });
+
+    expect(unsafe).not.toContain("failure evidence");
+    expect(unsafe).not.toContain("outside.json");
+    expect(passing).not.toContain("failure evidence");
+    expect(passing).not.toContain("0.failure");
+  });
+});
