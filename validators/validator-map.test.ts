@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ContractEvidence } from "../model/schemas.js";
+import type { ContractEvidence, ContractPredicate } from "../model/schemas.js";
 import { contractPredicateSchema, validationResultSchema } from "../model/schemas.js";
-import { validatorMap, validatorsFor } from "./validator-map.js";
+import { evaluate, validatorMap, validatorsFor } from "./validator-map.js";
 
 const evidence: ContractEvidence = {
   pre: {
@@ -287,6 +287,23 @@ describe("validatorMap", () => {
     for (const key of Object.keys(validatorMap)) {
       expect(allContracts.some((c) => c.contractId === key)).toBe(true);
     }
+  });
+});
+
+describe("evaluate", () => {
+  it("returns a failed named result for a hand-rolled predicate outside the closed vocabulary", () => {
+    const predicate = { assert: "nope" } as unknown as ContractPredicate;
+    const r = evaluate(predicate, evidence.post, evidence.probes ?? []);
+
+    expect(r.passed).toBe(false);
+    expect(r.detail).toContain('unknown predicate "nope"');
+  });
+
+  it("never throws for an unknown assert, whatever the evidence", () => {
+    const predicate = { assert: "nope" } as unknown as ContractPredicate;
+
+    expect(() => evaluate(predicate, undefined, [])).not.toThrow();
+    expect(evaluate(predicate, undefined, []).passed).toBe(false);
   });
 });
 

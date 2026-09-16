@@ -17,8 +17,10 @@ import type {
   Validator,
 } from "../model/schemas.js";
 
-/** Evaluate one predicate against the step's evidence. */
-function evaluate(
+/** Evaluate one predicate against the step's evidence. Exported for direct
+ * unit testing of the unknown-predicate guard; production callers go through
+ * the validator map. */
+export function evaluate(
   predicate: ContractPredicate,
   snapshot: SnapshotRecord | undefined,
   probes: ProbeResult[],
@@ -75,6 +77,16 @@ function evaluate(
       return {
         passed: false,
         detail: `${predicate.assert} expected ${expected ? marker : `no ${marker}`} but ${found ? `${marker} found` : "marker absent"} in snapshot`,
+      };
+    }
+    default: {
+      // Unreachable with schema-valid predicates (contractPredicateSchema is a
+      // closed union), but a hand-rolled predicate must still yield a failed
+      // result rather than `undefined` — falling off the switch would crash
+      // the `r.passed` dereference in validateContract (FR-5).
+      return {
+        passed: false,
+        detail: `unknown predicate "${(predicate as ContractPredicate).assert}"`,
       };
     }
   }
