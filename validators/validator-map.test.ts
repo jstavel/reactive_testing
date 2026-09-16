@@ -179,6 +179,10 @@ describe("validatorMap", () => {
     expect(validatorsFor("nonexistent")).toEqual([]);
   });
 
+  it("does not treat inherited object properties as validators", () => {
+    expect(validatorsFor("toString")).toEqual([]);
+  });
+
   it('dialog-open passes when snapshot contains role="dialog"', () => {
     const validator = validatorsFor("openPortfolioSummary")[0]!;
     const result = validator({
