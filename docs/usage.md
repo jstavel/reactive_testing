@@ -142,9 +142,8 @@ separator:
 npm run validate:smoke -- 353dbf5a-ee9c-47a9-a982-3e373a6f9516
 ```
 
-Validate only **selected contracts** by appending contract ids after the run id
-(handy right after you added validators for one contract; repeated ids are
-deduplicated):
+Validate only selected checks by appending contract or cross-view invariant ids after
+the run id (repeated ids are deduplicated):
 
 ```bash
 npm run validate:smoke -- 353dbf5a-ee9c-47a9-a982-3e373a6f9516 filterHistoryByAsset
@@ -164,8 +163,8 @@ You see, per check (sample abridged):
   no steps — never a pass), the runId is unknown, no run is recorded yet, the
   **plan-version guard refused the run** (one-way pointer: see §2's
   authoritative plan-version-guard note), or the usage was wrong.
-  An unknown contract id is also an error (it would
-  silently validate nothing) — the message names every valid contract id.
+  An unknown filter id is also an error (it would
+  silently validate nothing) — the message names every valid contract and cross-view invariant id.
 
 The CLI is print-only: it reads `corpus/` and `model/`, never mutates the
 corpus, and never touches a browser. Its scope is the smoke plan's **step

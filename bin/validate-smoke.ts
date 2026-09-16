@@ -48,20 +48,20 @@ export {
 } from "./cli-shared.js";
 
 export const USAGE =
-  "Usage: npm run validate:smoke -- [--corpus-dir <path>] [<runId>] [<contractId>…]";
+  "Usage: npm run validate:smoke -- [--corpus-dir <path>] [<runId>] [<filterId>…] (filter ids are contract ids and cross-view invariant ids)";
 const RUNID_FILTER_HINT =
-  "the first argument is the runId; contract filters come after it " +
-  "(e.g. npm run validate:smoke -- <runId> <contractId>)";
+  "the first argument is the runId; filter ids come after it (contract ids and cross-view invariant ids) " +
+  "(e.g. npm run validate:smoke -- <runId> <filterId>)";
 
-/** An unknown contract-id filter (it would silently validate nothing). */
+/** An unknown filter id (it would silently validate nothing). */
 export class UnknownContractIdError extends Error {
   readonly unknownIds: readonly string[];
   readonly validIds: readonly string[];
 
   constructor(unknownIds: readonly string[], validIds: readonly string[]) {
     super(
-      `Unknown contract id(s): ${unknownIds.join(", ")}. ` +
-        `Valid contract ids: ${validIds.join(", ")}`,
+      `Unknown filter id(s): ${unknownIds.join(", ")}. ` +
+        `Valid filter ids (contract ids and cross-view invariants): ${validIds.join(", ")}`,
     );
     this.name = "UnknownContractIdError";
     this.unknownIds = unknownIds;
@@ -69,14 +69,14 @@ export class UnknownContractIdError extends Error {
   }
 }
 
-/** Parsed CLI arguments: an optional leading runId, then optional contract filters. */
+/** Parsed CLI arguments: an optional leading runId, then optional filter ids. */
 export interface ParsedArgs {
   readonly runId: string | undefined;
   readonly contractIds: readonly string[];
 }
 
-/** `[<runId>] [<contractId>…]` — the first positional (if any) is the runId;
- * every remaining positional filters which contracts' checks run. */
+/** `[<runId>] [<filterId>…]` — the first positional (if any) is the runId;
+ * every remaining positional filters which contract and invariant checks run. */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const [runId, ...contractIds] = argv;
   return { runId, contractIds };
@@ -91,7 +91,7 @@ export function planContractIds(plan: TestPlan): readonly string[] {
   ];
 }
 
-/** Resolve the optional contract filters against the plan, or `undefined` when
+/** Resolve optional contract and invariant filters, or `undefined` when
  * unfiltered (the runner's own default; the runner deduplicates repeated ids).
  * Unknown ids throw — mirroring selectScenarios' unknown-scenario-id error
  * pattern — so a typo can never silently validate nothing. */
@@ -195,7 +195,7 @@ export function validateSmoke(
 
   if (rest.some((arg) => arg.startsWith("-"))) {
     return errorOutcome(
-      `Invalid argument(s): ${rest.join(", ")} — only positional [<runId>] [<contractId>…] are accepted.`,
+      `Invalid argument(s): ${rest.join(", ")} — only positional [<runId>] [<filterId>…] are accepted.`,
       USAGE,
     );
   }
@@ -229,7 +229,12 @@ export function validateSmoke(
     return unknownRunOutcome(
       corpusDir,
       runId,
-      ...(planContractIds(plan).includes(runId) ? [RUNID_FILTER_HINT, USAGE] : [USAGE]),
+      ...([
+        ...planContractIds(plan),
+        ...crossViewInvariants.map(({ invariantId }) => invariantId),
+      ].includes(runId)
+        ? [RUNID_FILTER_HINT, USAGE]
+        : [USAGE]),
     );
   }
   const guard = planVersionGuardOutcome(corpusDir, runId, plan);
