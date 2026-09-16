@@ -248,30 +248,34 @@ describe("renderHtmlReport with relations (Story 2)", () => {
   it("GROUPS_BY_FEATURE — scenarios rendered under their feature headings", () => {
     const rels = [
       relation({
-        scenarioId: "a",
+        scenarioId: "scenario-a",
         scenarioTitle: "Scenario A",
         featureTitle: "Feature One",
         feature: "feature-one",
       }),
       relation({
-        scenarioId: "b",
+        scenarioId: "scenario-b",
         scenarioTitle: "Scenario B",
         featureTitle: "Feature One",
         feature: "feature-one",
       }),
       relation({
-        scenarioId: "c",
+        scenarioId: "scenario-c",
         scenarioTitle: "Scenario C",
         featureTitle: "Feature Two",
         feature: "feature-two",
       }),
     ];
     const plan = makePlan([
-      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "b", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }] },
-      { id: "c", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "scenario-b", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuFutures" }] },
+      { id: "scenario-c", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
     ]);
-    const results = [result("a", true), result("b", true), result("c", true)];
+    const results = [
+      result("scenario-a", true),
+      result("scenario-b", true),
+      result("scenario-c", true),
+    ];
 
     const html = renderHtmlReport({ run, plan, results, relations: rels });
 
@@ -291,23 +295,25 @@ describe("renderHtmlReport with relations (Story 2)", () => {
   it("N_TO_N — a contract shared by multiple scenarios appears for each", () => {
     const rels = [
       relation({
-        scenarioId: "a",
+        scenarioId: "scenario-a",
+        scenarioTitle: "Scenario A",
         featureTitle: "F",
         contracts: ["openPortfolioSummary"],
         states: ["homePage"],
       }),
       relation({
-        scenarioId: "b",
+        scenarioId: "scenario-b",
+        scenarioTitle: "Scenario B",
         featureTitle: "F",
         contracts: ["openPortfolioSummary"],
         states: ["homePage"],
       }),
     ];
     const plan = makePlan([
-      { id: "a", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
-      { id: "b", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
+      { id: "scenario-b", steps: [{ stateId: "homePage", contractId: "openPortfolioSummary" }] },
     ]);
-    const results = [result("a", true), result("b", true)];
+    const results = [result("scenario-a", true), result("scenario-b", true)];
 
     const html = renderHtmlReport({ run, plan, results, relations: rels });
 
@@ -316,11 +322,11 @@ describe("renderHtmlReport with relations (Story 2)", () => {
   });
 
   it("EMBEDS_GHERKIN_SNAPSHOT — relation-agnostic gherkinSource is rendered", () => {
-    const rels = [relation({ scenarioId: "a", scenarioTitle: "Scenario A" })];
+    const rels = [relation({ scenarioId: "scenario-a", scenarioTitle: "Scenario A" })];
     const plan = makePlan([
-      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
     ]);
-    const results = [result("a", true)];
+    const results = [result("scenario-a", true)];
 
     const html = renderHtmlReport({
       run,
@@ -328,7 +334,7 @@ describe("renderHtmlReport with relations (Story 2)", () => {
       results,
       relations: rels,
       gherkinSource: {
-        a: "Scenario: Scenario A\n  Given some precondition\n  Then something holds",
+        "scenario-a": "Scenario: Scenario A\n  Given some precondition\n  Then something holds",
       },
     });
 
@@ -338,11 +344,11 @@ describe("renderHtmlReport with relations (Story 2)", () => {
   });
 
   it("GHERKIN_TIMEOUT_FALLBACK — scenario with no snapshot shows title only", () => {
-    const rels = [relation({ scenarioId: "a", scenarioTitle: "Scenario A" })];
+    const rels = [relation({ scenarioId: "scenario-a", scenarioTitle: "Scenario A" })];
     const plan = makePlan([
-      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
     ]);
-    const results = [result("a", true)];
+    const results = [result("scenario-a", true)];
 
     const html = renderHtmlReport({ run, plan, results, relations: rels, gherkinSource: {} });
 
@@ -365,7 +371,7 @@ describe("renderHtmlReport with relations (Story 2)", () => {
   });
 
   it("UNCATEGORIZED — scenario with no matching relation grouped under 'Uncategorized'", () => {
-    const rels = [relation({ scenarioId: "known" })];
+    const rels = [relation({ scenarioId: "known", scenarioTitle: "Known" })];
     const plan = makePlan([
       { id: "known", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
       { id: "mystery", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
@@ -380,19 +386,34 @@ describe("renderHtmlReport with relations (Story 2)", () => {
 
   it("DETERMINISTIC_GROUP — grouped report is byte-identical for identical inputs", () => {
     const rels = [
-      relation({ scenarioId: "a", featureTitle: "F1" }),
-      relation({ scenarioId: "b", featureTitle: "F2" }),
+      relation({ scenarioId: "scenario-a", scenarioTitle: "Scenario A", featureTitle: "F1" }),
+      relation({ scenarioId: "scenario-b", scenarioTitle: "Scenario B", featureTitle: "F2" }),
     ];
     const plan = makePlan([
-      { id: "a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
-      { id: "b", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+      { id: "scenario-b", steps: [{ stateId: "homePage", contractId: "clickPortfolioMenuMain" }] },
     ]);
-    const results = [result("a", true), result("b", true)];
+    const results = [result("scenario-a", true), result("scenario-b", true)];
 
     const first = renderHtmlReport({ run, plan, results, relations: rels });
     const second = renderHtmlReport({ run, plan, results, relations: rels });
 
     expect(second).toBe(first);
+  });
+
+  it("DUPLICATE_RELATION_ID — duplicate scenarioId in relations throws instead of last-wins", () => {
+    const rels = [relation({}), relation({})];
+    const plan = makePlan([
+      { id: "scenario-a", steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }] },
+    ]);
+    const results = [result("scenario-a", true)];
+
+    expect(() => renderHtmlReport({ run, plan, results, relations: rels })).toThrow(
+      /relation guard failed with 2 issue/,
+    );
+    expect(() => renderHtmlReport({ run, plan, results, relations: rels })).toThrow(
+      /duplicate scenario id "scenario-a"/,
+    );
   });
 });
 

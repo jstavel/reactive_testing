@@ -157,22 +157,27 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: extractScenario only matches the "Scenario:" prefix, so "Scenario Outline:"/tagged outline scenarios are silently skipped from the snapshot even though the end-boundary regex already recognises them.
   evidence: Blind-hunter review of reporter/gherkin-snapshot.ts: the block-start scan matches only "Scenario:", while the block-end regex lists Scenario Outline; nothing in the current relations/features uses outlines, so it is a latent gap, not a reached defect.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — extractScenario matches both "Scenario:" and "Scenario Outline:" prefixes by exact title (reporter/gherkin-snapshot.ts).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: extractScenario drops any "@" tags on the line(s) preceding a scenario, so the snapshot is not fully verbatim for tagged scenarios.
   evidence: Blind-hunter review of reporter/gherkin-snapshot.ts: the scan starts at the Scenario: line and returns only from there; no current feature carries a per-scenario tag, so the fidelity gap is latent.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — the contiguous pre-scenario `@`-tag run is folded into the extracted block verbatim (blank/non-tag line stops the lookback).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: No test covers Scenario Outline/Examples or "@"-tagged scenarios in buildGherkinSnapshot, so the two latent gaps above would go undetected.
   evidence: Blind-hunter review noted the snapshot test suite exercises only plain Scenario: blocks.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — outline/Examples (incl. multi-Examples and EOF end), tag (incl. tags-above-last-scenario and feature-tag non-attachment), dup-throw, and plain-scenario byte-identity tests added to reporter/gherkin-snapshot.test.ts.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: relation scenarioIds are manually duplicated kebab-case forms of their scenarioTitles with no derivation helper, so editing a title without its id would silently break snapshot lookup (keyed by scenarioId).
   evidence: Blind-hunter review of model/relations.ts: each scenarioId is the kebab-case of scenarioTitle by hand.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — `deriveScenarioId` in model/relations.ts reproduces all 14 seeded ids; pinned by a conformance test (model/relations.test.ts).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-followup-gherkin-run-time-snapshot.md`
   summary: relationsByScenarioId (and buildGherkinSnapshot's grouping) silently overwrite when a duplicate scenarioId appears in the relation array; no dedup/validation warns.
   evidence: Blind-hunter review of relationsByScenarioId: it builds a Map from an array, so a later duplicate wins with no signal.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — `assertUniqueScenarioIds` guards both `relationsByScenarioId` and `buildGherkinSnapshot`; duplicates throw a deterministic error naming the id.
 
 ## Deferred from: review of spec-3-per-step-expandable-evidence (2026-09-03)
 
@@ -355,13 +360,14 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 17 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 20 buildable entries grouped into 13 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 22 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 15 buildable entries grouped into 12 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
 - `fsm-contract-shape-validation` — L5 (residual half of FSM/contract referential integrity: runtime validation of `fsm.ts`/`contracts.ts` shapes, URL discriminator, contract-state scoping). Touchpoints: model/fsm.ts, model/contracts.ts.
 - `probe-name-uniqueness` — L54 (reject duplicate configured probe names at plan preflight). Touchpoint: orchestrator/orchestrator.ts `validateProbeDependencies`.
 - `gherkin-snapshot-fidelity` — L142 (Scenario Outline extraction), L146 (`@` tags kept verbatim), L150 (outline/tag tests), L154 (derive `scenarioId` from title), L158 (duplicate scenarioId dedup/validation). Touchpoints: reporter/gherkin-snapshot.ts, model/relations.ts.
+  RESOLVED (2026-09-16): shipped as spec-gherkin-snapshot-fidelity — all five entries annotated RESOLVED above; the L-numbers here refer to the sweep-triage revision of this file.
 - `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.
 - `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
 - `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
@@ -396,3 +402,9 @@ The 13 resolved and 5 skipped entries carry per-entry annotations above. The 24 
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-path-trust-hardening.md`
   summary: `bin/generate-sample-report.ts` interpolates runId into write paths (`join(corpusRoot, runId)`) with no `RUN_ID_PATTERN` guard — safe only because the reserved sample runIds (`example`/`fail-demo`) are hardcoded; guard the surface if the generator ever accepts user-supplied runIds.
   evidence: Blind-hunter review of the path-trust diff; the spec-trust hardening covered the corpus writer and reporters but this dev-tool surface shares the same trust model.
+
+## Deferred from: review of spec-gherkin-snapshot-fidelity (2026-09-16)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-gherkin-snapshot-fidelity.md`
+  summary: `extractScenario` scans keyword/`@` lines without tracking Gherkin `"""` doc-string fences, so a `Scenario:`/`@`-prefixed line inside a doc string can truncate or reattribute a block — a pre-existing rapid-parse limitation the tag-folding makes slightly more likely; pin before any feature uses doc strings.
+  evidence: Blind-hunter and edge-case reviews of the fidelity diff; no committed `.feature` uses doc strings today, so the gap is latent.
