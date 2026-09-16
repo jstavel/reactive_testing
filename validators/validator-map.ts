@@ -133,5 +133,5 @@ export const validatorMap: Record<string, Validator[]> = Object.fromEntries(
 
 /** Validators for a contract, or `[]` (an unvalidated gap) when the id is unknown. */
 export function validatorsFor(contractId: string): Validator[] {
-  return validatorMap[contractId] ?? [];
+  return Object.hasOwn(validatorMap, contractId) ? (validatorMap[contractId] ?? []) : [];
 }
