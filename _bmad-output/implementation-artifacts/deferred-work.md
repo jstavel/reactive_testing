@@ -9,26 +9,32 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-scaffold-the-executable-model-zod-type-safety-gate.md`
   summary: Add the AD-15 run-manifest.json shape to schemas.ts in Epic 2.
   evidence: Review noted run-manifest (run-id, timestamp, file list) is absent from the schemas.ts "single home"; the orchestrator (Epic 2) needs it.
+  RESOLVED (2026-09-16 sweep): `runManifestSchema`/`RunManifest` defined at model/schemas.ts:333-364 and pinned via safeParse in orchestrator/corpus.test.ts:139-140.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-scaffold-the-executable-model-zod-type-safety-gate.md`
   summary: Add runtime schema verification (a Node built-in `node --test` smoke exercising the pinned PlanId/ValidationResult shapes) when Story 1.2 first consumes the schemas.
   evidence: Verification-gap review: nothing imports the schemas yet, so `tsc --noEmit` cannot catch schema drift; a dependency-free smoke makes the "machine-verifiable" claim observable once a consumer exists.
+  RESOLVED (2026-09-16 sweep): 14 test files consume model/schemas.js, several with direct `safeParse`/`parse` (e.g. validator-map.test.ts:3, corpus.test.ts:139-140); `tsc --noEmit` and the suite now catch schema drift.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-collectors-capture-page-data.md`
   summary: Network collector error-handling robustness (closed page before waitForLoadState, failed/aborted requests not captured, response-handler throw) belongs in Story 2-4 error isolation.
   evidence: Edge-case review of collect-network.ts: error paths are observably real but explicitly out of scope — the spec freezes "Never: error isolation (Story 2-4)".
+  RESOLVED (2026-09-16 sweep): collect-network.ts:22-95 captures `requestfailed`, wraps response-handler bodies, and survives a closed page during `finish()`; covered by collectors.test.ts:254-366.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-collectors-capture-page-data.md`
   summary: Screenshot collector fixed-basename overwrite (second capture into the same dir silently replaces the first) resolves in Story 2-3 run/step file naming.
   evidence: Edge-case review of collect-screenshot.ts: a fixed screenshot.png collides per run/step; the frozen spec defers all run/step filename policy to Story 2-3.
+  RESOLVED (2026-09-16 sweep): screenshots use per-run/per-step stems via `corpusStem(phase, scenario.id, stepIndex)` + `writeCorpusFile` (orchestrator/orchestrator.ts:601-627) — no fixed basename.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-collectors-capture-page-data.md`
   summary: Probe collector fail-fast (one missing selector aborts the batch and discards already-collected ProbeResults) becomes a partial-corpus/error-isolation policy in Story 2-4.
   evidence: Edge-case review of collect-probe.ts: matrix specifies "missing selector → throw with probe name"; partial-result error handling is Story 2-4's concern.
+  RESOLVED (2026-09-16 sweep): Story 2-4 shipped and partial results are no longer discarded — `ProbePartialError` carries already-collected results that the orchestrator persists (orchestrator.ts:631-657); the evaluate-all continuation policy remains tracked at L52.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-5-connect-to-an-existing-authenticated-browser-via-cdp.md`
   summary: Specify the real per-contract actions against the live Kraken Pro home page (Epic 2 story 2.6). The action-map's role-based locators (getByRole link /history/i, /portfolio/i, button /eye/i, etc.) return 0 matches on the live DOM, so every smoke-plan scenario FAILs by timeout. This is the AI-assisted authoring step: discover the actual DOM target for each contract transition and write action-map entries that genuinely drive it, making "run a scenario against the live app" demonstrable end-to-end. Drafted as `_bmad-output/implementation-artifacts/spec-2-6-ai-assisted-action-specification.md` (status backlog; registered in epic-2-context.md and sprint-status.yaml under key `2-6-ai-assisted-action-specification`).
   evidence: Story 2.5 scope flag (spec line 88): action compatibility is explicitly out of 2.5 scope and a separate follow-up. Live diagnostic confirmed attach + new tab + confirmed readySelector all work, but the first action `locator.click` times out (0 match) — the connection layer is proven; only the action layer remains.
+  RESOLVED (2026-09-16 sweep): story 2-6-ai-assisted-action-specification is done (sprint-status.yaml); the action-map is live-discovered (orchestrator/action-map.ts) and the full smoke plan passes live against it.
 
 ## Deferred from: code review of spec-2-2-collectors-capture-page-data (2026-08-29)
 
@@ -36,11 +42,14 @@
   DECISION (2026-09-01): BUILD — attach the `response`/`requestfailed` listeners before the action and keep them across the settle, so exchanges that finish during the action are captured. See decision 1a.
   RESOLVED (2026-09-01): collector half shipped — `collectors/collect-network.ts` now exposes `startNetworkCapture(page)` returning a two-phase handle (`finish()` bounded networkidle + idempotent detach; `close()` immediate detach; `finish()` short-circuits after `close()`). `collectNetwork` stays a one-shot wrapper. PR #7 (merged, `9b4fcc9`). The orchestrator wiring that attaches the handle before the action is split out below.
 - Failed/aborted requests (`requestfailed`) are not captured — re-flagged by this review; already tracked above for Story 2-4 error isolation.
+  RESOLVED (2026-09-16 sweep): duplicate re-flag of the L17 entry — `requestfailed` is now captured (collect-network.ts:26-29).
 - Probe fail-fast discards already-collected `ProbeResult`s when one selector is missing — re-flagged by this review; already tracked above for Story 2-4 partial-corpus/error-isolation policy.
+  RESOLVED (2026-09-16 sweep): duplicate re-flag of the L25 entry — partial results are now preserved via `ProbePartialError` (orchestrator.ts:631-657).
 
 ## Deferred from: code review of story-2-3-scenario-run-produces-a-namespaced-corpus-with-no-embedded-assertions (2026-08-29)
 
 - `run-manifest.json` has no completeness marker, so a run with timeout-skipped scenarios is indistinguishable at the manifest level; add a status/complete field in a later story when validators consume manifests.
+  RESOLVED (2026-09-16 sweep): the manifest now records per-run `errors`/`failures`/`collectors`/`bootstrap` (schemas.ts:351-362), so timeout-skipped scenarios are distinguishable at the manifest level; a dedicated status field would add marginal value.
 - `writeCorpusFile` does not sanitize `kind`/`runId`/`stepIndex`, so a misbehaving caller could escape the corpus root (path traversal); defensive hardening deferred until external callers exist (current call sites are internal and hardcoded).
 - Per-step execution is bounded per operation (worst case ~6× stepTimeout: action + settle + 4 collectors), not per whole step; still bounded, so tightening to a strict per-step budget is a deliberate behavior choice for a later story.
 
@@ -95,18 +104,21 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-decision-2a-dialog-surface-actions.md`
   summary: Value-reference and state-loading semantics are OUT of scope for the dialog-locator story — the three dialog actions must stay value-agnostic (no hard-coded USD figure; match the value's shape, not its magnitude or current level) and must not embed or assert a specific portfolio value. The "scenario should refer to the actual value it found" + "value remembered across pages" + "load app state" concerns live entirely in the parked state-loading RFE above.
   evidence: User confirmed (2026-09-01) that hard-coding ~4k USD text in code is wrong because values drift (~$4k now, >$5k yesterday); and that value-loading is a separate discussion. The relative-value pattern already exists verbatim in `features/home-page-portfolio-value.feature`.
+  RESOLVED (2026-09-16 sweep): decision-2a dialog actions shipped value-agnostic (`openPortfolioSummary`/`toggleEyeIcon`/`closePortfolioSummary`); the state-loading concern itself remains parked at L90.
 
 ## Deferred from: full smoke run during decision 2a (2026-09-01)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-decision-2a-dialog-surface-actions.md`
   summary: Scenario 7 (`clicking-earn-navigates-to-the-standalone-earn-page`, contract `clickPortfolioMenuEarn`) intermittently times out at its earn-nav step during the full 10-scenario live smoke run. Because the orchestrator runs all scenarios on one shared page with no reset, that late failure leaves the page off-home and the home-only dialog scenarios 8-10 then time out as a cascade (their `openPortfolioSummary` cannot find the home header value button). The earn action is untouched by decision 2a (verified: scenarios 8-10 pass 3/3 in isolation). To be tracked separately from the dialog work.
   evidence: Multiple live smoke runs (2026-09-01) — full run consistently logged `[FAIL] clicking-earn-navigates-to-the-standalone-earn-page … Step timed out after 10000ms`, followed by `[FAIL]` on all dialog scenarios; the same three dialog scenarios passed 3/3 when run in isolation against the same CDP session. The earn action itself and scenario-7 stability were not changed by decision 2a.
+  SKIPPED (2026-09-16 sweep): superseded by the gh-22 locator-drift fix — `clickPortfolioMenuEarn` now targets the sidebar Yield entry (action-map.ts:64-82) and the full plan passes 13/13 live.
 
 ## Deferred from: code review of spec-4-1-standalone-repro-script-from-the-model (2026-09-02)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
   summary: Generator validates each step against the Model (state exists, contract declared + in the action-map, (state, contract) is a declared transition) but does not require path continuity — the next step's `stateId` is never checked against the previous step's transition target, so a disjoint sequence of individually valid steps still emits a repro that cannot execute as written. Treat as a gap if the spec's "reproduces the failure" is read to include runnability of the whole traced path.
   evidence: Blind-hunter and edge-case-hunter reviews of the 4.1 diff independently flagged the missing adjacency check; the frozen spec's validation rules enumerate per-step checks only, so this is a spec-level addition, not an implementation deviation.
+  RESOLVED (2026-09-16 sweep): path continuity enforced — the generator requires `givenStateId`-consistent start and transition-target adjacency (repro/repro-generator.ts:331-359), rechecked by the emitted runtime guard (:179-199); disjoint-path test at repro-generator.test.ts:156-170.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-standalone-repro-script-from-the-model.md`
   summary: The emitted script's run-time guard now re-checks states and transitions but not whether the contract is still in `allContracts` — a contract removed from the declaration list but left in the action-map would still run. A real runtime check needs the `allContracts` value, which the frozen spec scopes to "types only" imports, so the import boundary must be renegotiated in spec.
@@ -164,6 +176,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
   summary: stepEvidence array/step-count mismatch is not guarded — a evidence array shorter than `plan.scenarios[id].steps` silently falls back to plain (non-expandable) rendering for the trailing steps, indistinguishable from a deliberately absent entry; consider a length/alignment guard when a caller that populates evidence exists.
   evidence: Blind-hunter and edge-case-hunter reviews of the 3-per-step diff; the spec declares "aligned by index" but does not require enforcing the alignment.
+  SKIPPED (2026-09-16 sweep): the plain-render fallback for absent evidence is pinned as desired behavior (html-report.test.ts MISSING_EVIDENCE); revisit only when a caller populates `stepEvidence` with misalignment risk.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
   summary: The reporter trusts screenshot `filePath` as a corpus-relative path — an absolute URL or `../` path would be emitted verbatim into the `<img src>`; `escapeHtml` prevents attribute injection but not URL/path sanitization. Harden when external callers can supply paths.
@@ -209,10 +222,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: Fan re-pointing is `rm + rebuild`, so `@last-run`/`@last-fail` briefly disappear or half-populate during a re-point; a concurrent reader can see a missing/partial fan. Building into a temp dir and renaming would shrink the window. Acceptable for a single-operator convenience view today; atomicize if scripts or CI ever read the fans concurrently.
   evidence: Blind-hunter and edge-case reviews both flagged the non-atomic re-point (rmSync then mkdir) introduced in the change; handlinks.test asserts per-link shape, not mid-write visibility.
+  SKIPPED (2026-09-16 sweep): acceptable single-operator convenience window; atomicize only when scripts or CI read the fans concurrently.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: The fan exposes a fixed `HANDOFF_KINDS` set (manifest/snapshots/network/probes/screenshots); if the collector set (CollectorName in schemas.ts) gains a new kind, `@last-run`/`@last-fail` silently omit that kind's evidence until the constant is edited. Revisit whether the fan shape is derived from the collector set or the manifest `files[]` when a new kind lands.
   evidence: Edge-case review noted the fixed constant vs the open `CollectorName` enum; no seed change adds a kind today.
+  SKIPPED (2026-09-16 sweep): moot until a new collector kind lands; the committed `HANDOFF_KINDS` constant is the escape hatch reviewed at that point.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: The new `corpus:*` npm scripts, `CORPUS_DIR` override, and `@last-run`/`@last-fail` semantics are documented only in source comments and a `docs/usage.md` snippet hint; there is no canonical operator-facing documentation entry for the handoff surface (README/project-map/architecture). Add a docs story or fold into the user-docs set.
@@ -249,6 +264,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-gh-22-action-locator-drift.md`
   summary: The new locators are unscoped — `button:has(svg[name="ChevronRightSmall"])` (pager) and `getByRole("button", { name: "Yield", exact: true })` (sidebar) match anywhere on the page; a future surface introducing another such control would break strict-mode resolution or click the wrong element. Consider scoping to the pager/sidebar regions when the app grows competing controls.
   evidence: Blind-hunter and edge-case reviews flagged the unscoped selectors; live probe confirmed exactly 1 match each today, so the risk is future drift, not current breakage.
+  SKIPPED (2026-09-16 sweep): future-drift risk only; scope the pager/sidebar selectors when the app grows a competing control.
 
 ## Deferred from: pilot-run of spec-5-2-order-book-selected-view (2026-09-10)
 
@@ -272,6 +288,7 @@
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
   summary: Offline validation/report CLIs trust `loadCorpusSteps`' silent per-step skipping — a partially corrupt corpus (manifest lists files that are missing) undercounts checks, and no reconciliation of result count against expected checks per step catches it, so scenarios can pass vacuously. Pre-existing in `validate:smoke`; inherited by `report:smoke`.
   evidence: Verification-gap review of the story-6 diff: the zero-checks guard fires only on `results.length === 0`; no test covers missing snapshot/probe evidence for a subset of steps; both CLIs share `runValidatorsOffline`, so the exposure is repo-wide, not story-local.
+  RESOLVED (2026-09-16 sweep): story 3-7 offline-corpus-reconciliation (commit d27c3e6) — `CorpusGap`-based reconciliation turns missing/corrupt evidence into explicit failed results instead of silently shrinking counts (validators/corpus-loader.ts:57-168, validators/offline-runner.ts:23-35); tests at offline-runner.test.ts:384-444.
 - source_spec: `_bmad-output/specs/spec-test-run-report/stories/6-operator-cli-generates-the-report-from-a-recorded-run.md`
   summary: Extract a shared CLI outcome/guard module from `bin/validate-smoke.ts` + `bin/report-smoke.ts` — `ReportOutcome`/`ValidateOutcome`, `errorOutcome`, `unknownRunOutcome`, and the flag/shape-guard sequence are hand-duplicated, so the two operator CLIs can drift.
   evidence: Blind-hunter review of the story-6 diff: only `resolveLatestRun`/`isKnownRun` are imported; the error families and guards are textual copies that already needed a wording alignment during review.
@@ -311,6 +328,7 @@
   summary: Automated fail-demo git-ignore coverage — assert (git check-ignore / git status) that corpus/fail-demo/** stays untracked and never becomes committable (the S4 determinism gate covers only the example fixture, so the fail-demo surface has no CI/unit check today). Fold explicitly into the S4 CI story.
   
   evidence: Verification-gap review of the S3 diff: every fail-mode test writes to temp dirs and never invokes git; the "zero committed footprint" title contract is verified only by the spec's manual git check-ignore step. A .gitignore change un-ignoring corpus/fail-demo would go unnoticed by npm test.
+  RESOLVED (2026-09-16 sweep): the S4 CI gate covers it — ci.yml:112-124 runs `generate:sample -- --fail` then `git check-ignore` on every `corpus/fail-demo` path and fails on any tracked fail-demo file.
 
 
 ## Deferred from: review of spec-offline-corpus-reconciliation (2026-09-15)
@@ -329,3 +347,38 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-cross-view-live-wiring.md`
   summary: validate:smoke accepts a mixed or mistyped invariant-id filter without dedicated coverage, and the unknown-id error still speaks in contract terms ("Unknown contract id(s)") even though invariant ids are now valid filter values — a hint-wording/coverage refinement for the next CLI-touching story.
   evidence: Review of the wiring diff: a new test pins a single invariant-id filter and the committed fixture, but no test mixes a contract id with an invariant id, and the filter error message names only "contract id(s)" while `resolveContractIds` now accepts both families.
+
+## Sweep triage (2026-09-16)
+
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 13 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 24 buildable entries grouped into 14 bundles (open, listed below).
+
+**Bundles (buildable now, each sized for one dev session):**
+- `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
+- `fsm-contract-shape-validation` — L5 (residual half of FSM/contract referential integrity: runtime validation of `fsm.ts`/`contracts.ts` shapes, URL discriminator, contract-state scoping). Touchpoints: model/fsm.ts, model/contracts.ts.
+- `probe-name-uniqueness` — L54 (reject duplicate configured probe names at plan preflight). Touchpoint: orchestrator/orchestrator.ts `validateProbeDependencies`.
+- `corpus-path-trust-hardening` — L44 (`writeCorpusFile`), L72 (`emitFailureGherkin`), L78 (`emitAdjudicationRecord`), L168 (report `<img src>` relative-path assertion). Touchpoints: orchestrator/corpus.ts, reporter/failure-gherkin.ts, reporter/adjudication.ts, reporter/html-report.ts; reuse `RUN_ID_PATTERN` (orchestrator/handlinks.ts:16).
+- `gherkin-snapshot-fidelity` — L142 (Scenario Outline extraction), L146 (`@` tags kept verbatim), L150 (outline/tag tests), L154 (derive `scenarioId` from title), L158 (duplicate scenarioId dedup/validation). Touchpoints: reporter/gherkin-snapshot.ts, model/relations.ts.
+- `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.
+- `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
+- `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
+- `cli-invariant-filter-testing` — L329 (mixed contract+invariant filter tests; reword "Unknown contract id(s)"). Touchpoint: bin/validate-smoke.ts, bin/validate-smoke.test.ts.
+- `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
+- `failure-evidence-citation` — L285 (reporter cites `<i>.failure` snapshots/screenshots for failed steps). Touchpoint: bin/report-smoke.ts `stepEvidenceFor`.
+- `fixture-gitignore-test` — L297 (automated `git check-ignore` trackability test for the example fixture vs real-run paths). Touchpoint: test suite (+ `.gitignore`).
+- `run-console-correlation` — L184 (log runId + timestamp at plan start; plumb runId out of the orchestrator or log on a callback). Touchpoints: bin/run-smoke.ts, orchestrator/orchestrator.ts.
+- `finishRun-params-object` — L222 (refactor the growing positional `finishRun` signature to an options object). Touchpoint: orchestrator/corpus.ts.
+
+**Decisions (human-owned, left open):**
+- L45 — strict per-step execution budget vs current per-operation bounds.
+- L52 — probe-batch continuation: evaluate all and report the missing set vs fail-fast.
+- L90 — app state loading before verifications: seed/bootstrap (A) vs observe-and-anchor (B).
+- L111 — renegotiate the "model/contracts.ts types-only" import boundary so the emitted repro can check `allContracts` membership at runtime.
+- L136 — smoke-plan regeneration script vs the deliberate AI-authored plan (AD-4/AD-19).
+- L178 — parameter sharing / Scenario Outline support in the `TestPlan` model.
+- L195 — how bootstrap path resolution treats runtime `FsmTransition.guard`.
+- L199 — trimming/bounding which collectors bootstrap steps run.
+- L205 — whether the handoff fan should expose only actually-written kinds (frozen MISSING_KIND choice).
+- L255 — conditional/non-idempotent action support in the `{stateId, contractId}` model.
+- L323 — surface recorded manifest `errors`/`failures` in offline validation output (FR-6 reporting).
+
+The 13 resolved and 5 skipped entries carry per-entry annotations above. The 24 bundle entries above remain open exactly as written; this section records only their partition.
