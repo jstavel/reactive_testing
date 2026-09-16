@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { ScenarioRelation } from "../model/relations.js";
+import { assertUniqueScenarioIds, type ScenarioRelation } from "../model/relations.js";
 
 /** `scenarioId → verbatim Gherkin scenario source text`. */
 export type GherkinSnapshot = Record<string, string>;
@@ -23,12 +23,16 @@ export type GherkinSnapshot = Record<string, string>;
  * extracting the scenario block that matches each relation's scenario title.
  *
  * Scenarios with no matching block in the feature file are omitted from the
- * snapshot (the reporter then falls back to title-only for those).
+ * snapshot (the reporter then falls back to title-only for those). Malformed
+ * `relations` (duplicate/empty/mis-derived `scenarioId`s, duplicate
+ * feature/title pairs) throw via `assertUniqueScenarioIds` BEFORE any file
+ * I/O, so id-keyed writes can no longer silently overwrite.
  */
 export function buildGherkinSnapshot(
   featureDir: string,
   relations: readonly ScenarioRelation[],
 ): GherkinSnapshot {
+  assertUniqueScenarioIds(relations);
   const snapshot: GherkinSnapshot = {};
   const byFeature = new Map<string, ScenarioRelation[]>();
 
@@ -62,39 +66,62 @@ export function buildGherkinSnapshot(
  * Extract the verbatim Gherkin block for the scenario whose title matches
  * `scenarioTitle`. Returns `undefined` when no matching scenario is found.
  *
- * A scenario block runs from its `Scenario:` line (or `Scenario Outline:`,
- * `Scenarios:`) through the next top-level Gherkin keyword (`Scenario`,
- * `Scenario Outline`, `Scenarios`, `Background`, `Feature`, `Rule`, `Examples`)
- * or the end of the file. Only `Scenario` blocks are candidates; a match must
- * align the title text after the `Scenario:` keyword.
+ * Both `Scenario:` and `Scenario Outline:` lines are candidates; a match must
+ * align the title text after the keyword. `Scenarios:` is deliberately
+ * asymmetric — the container keyword ENDS a block but is never title-matchable
+ * itself. Each block runs from its own contiguous `@`-tag run immediately
+ * above the scenario line (a blank or non-tag line stops the lookback, so
+ * feature-level tags never leak in) through the line BEFORE the next block's
+ * own contiguous tag run — the end-boundary walkback stops there so the next
+ * block's tags attach to its own scenario, not to this block's tail — or
+ * through the next top-level Gherkin keyword (`Scenario`, `Scenario Outline`,
+ * `Scenarios`, `Background`, `Feature`, `Rule`) when the next block is
+ * untagged, or the end of the file. An outline's `Examples:` tables belong to
+ * its block and are not a boundary.
  */
 function extractScenario(source: string, scenarioTitle: string): string | undefined {
   const lines = source.split("\n");
-  const prefix = "Scenario:";
+  const startKeywords = ["Scenario:", "Scenario Outline:"] as const;
   const title = scenarioTitle.trim();
 
-  let start = -1;
+  let scenarioLine = -1;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith(prefix)) {
-      const candidate = trimmed.slice(prefix.length).trim();
-      if (candidate === title) {
-        start = i;
-        break;
-      }
+    const keyword = startKeywords.find((k) => trimmed.startsWith(k));
+    if (keyword !== undefined && trimmed.slice(keyword.length).trim() === title) {
+      scenarioLine = i;
+      break;
     }
   }
-  if (start === -1) return undefined;
+  if (scenarioLine === -1) return undefined;
 
-  // Find the end of this scenario — the next top-level keyword line.
-  const topLevel = /^(Scenario|Scenario Outline|Scenarios|Background|Feature|Rule|Examples):/;
+  // End of block: the next top-level keyword line, or the end of the file —
+  // minus the next block's own contiguous `@` tag run (see doc comment).
+  const topLevel = /^(Scenario|Scenario Outline|Scenarios|Background|Feature|Rule):/;
   let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
+  for (let i = scenarioLine + 1; i < lines.length; i++) {
     if (topLevel.test(lines[i].trim())) {
-      end = i;
+      end = tagRunStart(lines, i, scenarioLine + 1);
       break;
     }
   }
 
+  // Fold this block's own contiguous `@` tag run in above the scenario line.
+  const start = tagRunStart(lines, scenarioLine, 0);
+
   return lines.slice(start, end).join("\n");
+}
+
+/**
+ * First line of the contiguous `@` tag run ending directly above `line`:
+ * scan upward while the line above, trimmed, starts with `@`, never passing
+ * `floor`. A blank or non-tag line stops the scan. Shared by the block-start
+ * fold and the end-boundary walkback so the two tag-run notions cannot drift.
+ */
+function tagRunStart(lines: readonly string[], from: number, floor: number): number {
+  let first = from;
+  while (first > floor && lines[first - 1].trim().startsWith("@")) {
+    first -= 1;
+  }
+  return first;
 }

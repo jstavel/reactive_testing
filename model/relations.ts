@@ -147,11 +147,78 @@ export const relations: ScenarioRelation[] = [
   },
 ];
 
+/**
+ * Derive the scenario id for a scenario title: lowercase, collapse every run
+ * of non-alphanumeric characters to a single `-`, trim leading/trailing `-`.
+ * ASCII-lenient by design — punctuation like "/" in "BTC/USD" derives
+ * `btc-usd`. Every seeded `scenarioId` is exactly this derivation of its
+ * `scenarioTitle` (pinned by model/relations.test.ts).
+ */
+export function deriveScenarioId(scenarioTitle: string): string {
+  return scenarioTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Throw when `relations` is not well-formed, collecting EVERY violation into
+ * one deterministic error (never warns; mirrors ssot-guard's aggregated
+ * failure report):
+ * - duplicate `scenarioId` across the array,
+ * - an empty `scenarioId`,
+ * - a `scenarioId` that is not `deriveScenarioId(scenarioTitle)`,
+ * - a duplicate `(feature, scenarioTitle)` pair (the same scenario listed
+ *   twice under one feature).
+ * Id-keyed consumers (id-keyed maps, run-time snapshot grouping) must never
+ * silently overwrite or mis-derive, so malformed relations throw at the
+ * source of truth.
+ */
+export function assertUniqueScenarioIds(rels: readonly ScenarioRelation[]): void {
+  const issues: string[] = [];
+  const seenIds = new Set<string>();
+  const seenPairs = new Set<string>();
+
+  for (const rel of rels) {
+    if (rel.scenarioId === "") {
+      issues.push(
+        `empty scenarioId (scenarioTitle "${rel.scenarioTitle}" in feature "${rel.feature}")`,
+      );
+    }
+    if (seenIds.has(rel.scenarioId)) {
+      issues.push(`duplicate scenario id "${rel.scenarioId}"`);
+    }
+    seenIds.add(rel.scenarioId);
+
+    const derived = deriveScenarioId(rel.scenarioTitle);
+    if (rel.scenarioId !== derived) {
+      issues.push(
+        `scenarioId "${rel.scenarioId}" does not derive from scenarioTitle "${rel.scenarioTitle}" (expected "${derived}")`,
+      );
+    }
+
+    const pair = `${rel.feature}\u0000${rel.scenarioTitle}`;
+    if (seenPairs.has(pair)) {
+      issues.push(`duplicate feature/scenarioTitle pair "${rel.feature}" / "${rel.scenarioTitle}"`);
+    }
+    seenPairs.add(pair);
+  }
+
+  if (issues.length > 0) {
+    throw new Error(
+      `relation guard failed with ${issues.length} issue(s):\n` +
+        issues.map((issue) => `  ${issue}`).join("\n"),
+    );
+  }
+}
+
 /** Index relations by scenario id for O(1) lookup in the reporter. Accepts an
  * optional explicit list (e.g. a caller-supplied relation map); defaults to
- * the seeded `relations`. */
+ * the seeded `relations`. Malformed relations throw instead of silently
+ * overwriting (see `assertUniqueScenarioIds`). */
 export function relationsByScenarioId(
-  source: ScenarioRelation[] = relations,
+  source: readonly ScenarioRelation[] = relations,
 ): Map<string, ScenarioRelation> {
+  assertUniqueScenarioIds(source);
   return new Map(source.map((r) => [r.scenarioId, r]));
 }

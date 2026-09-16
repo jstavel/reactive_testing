@@ -39,7 +39,7 @@ function result(id: string, passed: boolean, error?: string): ScenarioResult {
 
 function relation(overrides: Partial<ScenarioRelation>): ScenarioRelation {
   return {
-    scenarioId: "sc",
+    scenarioId: "overview-opens-the-portfolio-page",
     feature: "home-page-navigation",
     featureTitle: "Home page navigation",
     scenarioTitle: "Overview opens the portfolio page",
@@ -124,7 +124,7 @@ describe("renderJsonReport", () => {
       { id: "unrelated", steps: [{ stateId: "home", contractId: "openLogin" }] },
     ]);
     const results = [result("related", true), result("unrelated", true)];
-    const relations = [relation({ scenarioId: "related" })];
+    const relations = [relation({ scenarioId: "related", scenarioTitle: "Related" })];
 
     const parsed = JSON.parse(renderJsonReport({ run, plan, results, relations })) as {
       scenarios: Array<Record<string, unknown>>;
@@ -132,7 +132,7 @@ describe("renderJsonReport", () => {
 
     expect(parsed.scenarios[0]).toMatchObject({
       id: "related",
-      title: "Overview opens the portfolio page",
+      title: "Related",
       feature: "Home page navigation",
     });
     expect(parsed.scenarios[1]).toEqual({
@@ -229,17 +229,30 @@ describe("renderJsonReport", () => {
     expect(parsed.modelVersion).toBe(MODEL_VERSION);
   });
 
+  it("DUPLICATE_RELATION_ID — duplicate scenarioId in relations throws instead of last-wins", () => {
+    const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
+    const results = [result("sc", true)];
+
+    expect(() =>
+      renderJsonReport({ run, plan, results, relations: [relation({}), relation({})] }),
+    ).toThrow(/relation guard failed with 2 issue/);
+    expect(() =>
+      renderJsonReport({ run, plan, results, relations: [relation({}), relation({})] }),
+    ).toThrow(/duplicate scenario id "overview-opens-the-portfolio-page"/);
+  });
+
   it("BYTE_DETERMINISM — two renders of the same inputs are byte-identical (NFR-1)", () => {
     const plan = makePlan([{ id: "sc", steps: [{ stateId: "home", contractId: "openLogin" }] }]);
     const results = [result("sc", false, "boom")];
     const stepEvidence: Record<string, StepEvidence[]> = { sc: [fullStep] };
 
-    const first = renderJsonReport({ run, plan, results, relations: [relation({})], stepEvidence });
+    const rels = [relation({ scenarioId: "sc", scenarioTitle: "Sc" })];
+    const first = renderJsonReport({ run, plan, results, relations: rels, stepEvidence });
     const second = renderJsonReport({
       run,
       plan,
       results,
-      relations: [relation({})],
+      relations: rels,
       stepEvidence,
     });
 
