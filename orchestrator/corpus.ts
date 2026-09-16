@@ -10,7 +10,32 @@ import type {
   RunManifest,
   StepFailure,
 } from "../model/schemas.js";
-import { writeHandoff } from "./handlinks.js";
+import { RUN_ID_PATTERN, writeHandoff } from "./handlinks.js";
+
+export function assertSafeRunId(runId: string): void {
+  if (typeof runId !== "string" || !RUN_ID_PATTERN.test(runId)) {
+    throw new Error(
+      `Invalid runId ${JSON.stringify(runId)}: runIds must match ${RUN_ID_PATTERN} ` +
+        `(a runId with path separators or ".." could escape the corpus)`,
+    );
+  }
+}
+
+export function assertSafeSegment(label: string, value: string): void {
+  const normalized = value.replace(/[. ]+$/, "");
+  if (
+    value.length === 0 ||
+    normalized.length === 0 ||
+    normalized === "." ||
+    normalized === ".." ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+  ) {
+    throw new Error(`Invalid ${label} "${value}": must be a single non-empty path segment.`);
+  }
+}
 
 /**
  * Start a new corpus run — assigns a unique run-id and initializes the file list.
@@ -37,6 +62,10 @@ export function writeCorpusFile(
   stem?: string,
 ): string {
   const name = stem ?? String(stepIndex);
+  assertSafeRunId(run.runId);
+  assertSafeSegment("kind", kind);
+  assertSafeSegment("stem", name);
+  assertSafeSegment("ext", ext);
   const relPath = `${kind}/${run.runId}/${name}.${ext}`;
   const absPath = join(corpusDir, relPath);
   mkdirSync(join(corpusDir, kind, run.runId), { recursive: true });
@@ -84,6 +113,7 @@ export function finishRun(
     collectors: [...collectors],
     bootstrap: [...bootstrap],
   };
+  assertSafeRunId(run.runId);
   const manifestDir = join(corpusDir, run.runId);
   mkdirSync(manifestDir, { recursive: true });
   writeFileSync(join(manifestDir, "run-manifest.json"), JSON.stringify(manifest, null, 2));

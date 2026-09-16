@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { TestPlan, ValidationResult } from "../model/schemas.js";
+import { assertSafeRunId } from "../orchestrator/corpus.js";
 
 /** Inputs to `emitFailureGherkin`. */
 export interface EmitFailureGherkinInput {
@@ -50,6 +51,7 @@ export function emitFailureGherkin({
   plan,
   results,
 }: EmitFailureGherkinInput): string[] {
+  assertSafeRunId(runId);
   const failures = results.filter((result) => !result.passed);
   if (failures.length === 0) {
     return [];

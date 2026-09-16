@@ -11,6 +11,7 @@ import { join } from "node:path";
 import type { ScenarioRelation } from "../model/relations.js";
 import { relationsByScenarioId } from "../model/relations.js";
 import type { RunMetadata, ScenarioResult, StepEvidence, TestPlan } from "../model/schemas.js";
+import { assertSafeRunId } from "../orchestrator/corpus.js";
 
 /** Inputs to `emitHtmlReport`. */
 export interface EmitHtmlReportInput {
@@ -66,6 +67,7 @@ export function emitHtmlReport({
   gherkinSource,
   stepEvidence,
 }: EmitHtmlReportInput): string {
+  assertSafeRunId(run.runId);
   const html = renderHtmlReport({ run, plan, results, relations, gherkinSource, stepEvidence });
   const relPath = `${run.runId}/report.html`;
   mkdirSync(join(corpusDir, run.runId), { recursive: true });
@@ -115,10 +117,10 @@ export function renderHtmlReport({
         if (ev.screenshot === undefined && linksHtml.length === 0) {
           return plainStepRow(step);
         }
-        const hasScreenshot =
-          ev.screenshot !== undefined && ev.screenshot.filePath.trim().length > 0;
+        const filePath = ev.screenshot?.filePath;
+        const hasScreenshot = filePath !== undefined && isSafeRelPath(filePath);
         const imgHtml = hasScreenshot
-          ? `<div class="step-screenshot"><img src="../${escapeHtml(ev.screenshot!.filePath)}" alt="Step screenshot" /></div>`
+          ? `<div class="step-screenshot"><img src="../${escapeHtml(filePath)}" alt="Step screenshot" /></div>`
           : "";
         return `<li>
             <details>
@@ -266,6 +268,12 @@ function plainStepRow(step: { stateId: string; contractId: string }): string {
  * no scheme (`:`), no spaces/quotes/backticks — so a hostile ref value can
  * never become a `javascript:` (or other) URL. */
 const SAFE_HREF_PATTERN = /^[A-Za-z0-9_.\-/]+$/;
+
+/** Image sources use the same plain relative-path rule, with an additional
+ * `..`-segment rejection; corpus-ref links retain their existing behavior. */
+function isSafeRelPath(filePath: string): boolean {
+  return SAFE_HREF_PATTERN.test(filePath) && !filePath.split("/").includes("..");
+}
 
 /** The corpus-ref link cluster for one step: a labeled link per present ref
  * field, in the fixed evidence order. Hrefs are `../`-prefixed because the

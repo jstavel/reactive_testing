@@ -51,6 +51,7 @@
 - `run-manifest.json` has no completeness marker, so a run with timeout-skipped scenarios is indistinguishable at the manifest level; add a status/complete field in a later story when validators consume manifests.
   RESOLVED (2026-09-16 sweep): the manifest now records per-run `errors`/`failures`/`collectors`/`bootstrap` (schemas.ts:351-362), so timeout-skipped scenarios are distinguishable at the manifest level; a dedicated status field would add marginal value.
 - `writeCorpusFile` does not sanitize `kind`/`runId`/`stepIndex`, so a misbehaving caller could escape the corpus root (path traversal); defensive hardening deferred until external callers exist (current call sites are internal and hardcoded).
+  RESOLVED (2026-09-16): corpus.ts now validates runId with RUN_ID_PATTERN and validates kind, stem, and ext as single path segments before any filesystem write.
 - Per-step execution is bounded per operation (worst case ~6× stepTimeout: action + settle + 4 collectors), not per whole step; still bounded, so tightening to a strict per-step budget is a deliberate behavior choice for a later story.
 
 ## Deferred from: code review of spec-2-4-collector-errors-are-isolated (2026-08-29)
@@ -81,12 +82,14 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-4-failure-surfaces-as-reviewable-gherkin.md`
   summary: Same input-trust hardening as tracked under story-2-3 (2026-08-29): `emitFailureGherkin` interpolates an untrusted `runId` into the output path. Defensive narrowing/validation (`runId` and `kind` are trusted only because every call site stems from `randomUUID()` in `startCorpusRun` or hardcoded literals) should land once external callers exist.
   evidence: Blind-hunter review of the 3.4 diff flagged `join(corpusDir, runId, "failure.feature")` with `../` risk. Pre-existing pattern: `orchestrator/corpus.ts:38-40` writes into `{corpusDir}/{kind}/{runId}/` with the same trust model, already deferred under the story-2-3 review.
+  RESOLVED (2026-09-16): emitFailureGherkin now validates runId before building its output path or calling mkdirSync.
 
 ## Deferred from: code review of spec-3-5-adjudicated-spec-change-only (2026-09-01)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-adjudicated-spec-change-only.md`
   summary: Same input-trust hardening as tracked under story-2-3 (2026-08-29) and spec-3-4 (2026-09-01): `emitAdjudicationRecord` interpolates an untrusted `runId` into the output path (`join(corpusDir, runId, "adjudication.json")`). Defensive narrowing should land once external callers exist.
   evidence: Blind-hunter review of the 3.5 diff flagged the same `../` risk the 3.4 review did; runId remains trusted because internal call sites use `randomUUID()` or hardcoded literals.
+  RESOLVED (2026-09-16): emitAdjudicationRecord now validates runId before building its output path or calling mkdirSync.
 
 ## Deferred from: plan split of spec-decision-1a-network-capture-window (2026-09-01)
 
@@ -181,6 +184,8 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
   summary: The reporter trusts screenshot `filePath` as a corpus-relative path — an absolute URL or `../` path would be emitted verbatim into the `<img src>`; `escapeHtml` prevents attribute injection but not URL/path sanitization. Harden when external callers can supply paths.
   evidence: Blind-hunter review of reporter/html-report.ts: `escapeHtml(ev.screenshot.filePath)` is applied with no relative-path assertion; same trust model family as the runId path-traversal items.
+  RESOLVED (2026-09-16): HTML reports now omit screenshot images whose filePath fails the safe relative-path rule or contains a `..` segment.
+
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-per-step-expandable-evidence.md`
   summary: timingMs is unvalidated — NaN/Infinity/negative/null/undefined renders literal "NaN ms"/"Infinity ms"/"-1 ms"/"undefined ms"; add schema-level validation (timingMs ≥ 0 finite number) when StepEvidence is promoted to a Zod schema or a caller supplies it.
@@ -350,13 +355,12 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 13 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 24 buildable entries grouped into 14 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 17 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 20 buildable entries grouped into 13 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
 - `fsm-contract-shape-validation` — L5 (residual half of FSM/contract referential integrity: runtime validation of `fsm.ts`/`contracts.ts` shapes, URL discriminator, contract-state scoping). Touchpoints: model/fsm.ts, model/contracts.ts.
 - `probe-name-uniqueness` — L54 (reject duplicate configured probe names at plan preflight). Touchpoint: orchestrator/orchestrator.ts `validateProbeDependencies`.
-- `corpus-path-trust-hardening` — L44 (`writeCorpusFile`), L72 (`emitFailureGherkin`), L78 (`emitAdjudicationRecord`), L168 (report `<img src>` relative-path assertion). Touchpoints: orchestrator/corpus.ts, reporter/failure-gherkin.ts, reporter/adjudication.ts, reporter/html-report.ts; reuse `RUN_ID_PATTERN` (orchestrator/handlinks.ts:16).
 - `gherkin-snapshot-fidelity` — L142 (Scenario Outline extraction), L146 (`@` tags kept verbatim), L150 (outline/tag tests), L154 (derive `scenarioId` from title), L158 (duplicate scenarioId dedup/validation). Touchpoints: reporter/gherkin-snapshot.ts, model/relations.ts.
 - `orchestrator-network-wiring` — L84 (wire the two-phase `startNetworkCapture` handle: start before action, `finish()` after settle, `close()` on failure, + wiring tests). Touchpoint: orchestrator/orchestrator.ts.
 - `repro-guard-tests` — L115 (`vi.mock` negative test for the actionMap-mismatch rule), L119 (emitted-repro `tsc --noEmit` gate). Touchpoint: repro/repro-generator.test.ts.
@@ -382,3 +386,13 @@ Interactive triage of every open entry against the current code. Result: 53 open
 - L323 — surface recorded manifest `errors`/`failures` in offline validation output (FR-6 reporting).
 
 The 13 resolved and 5 skipped entries carry per-entry annotations above. The 24 bundle entries above remain open exactly as written; this section records only their partition.
+
+## Deferred from: review of spec-corpus-path-trust-hardening (2026-09-16)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-path-trust-hardening.md`
+  summary: `renderEvidenceLinks` gates corpus-ref `<a href>` links on `SAFE_HREF_PATTERN` alone, so a `..` segment (e.g. `href="../outside.json"` after the report's `../` prefix) still escapes the corpus dir — the same hostile-ref class the new `<img>` gate now closes. Unify the two rules when link-path policy is revisited.
+  evidence: Blind-hunter review of the path-trust diff; the link rule predates the change (html-report.ts SAFE_HREF_PATTERN) and was deliberately left unchanged to keep scope tight — a real gap, not introduced here.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-corpus-path-trust-hardening.md`
+  summary: `bin/generate-sample-report.ts` interpolates runId into write paths (`join(corpusRoot, runId)`) with no `RUN_ID_PATTERN` guard — safe only because the reserved sample runIds (`example`/`fail-demo`) are hardcoded; guard the surface if the generator ever accepts user-supplied runIds.
+  evidence: Blind-hunter review of the path-trust diff; the spec-trust hardening covered the corpus writer and reporters but this dev-tool surface shares the same trust model.
