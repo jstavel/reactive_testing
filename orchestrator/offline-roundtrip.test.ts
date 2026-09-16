@@ -128,6 +128,19 @@ describe("orchestrator → corpus-loader round trip (retro F1)", () => {
     rmSync(corpusDir, { recursive: true, force: true });
   });
 
+  it("records a provided runId and namespaces its real corpus artifacts", async () => {
+    const runId = "run-1234";
+    const result = await runTestPlan(homePageNavigationPlan, { ...makeConfig(corpusDir), runId });
+
+    expect(result.runId).toBe(runId);
+    const manifest = JSON.parse(
+      readFileSync(join(corpusDir, runId, "run-manifest.json"), "utf8"),
+    ) as { runId: string; files: string[] };
+    expect(manifest.runId).toBe(runId);
+    expect(manifest.files.some((file) => file.startsWith(`snapshots/${runId}/`))).toBe(true);
+    expect(existsSync(join(corpusDir, "snapshots", runId))).toBe(true);
+  });
+
   it("records a run the real orchestrator writes and loadCorpusSteps can read the per-step pre snapshot", async () => {
     const result = await runTestPlan(homePageNavigationPlan, makeConfig(corpusDir));
     expect(result.scenarios[0]!.passed).toBe(true);

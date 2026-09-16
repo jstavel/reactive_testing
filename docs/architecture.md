@@ -47,10 +47,12 @@ fails CI if a model edit forgets to regenerate the plan.
 
 Each player owns one concern and communicates through typed interfaces.
 
-- **`orchestrator/orchestrator.ts`** — `runTestPlan(plan, config)`. Pre-flights
-  the plan (Zod parse, model-version match, state/contract/transition validity),
-  then walks each scenario step: run the action from `orchestrator/action-map.ts`,
-  wait for the settle selector, and trigger the collectors. Collector failures are
+- **`orchestrator/orchestrator.ts`** — `runTestPlan(plan, config)` with an optional
+  `runId` override. Pre-flights the plan (Zod parse, runId validation/collision
+  check, model-version match, state/contract/transition validity), then walks each
+  scenario step: run the action from `orchestrator/action-map.ts`, wait for the settle
+  selector, and trigger the collectors. The smoke runner logs the selected runId and
+  startup timestamp for corpus correlation. Collector failures are
   isolated and recorded as gaps, never aborting the run (AD-16).
 - **`orchestrator/action-map.ts`** — the canonical implementation of every
   contract (the concrete Playwright locators). Lives outside the model hash so

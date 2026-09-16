@@ -1,3 +1,6 @@
+import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const MODEL_VERSION = "test-hash-abc123";
@@ -49,8 +52,16 @@ vi.mock("playwright", () => ({
 }));
 
 const mockCorpusRun: { runId: string; files: string[] } = { runId: "mock-run-id", files: [] };
-vi.mock("./corpus.js", () => ({
-  startCorpusRun: vi.fn(() => mockCorpusRun),
+vi.mock("./corpus.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  startCorpusRun: vi.fn((runId?: string) => {
+    const run = { runId: runId ?? "mock-run-id", files: [] };
+    if (runId === undefined) {
+      mockCorpusRun.runId = run.runId;
+      mockCorpusRun.files = run.files;
+    }
+    return run;
+  }),
   writeCorpusFile: vi.fn(
     (
       _corpusDir: string,
@@ -128,6 +139,91 @@ afterEach(() => {
 });
 
 describe("runTestPlan", () => {
+  it("uses a provided runId for corpus writes without generating one", async () => {
+    const { startCorpusRun, finishRun, writeCorpusFile } = await import("./corpus.js");
+    const providedRunId = "11111111-1111-4111-8111-111111111111";
+    const plan = makePlan([
+      {
+        id: "provided-run-id",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, { ...baseConfig, runId: providedRunId });
+
+    expect(result.runId).toBe(providedRunId);
+    expect(startCorpusRun).toHaveBeenCalledWith(providedRunId);
+    expect(
+      (writeCorpusFile as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([, run]) => run.runId === providedRunId,
+      ),
+    ).toBe(true);
+    expect(finishRun).toHaveBeenCalledWith(
+      baseConfig.corpusDir,
+      { runId: providedRunId, files: expect.any(Array) },
+      expect.any(String),
+      MODEL_VERSION,
+      expect.any(Array),
+      expect.any(Array),
+      expect.any(Array),
+      expect.any(Array),
+      { failed: false },
+    );
+  });
+
+  it.each(["../evil", "run/x", ""])(
+    "rejects an unsafe provided runId %j before launch",
+    async (runId) => {
+      const { startCorpusRun } = await import("./corpus.js");
+      const plan = makePlan([
+        {
+          id: "invalid-run-id",
+          steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+        },
+      ]);
+
+      await expect(runTestPlan(plan, { ...baseConfig, runId })).rejects.toThrow(/Invalid runId/);
+      expect(startCorpusRun).not.toHaveBeenCalled();
+      expect(mockGoto).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a provided runId that already exists before launch", async () => {
+    const providedRunId = "existing-run-id";
+    const runDir = join(baseConfig.corpusDir, providedRunId);
+    mkdirSync(runDir, { recursive: true });
+    const plan = makePlan([
+      {
+        id: "existing-run-id",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    try {
+      await expect(runTestPlan(plan, { ...baseConfig, runId: providedRunId })).rejects.toThrow(
+        /already exists/,
+      );
+      expect(mockGoto).not.toHaveBeenCalled();
+    } finally {
+      rmSync(runDir, { recursive: true, force: true });
+    }
+  });
+
+  it("generates a runId through startCorpusRun when none is provided", async () => {
+    const { startCorpusRun } = await import("./corpus.js");
+    const plan = makePlan([
+      {
+        id: "generated-run-id",
+        steps: [{ stateId: "homePage", contractId: "clickHistoryMenuMain" }],
+      },
+    ]);
+
+    const result = await runTestPlan(plan, baseConfig);
+
+    expect(result.runId).toBe(mockCorpusRun.runId);
+    expect(startCorpusRun).toHaveBeenCalledOnce();
+  });
+
   it("navigates every scenario and returns all passed", async () => {
     const plan = makePlan([
       {

@@ -4,9 +4,11 @@
 // connection + new tab + confirmed readySelector and leaves the human's
 // browser open.
 
-import type { OrchestratorConfig, TestPlan } from "../model/schemas.js";
+import { randomUUID } from "node:crypto";
+
+import type { TestPlan } from "../model/schemas.js";
 import { smokeTestPlan } from "../model/smoke.test-plan.js";
-import { runTestPlan } from "../orchestrator/orchestrator.js";
+import { type RunTestPlanConfig, runTestPlan } from "../orchestrator/orchestrator.js";
 import { actionDiagnostics } from "./action-diagnostics.js";
 import { finishRun } from "./run-smoke-finish.js";
 import { selectScenarios } from "./scenario-select.js";
@@ -21,7 +23,9 @@ try {
   process.exit(1);
 }
 
-const config: OrchestratorConfig = {
+const runId = randomUUID();
+const config: RunTestPlanConfig & { runId: string } = {
+  runId,
   baseUrl: "https://pro.kraken.com/app/home",
   // Confirmed live readySelector: reflects the authenticated portfolio value.
   // The home hero renders in ~6.3s, so stepTimeout must exceed that AND real
@@ -58,6 +62,7 @@ const config: OrchestratorConfig = {
 };
 
 const startedAt = Date.now();
+console.log(`Run ${runId} — started ${new Date(startedAt).toISOString()}`);
 console.log(
   `Connecting to CDP ${config.cdpUrl} → ${config.baseUrl} ` +
     `(plan "${plan.planId}", modelVersion ${plan.modelVersion.slice(0, 8)}…)`,

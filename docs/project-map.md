@@ -32,7 +32,7 @@ reactive-testing/
 │   ├── home-page-invariants.feature
 │   └── home-page-layout-menu.feature
 ├── orchestrator/             # the deterministic execution half
-│   ├── orchestrator.ts       #   runTestPlan: pre-flight + per-step action/settle/collect
+│   ├── orchestrator.ts       #   runTestPlan: optional runId override; pre-flight + per-step action/settle/collect; smoke logs runId + timestamp
 │   ├── action-map.ts         #   the canonical contract implementations (locators)
 │   ├── browser.ts            #   CDP attach to your authenticated browser
 │   ├── corpus.ts             #   run-id + namespaced corpus file writer + manifest
