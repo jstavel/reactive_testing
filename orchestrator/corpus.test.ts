@@ -14,6 +14,7 @@ import {
   snapshotRecordSchema,
   stepFailureSchema,
 } from "../model/schemas.js";
+import type { FinishRunInput } from "./corpus.js";
 import {
   assertSafeRunId,
   assertSafeSegment,
@@ -191,7 +192,15 @@ describe("finishRun", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     writeCorpusFile(corpusDir, run, "network", 0, "json", "[]");
 
-    finishRun(corpusDir, run, timestamp, PLAN_VERSION, [], [], ["snapshot", "probe"]);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp,
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: ["snapshot", "probe"],
+    });
 
     const manifestPath = join(corpusDir, run.runId, "run-manifest.json");
     expect(existsSync(manifestPath)).toBe(true);
@@ -205,10 +214,86 @@ describe("finishRun", () => {
     expect(manifest.errors).toEqual([]);
     expect(manifest.failures).toEqual([]);
     expect(manifest.collectors).toEqual(["snapshot", "probe"]);
+    expect(manifest.bootstrap).toEqual([]);
     expect(manifest.files).toEqual([
       `snapshots/${run.runId}/0.json`,
       `network/${run.runId}/0.json`,
     ]);
+  });
+
+  it("FULL_INPUT writes bootstrap content and handles a failed handoff", () => {
+    const corpusDir = makeCorpusDir();
+    const run = { runId: "full-input-run", files: ["snapshots/full-input-run/0.json"] };
+    const bootstrap = [
+      {
+        scenarioId: "history-scenario",
+        stepIndex: 0,
+        stateId: "homePage",
+        contractId: "clickHistoryMenuMain",
+        files: ["snapshots/full-input-run/b.history-scenario.0.json"],
+      },
+    ];
+    const input: FinishRunInput = {
+      corpusDir,
+      run,
+      timestamp: "2026-09-01T00:00:00.000Z",
+      planModelVersion: PLAN_VERSION,
+      errors: [{ collector: "probe", stepIndex: 1, error: "probe gap" }],
+      failures: [
+        {
+          stepIndex: 2,
+          contractId: "clickHistoryMenuFutures",
+          stateId: "homePage",
+          error: "action failed",
+        },
+      ],
+      collectors: ["snapshot", "probe"],
+      bootstrap,
+      handoff: { failed: true },
+    };
+
+    finishRun(input);
+
+    expect(
+      JSON.parse(readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8")),
+    ).toEqual({
+      runId: run.runId,
+      timestamp: input.timestamp,
+      planModelVersion: PLAN_VERSION,
+      files: run.files,
+      errors: input.errors,
+      failures: input.failures,
+      collectors: input.collectors,
+      bootstrap,
+    });
+  });
+
+  it("BYTE_IDENTITY writes the exact manifest object for a known input", () => {
+    const corpusDir = makeCorpusDir();
+    const run = { runId: "byte-identity-run", files: ["network/byte-identity-run/1.json"] };
+
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "2026-09-02T03:04:05.000Z",
+      planModelVersion: "known-plan-version",
+      errors: [{ collector: "network", stepIndex: 1, error: "network gap" }],
+      failures: [],
+      collectors: ["network"],
+    });
+
+    expect(
+      JSON.parse(readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8")),
+    ).toEqual({
+      runId: "byte-identity-run",
+      timestamp: "2026-09-02T03:04:05.000Z",
+      planModelVersion: "known-plan-version",
+      files: ["network/byte-identity-run/1.json"],
+      errors: [{ collector: "network", stepIndex: 1, error: "network gap" }],
+      failures: [],
+      collectors: ["network"],
+      bootstrap: [],
+    });
   });
 
   it("is namespaced per run and records a populated errors array per run", () => {
@@ -221,8 +306,24 @@ describe("finishRun", () => {
       stepIndex: 0,
       error: 'Probe "balance" selector "[data-balance]" failed: boom',
     } as const;
-    finishRun(corpusDir, first, "t1", PLAN_VERSION, [probeGap], [], []);
-    finishRun(corpusDir, second, "t2", PLAN_VERSION, [], [], []);
+    finishRun({
+      corpusDir,
+      run: first,
+      timestamp: "t1",
+      planModelVersion: PLAN_VERSION,
+      errors: [probeGap],
+      failures: [],
+      collectors: [],
+    });
+    finishRun({
+      corpusDir,
+      run: second,
+      timestamp: "t2",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: [],
+    });
 
     const firstManifest = join(corpusDir, first.runId, "run-manifest.json");
     const secondManifest = join(corpusDir, second.runId, "run-manifest.json");
@@ -243,7 +344,15 @@ describe("finishRun", () => {
       { collector: "network", stepIndex: 5, error: "network boom" },
     ];
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, errors, [], []);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors,
+      failures: [],
+      collectors: [],
+    });
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -268,7 +377,15 @@ describe("finishRun", () => {
       },
     ];
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, [], failures, []);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures,
+      collectors: [],
+    });
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -291,7 +408,15 @@ describe("finishRun", () => {
     const corpusDir = makeCorpusDir();
     const run = startCorpusRun();
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], []);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: [],
+    });
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -311,9 +436,17 @@ describe("finishRun", () => {
       const corpusDir = makeCorpusDir();
       const run = { runId, files: [] };
 
-      expect(() => finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], [])).toThrow(
-        "Invalid runId",
-      );
+      expect(() =>
+        finishRun({
+          corpusDir,
+          run,
+          timestamp: "t",
+          planModelVersion: PLAN_VERSION,
+          errors: [],
+          failures: [],
+          collectors: [],
+        }),
+      ).toThrow("Invalid runId");
       expect(existsSync(corpusDir)).toBe(true);
       expect(existsSync(join(corpusDir, runId, "run-manifest.json"))).toBe(false);
     },
@@ -327,7 +460,15 @@ describe("finishRun", () => {
     // provenance non-empty: an empty (or whitespace-collapsed-to-nothing via
     // min(1) — exactly-empty) version produces a manifest that fails
     // runManifestSchema, so no loader or CLI can silently accept it.
-    finishRun(corpusDir, run, "t", "", [], [], []);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: "",
+      errors: [],
+      failures: [],
+      collectors: [],
+    });
 
     const manifest = JSON.parse(
       readFileSync(join(corpusDir, run.runId, "run-manifest.json"), "utf8"),
@@ -344,7 +485,17 @@ describe("finishRun handoff links", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     linkRun(corpusDir, "older-failed-run", LAST_FAIL);
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], [], [], { failed: false });
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: [],
+      bootstrap: [],
+      handoff: { failed: false },
+    });
 
     expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
     expect(existsSync(join(corpusDir, LAST_FAIL))).toBe(false);
@@ -355,7 +506,17 @@ describe("finishRun handoff links", () => {
     const run = startCorpusRun();
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], [], [], { failed: true });
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: [],
+      bootstrap: [],
+      handoff: { failed: true },
+    });
 
     expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
     expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe(run.runId);
@@ -367,7 +528,15 @@ describe("finishRun handoff links", () => {
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
     linkRun(corpusDir, "keep-me", LAST_FAIL);
 
-    finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], []);
+    finishRun({
+      corpusDir,
+      run,
+      timestamp: "t",
+      planModelVersion: PLAN_VERSION,
+      errors: [],
+      failures: [],
+      collectors: [],
+    });
 
     expect(existsSync(join(corpusDir, LAST_RUN))).toBe(false);
     expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe("keep-me");
@@ -385,7 +554,17 @@ describe("finishRun handoff links", () => {
 
     try {
       expect(() =>
-        finishRun(corpusDir, run, "t", PLAN_VERSION, [], [], [], [], { failed: true }),
+        finishRun({
+          corpusDir,
+          run,
+          timestamp: "t",
+          planModelVersion: PLAN_VERSION,
+          errors: [],
+          failures: [],
+          collectors: [],
+          bootstrap: [],
+          handoff: { failed: true },
+        }),
       ).not.toThrow();
       // The manifest is already written — the run is complete regardless.
       expect(existsSync(join(corpusDir, run.runId, "run-manifest.json"))).toBe(true);

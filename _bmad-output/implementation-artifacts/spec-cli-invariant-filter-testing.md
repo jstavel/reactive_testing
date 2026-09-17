@@ -49,9 +49,9 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-^- [x] `bin/validate-smoke.ts` -- reword the `UnknownContractIdError` message to the filter-id vocabulary (asserts `cross-view invariants` in the valid set).
-^- [x] `bin/validate-smoke.test.ts` -- update the unknown-contract test's expected message; add MIXED_FILTER (contract + invariant → 2/2 exit 0), TYPO_INVARIANT (unknown error names the typo, valid ids listed), and MIXED_UNKNOWN (only the unknown named) CLI tests against the committed example fixture.
-^- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L329 `RESOLVED (2026-09-16)` and reconcile the sweep-triage bundle line.
+- [x] `bin/validate-smoke.ts` -- reword the `UnknownContractIdError` message to the filter-id vocabulary (asserts `cross-view invariants` in the valid set).
+- [x] `bin/validate-smoke.test.ts` -- update the unknown-contract test's expected message; add MIXED_FILTER (contract + invariant → 2/2 exit 0), TYPO_INVARIANT (unknown error names the typo, valid ids listed), and MIXED_UNKNOWN (only the unknown named) CLI tests against the committed example fixture.
+- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L329 `RESOLVED (2026-09-16)` and reconcile the sweep-triage bundle line.
 
 **Acceptance Criteria:**
 - Given a mistyped or unknown filter id, when `validate:smoke` runs, then it exits 1 with a deterministic error naming the unknown id(s) and listing valid contract AND invariant ids.

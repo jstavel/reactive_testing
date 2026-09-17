@@ -78,7 +78,15 @@ function writeProbes(
 }
 
 function finish(corpusDir: string, run: CorpusRun): void {
-  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], ["snapshot", "probe"]);
+  finishRun({
+    corpusDir,
+    run,
+    timestamp: "2026-09-01T00:00:00.000Z",
+    planModelVersion: "plan-hash",
+    errors: [],
+    failures: [],
+    collectors: ["snapshot", "probe"],
+  });
 }
 
 const SEED_INVARIANT_ID = "current-portfolio-value-agrees-across-surfaces";

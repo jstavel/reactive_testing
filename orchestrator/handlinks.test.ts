@@ -291,17 +291,17 @@ describe("run completion wiring (via finishRun)", () => {
     const run = startCorpusRun();
     writeCorpusFile(corpusDir, run, "snapshots", 0, "json", "{}");
 
-    finishRun(
+    finishRun({
       corpusDir,
       run,
-      "t",
-      "plan-hash",
-      [],
-      [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
-      ["snapshot"],
-      [],
-      { failed: true },
-    );
+      timestamp: "t",
+      planModelVersion: "plan-hash",
+      errors: [],
+      failures: [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
+      collectors: ["snapshot"],
+      bootstrap: [],
+      handoff: { failed: true },
+    });
 
     expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(run.runId);
     expect(resolveFanRunId(corpusDir, LAST_FAIL)).toBe(run.runId);
@@ -311,19 +311,29 @@ describe("run completion wiring (via finishRun)", () => {
     const corpusDir = makeCorpusDir();
     const failed = startCorpusRun();
     const passed = startCorpusRun();
-    finishRun(
+    finishRun({
       corpusDir,
-      failed,
-      "t1",
-      "plan-hash",
-      [],
-      [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
-      [],
-      [],
-      { failed: true },
-    );
+      run: failed,
+      timestamp: "t1",
+      planModelVersion: "plan-hash",
+      errors: [],
+      failures: [{ stepIndex: 0, contractId: "c", stateId: "s", error: "boom" }],
+      collectors: [],
+      bootstrap: [],
+      handoff: { failed: true },
+    });
 
-    finishRun(corpusDir, passed, "t2", "plan-hash", [], [], [], [], { failed: false });
+    finishRun({
+      corpusDir,
+      run: passed,
+      timestamp: "t2",
+      planModelVersion: "plan-hash",
+      errors: [],
+      failures: [],
+      collectors: [],
+      bootstrap: [],
+      handoff: { failed: false },
+    });
 
     expect(resolveFanRunId(corpusDir, LAST_RUN)).toBe(passed.runId);
     expect(existsSync(join(corpusDir, LAST_FAIL))).toBe(false);
