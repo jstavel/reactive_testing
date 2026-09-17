@@ -51,11 +51,11 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-^- [x] `reporter/html-report.ts` -- export `FailureEvidenceRefs`; add the optional `failureEvidence` input to `EmitHtmlReportInput` and `renderHtmlReport`; render the failure block (snapshot link via SAFE_HREF, screenshot via `isSafeRelPath` img) with a distinct "failure evidence" label; absent → nothing.
-^- [x] `reporter/json-report.ts` -- accept the same optional input and emit the refs.
-^- [x] `bin/report-smoke.ts` -- derive failing indexes from the manifest `failures`; collect per-step failure refs (reusing `corpusRef`/`readScreenshotRef`); thread both the existing and the new evidence into the report emitters.
-^- [x] Tests in `reporter/html-report.test.ts`, `reporter/json-report.test.ts`, `bin/report-smoke.test.ts` -- full/snapshot-only/unsafe-path/manifest-without-files/file-without-manifest/all-pass cases.
-^- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L285 `RESOLVED (2026-09-17)` and reconcile the sweep-triage bundle line.
+- [x] `reporter/html-report.ts` -- export `FailureEvidenceRefs`; add the optional `failureEvidence` input to `EmitHtmlReportInput` and `renderHtmlReport`; render the failure block (snapshot link via SAFE_HREF, screenshot via `isSafeRelPath` img) with a distinct "failure evidence" label; absent → nothing.
+- [x] `reporter/json-report.ts` -- accept the same optional input and emit the refs.
+- [x] `bin/report-smoke.ts` -- derive failing indexes from the manifest `failures`; collect per-step failure refs (reusing `corpusRef`/`readScreenshotRef`); thread both the existing and the new evidence into the report emitters.
+- [x] Tests in `reporter/html-report.test.ts`, `reporter/json-report.test.ts`, `bin/report-smoke.test.ts` -- full/snapshot-only/unsafe-path/manifest-without-files/file-without-manifest/all-pass cases.
+- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L285 `RESOLVED (2026-09-17)` and reconcile the sweep-triage bundle line.
 
 **Acceptance Criteria:**
 - Given a failed step with failure snapshot + screenshot files and a manifest `failure` at that step, when the HTML report is emitted, then the row renders a failure snapshot link and a failure screenshot frame, and the JSON sibling cites both refs.

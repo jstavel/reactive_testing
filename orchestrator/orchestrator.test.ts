@@ -199,17 +199,17 @@ describe("runTestPlan", () => {
         ([, run]) => run.runId === providedRunId,
       ),
     ).toBe(true);
-    expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      { runId: providedRunId, files: expect.any(Array) },
-      expect.any(String),
-      MODEL_VERSION,
-      expect.any(Array),
-      expect.any(Array),
-      expect.any(Array),
-      expect.any(Array),
-      { failed: false },
-    );
+    expect(finishRun).toHaveBeenCalledWith({
+      corpusDir: baseConfig.corpusDir,
+      run: { runId: providedRunId, files: expect.any(Array) },
+      timestamp: expect.any(String),
+      planModelVersion: MODEL_VERSION,
+      errors: expect.any(Array),
+      failures: expect.any(Array),
+      collectors: expect.any(Array),
+      bootstrap: expect.any(Array),
+      handoff: { failed: false },
+    });
   });
 
   it.each(["../evil", "run/x", ""])(
@@ -394,7 +394,7 @@ describe("runTestPlan", () => {
     expect(result.scenarios[1]!.error).toContain("Run timeout");
     // The aborted run is a failed run — the handoff re-points @last-fail.
     const calls = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.at(-1)!.at(-1)).toEqual({ failed: true });
+    expect(calls.at(-1)![0].handoff).toEqual({ failed: true });
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
   });
@@ -700,15 +700,17 @@ describe("corpus wiring", () => {
     // The runner learns the authoritative runId so it can print the handoff path.
     expect(result.runId).toBe(mockCorpusRun.runId);
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      expect.any(Array),
-      expect.any(Array),
-      expect.any(Array),
-      expect.any(Array),
-      { failed: false },
+      expect.objectContaining({
+        corpusDir: baseConfig.corpusDir,
+        run: mockCorpusRun,
+        timestamp: expect.any(String),
+        planModelVersion: MODEL_VERSION,
+        errors: expect.any(Array),
+        failures: expect.any(Array),
+        collectors: expect.any(Array),
+        bootstrap: expect.any(Array),
+        handoff: { failed: false },
+      }),
     );
   });
 
@@ -729,15 +731,17 @@ describe("corpus wiring", () => {
 
       expect(result.scenarios[0]!.passed).toBe(false);
       expect(finishRun).toHaveBeenCalledWith(
-        baseConfig.corpusDir,
-        mockCorpusRun,
-        expect.any(String),
-        MODEL_VERSION,
-        expect.any(Array),
-        expect.any(Array),
-        expect.any(Array),
-        expect.any(Array),
-        { failed: true },
+        expect.objectContaining({
+          corpusDir: baseConfig.corpusDir,
+          run: mockCorpusRun,
+          timestamp: expect.any(String),
+          planModelVersion: MODEL_VERSION,
+          errors: expect.any(Array),
+          failures: expect.any(Array),
+          collectors: expect.any(Array),
+          bootstrap: expect.any(Array),
+          handoff: { failed: true },
+        }),
       );
     } finally {
       if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -775,7 +779,7 @@ describe("corpus wiring", () => {
       expect(result.scenarios[1]!.error).toContain("Setup failed");
       // A setup/bootstrap failure is still a failed run for the handoff.
       const calls = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls;
-      expect(calls.at(-1)!.at(-1)).toEqual({ failed: true });
+      expect(calls.at(-1)![0].handoff).toEqual({ failed: true });
     } finally {
       if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
     }
@@ -943,9 +947,9 @@ describe("corpus wiring", () => {
         (call) => call[2] === "network",
       ),
     ).toBe(false);
-    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![4]).toEqual([
-      expect.objectContaining({ collector: "network", stepIndex: 0, error: "page closed" }),
-    ]);
+    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].errors).toEqual(
+      [expect.objectContaining({ collector: "network", stepIndex: 0, error: "page closed" })],
+    );
   });
 
   it("isolates a network finish failure as a gap", async () => {
@@ -969,9 +973,9 @@ describe("corpus wiring", () => {
         (call) => call[2] === "network",
       ),
     ).toBe(false);
-    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![4]).toEqual([
-      expect.objectContaining({ collector: "network", stepIndex: 0, error: "finish boom" }),
-    ]);
+    expect((finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].errors).toEqual(
+      [expect.objectContaining({ collector: "network", stepIndex: 0, error: "finish boom" })],
+    );
   });
 
   it("does not touch network capture when it is unplanned", async () => {
@@ -1066,10 +1070,10 @@ describe("corpus wiring", () => {
 
     expect(result.scenarios[0]!.passed).toBe(false);
     const finishArgs = (finishRun as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
-    expect(finishArgs[4]).toEqual([
+    expect(finishArgs[0].errors).toEqual([
       expect.objectContaining({ collector: "network", error: "start boom" }),
     ]);
-    expect(finishArgs[5]).toEqual([expect.objectContaining({ error: "action boom" })]);
+    expect(finishArgs[0].failures).toEqual([expect.objectContaining({ error: "action boom" })]);
   });
 
   it("persists the exact events returned by finish", async () => {
@@ -1226,15 +1230,17 @@ describe("corpus wiring", () => {
     const kindsAtStepZero = writeCalls.filter((c) => c[3] === 0).map((c) => c[2]);
     expect(kindsAtStepZero).toEqual(["snapshots", "snapshots"]);
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [{ collector: "probe", stepIndex: 0, error: "collector boom" }],
-      [],
-      ["probe", "snapshot"],
-      [],
-      { failed: false },
+      expect.objectContaining({
+        corpusDir: baseConfig.corpusDir,
+        run: mockCorpusRun,
+        timestamp: expect.any(String),
+        planModelVersion: MODEL_VERSION,
+        errors: [{ collector: "probe", stepIndex: 0, error: "collector boom" }],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        bootstrap: [],
+        handoff: { failed: false },
+      }),
     );
   });
 
@@ -1270,18 +1276,15 @@ describe("corpus wiring", () => {
     expect(result.scenarios.every((s) => s.passed)).toBe(true);
     // Step indexes are global: scenario 1's step 1 → 1, scenario 2's step 0 → 2.
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [
-        { collector: "probe", stepIndex: 1, error: "step-1 boom" },
-        { collector: "probe", stepIndex: 3, error: "scenario-2 boom" },
-      ],
-      [],
-      ["probe", "snapshot"],
-      expect.any(Array),
-      { failed: false },
+      expect.objectContaining({
+        errors: [
+          { collector: "probe", stepIndex: 1, error: "step-1 boom" },
+          { collector: "probe", stepIndex: 3, error: "scenario-2 boom" },
+        ],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: false },
+      }),
     );
   });
 
@@ -1317,21 +1320,18 @@ describe("corpus wiring", () => {
     ]);
     // And the missing probe is recorded as a gap for a future reporter.
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [
-        {
-          collector: "probe",
-          stepIndex: 0,
-          error: expect.stringContaining('Probe "balance"'),
-        },
-      ],
-      [],
-      ["probe", "snapshot"],
-      [],
-      { failed: false },
+      expect.objectContaining({
+        errors: [
+          {
+            collector: "probe",
+            stepIndex: 0,
+            error: expect.stringContaining('Probe "balance"'),
+          },
+        ],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: false },
+      }),
     );
   });
 
@@ -1357,15 +1357,12 @@ describe("corpus wiring", () => {
     expect(result.scenarios[0]!.passed).toBe(false);
     expect(result.scenarios[0]!.error).toContain("timed out");
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [],
-      ["probe", "snapshot"],
-      [],
-      { failed: true },
+      expect.objectContaining({
+        errors: [],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: true },
+      }),
     );
   });
 
@@ -1390,15 +1387,12 @@ describe("corpus wiring", () => {
     expect(result.scenarios[0]!.passed).toBe(false);
     expect(result.scenarios[0]!.error).toContain("disk full");
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [],
-      ["probe", "snapshot"],
-      [],
-      { failed: true },
+      expect.objectContaining({
+        errors: [],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: true },
+      }),
     );
   });
 
@@ -1460,22 +1454,19 @@ describe("corpus wiring", () => {
     ).toBe(true);
 
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [
-        {
-          stepIndex: 0,
-          contractId: "clickHistoryMenuMain",
-          stateId: "homePage",
-          error: "locator boom",
-        },
-      ],
-      ["probe", "snapshot"],
-      [],
-      { failed: true },
+      expect.objectContaining({
+        errors: [],
+        failures: [
+          {
+            stepIndex: 0,
+            contractId: "clickHistoryMenuMain",
+            stateId: "homePage",
+            error: "locator boom",
+          },
+        ],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: true },
+      }),
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -1545,22 +1536,19 @@ describe("corpus wiring", () => {
     expect(result.scenarios[0]!.passed).toBe(false);
     expect(result.scenarios[0]!.error).toContain("settle boom");
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [
-        {
-          stepIndex: 0,
-          contractId: "clickHistoryMenuMain",
-          stateId: "homePage",
-          error: "settle boom",
-        },
-      ],
-      ["probe", "snapshot"],
-      [],
-      { failed: true },
+      expect.objectContaining({
+        errors: [],
+        failures: [
+          {
+            stepIndex: 0,
+            contractId: "clickHistoryMenuMain",
+            stateId: "homePage",
+            error: "settle boom",
+          },
+        ],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: true },
+      }),
     );
   });
 
@@ -1589,22 +1577,19 @@ describe("corpus wiring", () => {
     // StepFailure was recorded (failure capture is best-effort).
     expect(result.scenarios[0]!.passed).toBe(false);
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [
-        {
-          stepIndex: 0,
-          contractId: "clickHistoryMenuMain",
-          stateId: "homePage",
-          error: "locator boom",
-        },
-      ],
-      ["probe", "snapshot"],
-      [],
-      { failed: true },
+      expect.objectContaining({
+        errors: [],
+        failures: [
+          {
+            stepIndex: 0,
+            contractId: "clickHistoryMenuMain",
+            stateId: "homePage",
+            error: "locator boom",
+          },
+        ],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: true },
+      }),
     );
 
     if (savedImpl) mockGetByRole.mockImplementation(savedImpl);
@@ -1627,15 +1612,12 @@ describe("corpus wiring", () => {
     expect(collectors.screenshot).not.toHaveBeenCalled();
     // The manifest records the planned post-step set.
     expect(finishRun).toHaveBeenCalledWith(
-      baseConfig.corpusDir,
-      mockCorpusRun,
-      expect.any(String),
-      MODEL_VERSION,
-      [],
-      [],
-      ["probe", "snapshot"],
-      [],
-      { failed: false },
+      expect.objectContaining({
+        errors: [],
+        failures: [],
+        collectors: ["probe", "snapshot"],
+        handoff: { failed: false },
+      }),
     );
   });
 

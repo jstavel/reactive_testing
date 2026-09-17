@@ -91,18 +91,32 @@ export function writeCorpusFile(
  * writes its handoff links on completion: `@last-run` always re-points at this
  * run, and `@last-fail` re-points when the run failed / is removed when it
  * passed. Callers that omit `handoff` (offline harnesses) touch no links.
+ * The input object requires the manifest fields and defaults `bootstrap` to `[]`.
  */
-export function finishRun(
-  corpusDir: string,
-  run: CorpusRun,
-  timestamp: string,
-  planModelVersion: string,
-  errors: CollectorError[],
-  failures: StepFailure[],
-  collectors: CollectorName[],
-  bootstrap: BootstrapRecord[] = [],
-  handoff?: { failed: boolean },
-): void {
+export interface FinishRunInput {
+  corpusDir: string;
+  run: CorpusRun;
+  timestamp: string;
+  planModelVersion: string;
+  errors: CollectorError[];
+  failures: StepFailure[];
+  collectors: CollectorName[];
+  bootstrap?: BootstrapRecord[] | null;
+  handoff?: { failed: boolean };
+}
+
+export function finishRun({
+  corpusDir,
+  run,
+  timestamp,
+  planModelVersion,
+  errors,
+  failures,
+  collectors,
+  bootstrap,
+  handoff,
+}: FinishRunInput): void {
+  const bootstrapRecords = bootstrap ?? [];
   const manifest: RunManifest = {
     runId: run.runId,
     timestamp,
@@ -111,7 +125,7 @@ export function finishRun(
     errors: [...errors],
     failures: [...failures],
     collectors: [...collectors],
-    bootstrap: [...bootstrap],
+    bootstrap: [...bootstrapRecords],
   };
   assertSafeRunId(run.runId);
   const manifestDir = join(corpusDir, run.runId);

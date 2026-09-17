@@ -250,6 +250,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-corpus-handoff-links.md`
   summary: `finishRun`'s `handoff` object is an eighth positional argument, so every existing `finishRun` assertion had to be updated with a trailing `{ failed: … }` — a params-object/options shape (or defaulting on the callers) would reduce churn and misordering risk as the signature grows.
   evidence: Verification-gap review noted the mechanical `{ failed: … }` insertions across orchestrator.test.ts and corpus.test.ts; positional overload was accepted for this change but should be revisited when finishRun gains its next parameter.
+  RESOLVED (2026-09-17): shipped as finishRun-params-object — `orchestrator/corpus.ts` accepts a single `FinishRunInput` options object and all corpus finisher call sites use named fields while preserving defaults and handoff behavior.
 
 
 ## RFC (parked 2026-09-08): compile every `Given` into deterministic FSM navigation, not documentation text only
@@ -365,7 +366,7 @@
 
 ## Sweep triage (2026-09-16)
 
-Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 27 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 10 buildable entries grouped into 7 bundles (open, listed below).
+Interactive triage of every open entry against the current code. Result: 53 open entries partitioned into 28 already-resolved (annotated above), 5 skipped/superseded (annotated above), 11 human decisions (open, listed below), and 9 buildable entries grouped into 7 bundles (open, listed below).
 
 **Bundles (buildable now, each sized for one dev session):**
 - `corpus-schema-field-tightening` — L1 (Zod field-level tightening), L53 (`capturedAt` ISO), L172 (`timingMs`/StepEvidence schema). Touchpoint: model/schemas.ts.
@@ -379,7 +380,6 @@ Interactive triage of every open entry against the current code. Result: 53 open
 - `cross-view-failure-render-test` — L130 (integrate a failing cross-view invariant through `emitFailureGherkin`). Touchpoints: reporter/failure-gherkin.test.ts, validators/cross-view.test.ts.
 - `history-effect-validation` — L245 (probe/validator effect assertions for History filter + pagination contracts). Touchpoints: model/contracts.ts, validators/validator-map.ts.
 - `fixture-gitignore-test` — L297 (automated `git check-ignore` trackability test for the example fixture vs real-run paths). Touchpoint: test suite (+ `.gitignore`).
-- `finishRun-params-object` — L222 (refactor the growing positional `finishRun` signature to an options object). Touchpoint: orchestrator/corpus.ts.
 
 **Decisions (human-owned, left open):**
 - L45 — strict per-step execution budget vs current per-operation bounds.

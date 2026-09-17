@@ -28,7 +28,15 @@ function finish(
   run: CorpusRun,
   collectors: CollectorName[] = ["snapshot", "probe"],
 ): void {
-  finishRun(corpusDir, run, "2026-09-01T00:00:00.000Z", "plan-hash", [], [], collectors);
+  finishRun({
+    corpusDir,
+    run,
+    timestamp: "2026-09-01T00:00:00.000Z",
+    planModelVersion: "plan-hash",
+    errors: [],
+    failures: [],
+    collectors,
+  });
 }
 
 function writeSnapshot(

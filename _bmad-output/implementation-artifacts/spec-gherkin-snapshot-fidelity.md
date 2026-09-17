@@ -54,12 +54,12 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-^- [x] `reporter/gherkin-snapshot.ts` -- `extractScenario`: match `Scenario:` and `Scenario Outline:` by title; extend `start` upward over contiguous `@` lines; drop `Examples:` from the end-boundary; slice verbatim.
-^- [x] `model/relations.ts` -- export `deriveScenarioId` (kebab derivation) and `assertUniqueScenarioIds` (named throw); guard `relationsByScenarioId` with it.
-^- [x] `reporter/gherkin-snapshot.ts` -- call `assertUniqueScenarioIds(relations)` at the top of `buildGherkinSnapshot`.
-^- [x] `reporter/gherkin-snapshot.test.ts` -- add fixtures/tests: outline+Examples extraction (incl. multi-Examples and EOF end), tag inclusion (incl. tags above the last scenario), feature-tag non-attachment, duplicate-id throw, and plain-scenario byte-identity with the existing fixture.
-^- [x] `model/relations.test.ts` (new) -- derivation conformance for all seeded relations + edge inputs; `assertUniqueScenarioIds` pass/throw; `relationsByScenarioId` duplicate throw.
-^- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L142/L146/L150/L154/L158 `RESOLVED (2026-09-16)` and reconcile the sweep-triage bundle line.
+- [x] `reporter/gherkin-snapshot.ts` -- `extractScenario`: match `Scenario:` and `Scenario Outline:` by title; extend `start` upward over contiguous `@` lines; drop `Examples:` from the end-boundary; slice verbatim.
+- [x] `model/relations.ts` -- export `deriveScenarioId` (kebab derivation) and `assertUniqueScenarioIds` (named throw); guard `relationsByScenarioId` with it.
+- [x] `reporter/gherkin-snapshot.ts` -- call `assertUniqueScenarioIds(relations)` at the top of `buildGherkinSnapshot`.
+- [x] `reporter/gherkin-snapshot.test.ts` -- add fixtures/tests: outline+Examples extraction (incl. multi-Examples and EOF end), tag inclusion (incl. tags above the last scenario), feature-tag non-attachment, duplicate-id throw, and plain-scenario byte-identity with the existing fixture.
+- [x] `model/relations.test.ts` (new) -- derivation conformance for all seeded relations + edge inputs; `assertUniqueScenarioIds` pass/throw; `relationsByScenarioId` duplicate throw.
+- [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- mark L142/L146/L150/L154/L158 `RESOLVED (2026-09-16)` and reconcile the sweep-triage bundle line.
 
 **Acceptance Criteria:**
 - Given a feature containing a `Scenario Outline` with an `Examples:` table and `@` tags, when the snapshot is built for its relation, then the extracted block contains the `Scenario Outline:` line, every step, the `Examples:` table, and the tag lines, verbatim.

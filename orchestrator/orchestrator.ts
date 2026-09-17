@@ -257,20 +257,20 @@ export async function runTestPlan(
     // run removes it. Collector gaps never trigger it (they are gaps, not
     // failures — AD-16).
     const runFailed = scenarioResults.some((scenario) => !scenario.passed);
-    finishRun(
-      config.corpusDir,
-      corpus,
-      runTimestamp,
+    finishRun({
+      corpusDir: config.corpusDir,
+      run: corpus,
+      timestamp: runTimestamp,
       // The executed plan's version is the recorded provenance (story 6):
       // after the modelVersion gate above, parsed.modelVersion IS the current
       // model — the manifest encodes exactly what was validated at record time.
-      parsed.modelVersion,
-      collectorErrors,
-      stepFailures,
-      plannedCollectors,
-      bootstrapRecords,
-      { failed: runFailed },
-    );
+      planModelVersion: parsed.modelVersion,
+      errors: collectorErrors,
+      failures: stepFailures,
+      collectors: plannedCollectors,
+      bootstrap: bootstrapRecords,
+      handoff: { failed: runFailed },
+    });
   } finally {
     await closeBrowser();
   }
