@@ -212,11 +212,11 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Verify the deployed report is live (report.v1 schema)
+      - name: Verify the deployed report is live (report.v2 schema)
         run: |
           curl -fsS --retry 5 --retry-connrefused --retry-all-errors \
             "${{ steps.deployment.outputs.page_url }}corpus/example/report.json" \
-            | jq -e '.schema == "report.v1"'
+            | jq -e '.schema == "report.v2"'
 
       - name: Verify the deployed tests summary is live (badge feed — numbers, passed == total)
         run: |
